@@ -47,7 +47,9 @@ test('rejects requests without a valid token', async () => {
   assert.equal(res.status, 401);
 });
 
-test('CORS allows the GitHub Pages origin only', async () => {
+test('CORS allows the dashboard origins only', async () => {
+  const dom = await fetch(`${API}/api/state`, { method: 'OPTIONS', headers: { Origin: 'https://bot.labtoso.de' } });
+  assert.equal(dom.headers.get('access-control-allow-origin'), 'https://bot.labtoso.de');
   const ok = await fetch(`${API}/api/state`, { method: 'OPTIONS', headers: { Origin: 'https://labtoso.github.io' } });
   assert.equal(ok.headers.get('access-control-allow-origin'), 'https://labtoso.github.io');
   const bad = await fetch(`${API}/api/state`, { method: 'OPTIONS', headers: { Origin: 'https://evil.example' } });

@@ -23,8 +23,8 @@ export const config = {
   // Public HTTPS address of the API. Empty = start a Cloudflare quick tunnel automatically.
   publicUrl: (env.PUBLIC_URL || '').replace(/\/+$/, ''),
   tunnel: (env.TUNNEL || 'auto').toLowerCase(),
-  dashboardUrl: (env.DASHBOARD_URL || 'https://labtoso.github.io/Bots/Msik/').replace(/\/?$/, '/'),
-  allowedOrigins: (env.ALLOWED_ORIGINS || 'https://labtoso.github.io,http://localhost:5500,http://127.0.0.1:5500')
+  dashboardUrl: (env.DASHBOARD_URL || 'https://bot.labtoso.de/Msik/').replace(/\/?$/, '/'),
+  allowedOrigins: (env.ALLOWED_ORIGINS || 'https://bot.labtoso.de,https://labtoso.github.io,http://localhost:5500,http://127.0.0.1:5500')
     .split(',').map((s) => s.trim()).filter(Boolean),
   secret: env.SESSION_SECRET || '',
   sessionHours: Number(env.SESSION_HOURS || 12),

@@ -2,7 +2,7 @@
 
 Discord-Musikbot mit einem einzigen Befehl: **`/web`**. Er schickt dir einen persönlichen Link zum Dashboard, und dort steuerst du alles: Suche, Warteschlange, Cover, Titel, Lautstärke, Wiederholen, Effekte und Autoplay.
 
-Dashboard: https://labtoso.github.io/Bots/Msik/ (Branch `gh-pages`)
+Dashboard: https://bot.labtoso.de/Msik/ (Branch `gh-pages`, veröffentlicht über GitHub Actions)
 
 ## So hängt alles zusammen
 
