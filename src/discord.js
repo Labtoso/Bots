@@ -120,6 +120,7 @@ export function createDiscordBot() {
 
   return {
     getPlayer, getGuildInfo, getMember,
+    getName: () => client.user?.username || null,
     setPublicUrl: (u) => { publicUrl = u; },
     start: () => client.login(config.token),
   };

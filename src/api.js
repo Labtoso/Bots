@@ -56,7 +56,9 @@ export function createApi(bot) {
     const url = new URL(req.url, 'http://x');
     const p = url.pathname;
 
-    if (p === '/' || p === '/health') return send(res, 200, { ok: true, name: 'msik' });
+    if (p === '/' || p === '/health') {
+      return send(res, 200, { ok: true, name: 'msik', backend: config.backendName || bot.getName?.() || 'Msik', bot: bot.getName?.() || null });
+    }
 
     const token = (req.headers.authorization || '').replace(/^Bearer\s+/i, '') || url.searchParams.get('token');
     const session = verifyToken(token);

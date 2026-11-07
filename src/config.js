@@ -32,6 +32,8 @@ export const config = {
   defaultVolume: Number(env.DEFAULT_VOLUME || 60),
   maxQueue: Number(env.MAX_QUEUE || 500),
   guildId: env.GUILD_ID || '', // optional: register /web instantly on one server
+  // Name shown in the dashboard's backend list, e.g. "VPS" or "Home PC"
+  backendName: env.BACKEND_NAME || '',
   mock: env.MOCK === '1',
   binDir: path.join(ROOT, 'bin'),
 };

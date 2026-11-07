@@ -15,6 +15,7 @@ export function createMockBot() {
   };
   return {
     getPlayer,
+    getName: () => 'Msik Test',
     getGuildInfo: async (id) => ({ id, name: 'Testserver', icon: null }),
     getMember: async (gid, uid) => ({ id: uid, voiceChannelId: 'voice-1' }),
     setPublicUrl: (u) => { publicUrl = u; },

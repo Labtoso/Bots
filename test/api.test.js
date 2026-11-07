@@ -42,6 +42,14 @@ test.before(async () => {
 });
 test.after(() => proc?.kill());
 
+test('health is public and names the backend', async () => {
+  const res = await fetch(`${API}/health`, { headers: { Origin: 'https://bot.labtoso.de' } });
+  const data = await res.json();
+  assert.equal(data.ok, true);
+  assert.equal(data.bot, 'Msik Test');
+  assert.equal(res.headers.get('access-control-allow-origin'), 'https://bot.labtoso.de');
+});
+
 test('rejects requests without a valid token', async () => {
   const res = await fetch(`${API}/api/state`);
   assert.equal(res.status, 401);
