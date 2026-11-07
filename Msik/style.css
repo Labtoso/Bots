@@ -15,7 +15,7 @@
   --r-panel: 16px;
   color-scheme: dark;
 }
-body[data-accent="green"] { --accent: #22c55e; --accent-ink: #06140b; }
+body[data-accent="green"] { --accent: #22c55e; }
 body[data-accent="purple"] { --accent: #8b5cf6; }
 
 * { box-sizing: border-box; }
@@ -233,8 +233,11 @@ input[type=range]:disabled { opacity: .4; }
 .drawer { overflow-y: auto; }
 
 /* logo follows the accent colour */
+.logo { stroke: none; flex: none; }
+.brand .logo { width: 22px; height: 22px; }
+.gate .logo { width: 56px; height: 56px; }
 .logo rect { fill: var(--accent); transition: fill .15s; }
-.logo path { fill: var(--accent-ink); }
+.logo path { fill: #fff; }
 
 /* tutorial */
 .modal-bg { position: fixed; inset: 0; background: rgba(5, 6, 9, .55); backdrop-filter: blur(6px); -webkit-backdrop-filter: blur(6px); z-index: 40; }
