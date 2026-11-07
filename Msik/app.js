@@ -37,6 +37,8 @@ const T = {
     gateOffline: 'Bot nicht erreichbar', gateOfflineText: 'Der Bot ist offline oder wurde neu gestartet. Hol dir mit /web einen neuen Link.',
     gateExpired: 'Sitzung abgelaufen', retry: 'Erneut versuchen', reconnecting: 'Verbindung wird wiederhergestellt',
     autoplayTag: 'Autoplay', lenTotal: '{n} Titel · {d}',
+    backend: 'Backend', addBackend: 'Hinzufügen', chooseBackend: 'Backend wählen', noToken: 'Kein Link, nutze /web',
+    invalidUrl: 'Ungültige Adresse (https://…)', backendAdded: 'Backend hinzugefügt', gateNoBackend: 'Kein Backend gewählt',
   },
   en: {
     settings: 'Settings', close: 'Close', shuffle: 'Shuffle', previous: 'Previous', next: 'Next',
@@ -52,6 +54,8 @@ const T = {
     gateOffline: 'Bot unreachable', gateOfflineText: 'The bot is offline or was restarted. Get a new link with /web.',
     gateExpired: 'Session expired', retry: 'Try again', reconnecting: 'Reconnecting',
     autoplayTag: 'Autoplay', lenTotal: '{n} tracks · {d}',
+    backend: 'Backend', addBackend: 'Add', chooseBackend: 'Choose backend', noToken: 'No link, use /web',
+    invalidUrl: 'Invalid address (https://…)', backendAdded: 'Backend added', gateNoBackend: 'No backend selected',
   },
 };
 
@@ -65,18 +69,114 @@ const store = {
 let lang = store.get('lang', (navigator.language || 'de').startsWith('de') ? 'de' : 'en');
 const t = (k, vars = {}) => (T[lang][k] || k).replace(/\{(\w+)\}/g, (_, v) => vars[v] ?? '');
 
-/* ---------- session from the /web link ---------- */
-function readSession() {
-  const h = new URLSearchParams(location.hash.slice(1));
-  if (h.get('api') && h.get('t')) {
-    const s = { api: h.get('api').replace(/\/+$/, ''), token: h.get('t') };
-    store.set('session', s);
-    history.replaceState(null, '', location.pathname + location.search);
-    return s;
-  }
-  return store.get('session', null);
+/* ---------- backends + session from the /web link ---------- */
+const norm = (u) => String(u || '').trim().replace(/\/+$/, '');
+let backends = store.get('backends', []);
+const legacy = store.get('session', null);
+if (legacy?.api) { backends.push({ api: norm(legacy.api), token: legacy.token }); store.del('session'); }
+let activeApi = store.get('active', backends[0]?.api || null);
+
+function saveBackends() { store.set('backends', backends); store.set('active', activeApi); }
+function upsertBackend(api, data = {}) {
+  api = norm(api);
+  let b = backends.find((x) => x.api === api);
+  if (!b) { b = { api }; backends.push(b); }
+  Object.assign(b, data);
+  saveBackends();
+  return b;
 }
-let session = readSession();
+function readLink() {
+  const h = new URLSearchParams(location.hash.slice(1));
+  if (!h.get('api') || !h.get('t')) return false;
+  upsertBackend(h.get('api'), { token: h.get('t') });
+  activeApi = norm(h.get('api'));
+  saveBackends();
+  history.replaceState(null, '', location.pathname + location.search);
+  return true;
+}
+readLink();
+window.addEventListener('hashchange', () => { if (readLink()) { renderBackends(); restart(); } });
+let session = null;
+function pickSession() {
+  const b = backends.find((x) => x.api === activeApi);
+  session = b?.token ? { api: b.api, token: b.token } : null;
+  return b || null;
+}
+pickSession();
+
+// Shared list of known backends (gh-pages: Msik/backends.json), merged without tokens.
+async function loadPresetBackends() {
+  try {
+    const res = await fetch('backends.json', { cache: 'no-store' });
+    if (!res.ok) return;
+    const list = await res.json();
+    for (const p of list) {
+      if (!/^https:\/\//.test(p.api || '')) continue;
+      const b = backends.find((x) => x.api === norm(p.api));
+      if (!b) backends.push({ api: norm(p.api), name: p.name, preset: true });
+      else if (!b.name) b.name = p.name;
+    }
+    if (!activeApi && backends[0]) activeApi = backends[0].api;
+    saveBackends();
+  } catch { /* optional file */ }
+}
+
+const health = new Map(); // api -> { ok, name }
+async function checkHealth(b) {
+  try {
+    const ctl = new AbortController();
+    const timer = setTimeout(() => ctl.abort(), 5000);
+    const res = await fetch(`${b.api}/health`, { signal: ctl.signal });
+    clearTimeout(timer);
+    const d = await res.json();
+    health.set(b.api, { ok: !!d.ok, name: d.backend || d.bot });
+    if (d.backend && !b.preset) b.name = d.backend;
+  } catch {
+    health.set(b.api, { ok: false });
+  }
+  renderBackends();
+}
+
+function renderBackends() {
+  const list = $('backendList');
+  list.replaceChildren();
+  for (const b of backends) {
+    const li = el('li', b.api === activeApi ? 'active' : '');
+    const h = health.get(b.api);
+    const dot = el('span', `dot ${h ? (h.ok ? 'on' : 'off') : ''}`);
+    const btn = el('button', 'bk');
+    btn.type = 'button';
+    let host = b.api;
+    try { host = new URL(b.api).host; } catch { /* keep */ }
+    btn.append(el('b', '', b.name || h?.name || host), el('span', '', b.token ? host : `${host} · ${t('noToken')}`));
+    btn.title = b.api;
+    btn.onclick = () => selectBackend(b.api);
+    li.append(dot, btn, iconBtn('x', t('remove'), () => removeBackend(b.api)));
+    list.append(li);
+  }
+}
+
+function selectBackend(api) {
+  activeApi = api;
+  saveBackends();
+  renderBackends();
+  openDrawer(false);
+  restart();
+}
+function removeBackend(api) {
+  backends = backends.filter((b) => b.api !== api);
+  if (activeApi === api) activeApi = backends[0]?.api || null;
+  saveBackends();
+  renderBackends();
+  restart();
+}
+function restart() {
+  es?.close();
+  state = null;
+  sessInfo = null;
+  $('sessionInfo').textContent = '';
+  start();
+}
 
 /* ---------- API ---------- */
 async function api(path, { method = 'GET', body } = {}) {
@@ -363,7 +463,7 @@ function showGate(kind) {
   $('server').hidden = true;
   $('userAvatar').hidden = true;
   $('gate').hidden = false;
-  $('gateTitle').textContent = t({ none: 'gateNoLink', offline: 'gateOffline', expired: 'gateExpired' }[kind]);
+  $('gateTitle').textContent = t({ none: 'gateNoLink', offline: 'gateOffline', expired: 'gateExpired', nobackend: 'gateNoBackend' }[kind]);
   $('gateText').textContent = t(kind === 'offline' ? 'gateOfflineText' : 'gateNoLinkText');
   $('gateRetry').hidden = kind !== 'offline';
   $('gateRetry').textContent = t('retry');
@@ -371,6 +471,8 @@ function showGate(kind) {
 }
 
 async function start() {
+  pickSession();
+  if (!activeApi) return showGate('nobackend');
   if (!session) return showGate('none');
   try {
     const s = await api('/api/session');
@@ -405,6 +507,7 @@ function applyLang() {
   $('filter').options[0].textContent = t('filterNone');
   document.querySelectorAll('#langSeg button').forEach((b) => b.classList.toggle('active', b.dataset.lang === lang));
   renderSessionInfo();
+  renderBackends();
   if (state) render(state);
 }
 function applyAccent(a) {
@@ -439,7 +542,7 @@ $('btnShuffle').innerHTML = svg('shuffle');
 $('searchIcon').innerHTML = svg('search');
 $('coverPh').innerHTML = svg('note');
 
-$('openSettings').onclick = () => openDrawer(true);
+$('openSettings').onclick = () => { renderBackends(); backends.forEach(checkHealth); openDrawer(true); };
 $('closeSettings').onclick = () => openDrawer(false);
 $('drawerBg').onclick = () => openDrawer(false);
 document.addEventListener('keydown', (e) => {
@@ -453,7 +556,22 @@ document.querySelectorAll('#langSeg button').forEach((b) => b.addEventListener('
 document.querySelectorAll('.sw').forEach((b) => b.addEventListener('click', () => {
   store.set('accent', b.dataset.accent); applyAccent(b.dataset.accent);
 }));
-$('logout').onclick = () => { store.del('session'); session = null; openDrawer(false); showGate('none'); };
+$('logout').onclick = () => {
+  const b = backends.find((x) => x.api === activeApi);
+  if (b) { delete b.token; saveBackends(); }
+  session = null; openDrawer(false); renderBackends(); showGate('none');
+};
+$('gateBackend').onclick = () => { renderBackends(); backends.forEach(checkHealth); openDrawer(true); };
+$('addBackend').addEventListener('submit', (e) => {
+  e.preventDefault();
+  const v = norm($('backendInput').value);
+  if (!/^https:\/\/[^\s/]+/.test(v) && !/^http:\/\/(localhost|127\.0\.0\.1)(:\d+)?/.test(v)) return toast(t('invalidUrl'), true);
+  const b = upsertBackend(v);
+  $('backendInput').value = '';
+  toast(t('backendAdded'));
+  checkHealth(b);
+  selectBackend(v);
+});
 $('gateRetry').onclick = () => start();
 
 $('btnPlay').onclick = () => control('toggle');
@@ -514,4 +632,4 @@ document.querySelectorAll('.tab').forEach((b) => b.addEventListener('click', () 
 
 applyAccent(store.get('accent', 'blue'));
 applyLang();
-start();
+loadPresetBackends().then(() => { renderBackends(); start(); });

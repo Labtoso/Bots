@@ -105,7 +105,10 @@
   <img src="icon.svg" alt="" width="56" height="56">
   <h2 id="gateTitle"></h2>
   <p class="muted" id="gateText"></p>
-  <button class="btn" id="gateRetry" hidden></button>
+  <div class="gate-actions">
+    <button class="btn" id="gateRetry" hidden></button>
+    <button class="btn ghost" id="gateBackend" data-i18n="chooseBackend"></button>
+  </div>
 </section>
 
 <div class="drawer-bg" id="drawerBg" hidden></div>
@@ -127,6 +130,14 @@
       <button data-accent="green" class="sw" style="--c:#22c55e"></button>
       <button data-accent="purple" class="sw" style="--c:#8b5cf6"></button>
     </div>
+  </div>
+  <div class="field">
+    <span class="label" data-i18n="backend"></span>
+    <ul class="backends" id="backendList"></ul>
+    <form class="add-backend" id="addBackend" autocomplete="off">
+      <input id="backendInput" type="url" placeholder="https://api.example.com" required>
+      <button class="btn sm" type="submit" data-i18n="addBackend"></button>
+    </form>
   </div>
   <div class="field">
     <span class="label" data-i18n="session"></span>

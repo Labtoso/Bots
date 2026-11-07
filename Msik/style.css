@@ -212,6 +212,26 @@ input[type=range]:disabled { opacity: .4; }
 .sw.active { outline: 2px solid var(--text); }
 .drawer-foot { margin-top: auto; }
 
+/* backends */
+.backends { list-style: none; margin: 0; padding: 0; width: 100%; display: grid; gap: 4px; }
+.backends li {
+  display: grid; grid-template-columns: 8px minmax(0, 1fr) auto; align-items: center; gap: 10px;
+  padding: 7px 6px 7px 10px; border-radius: var(--r-ctl); border: 1px solid transparent;
+}
+.backends li:hover { background: var(--hover); }
+.backends li.active { background: var(--hover); border-color: var(--line); }
+.backends .bk { min-width: 0; text-align: left; background: none; border: 0; padding: 0; }
+.backends .bk b { display: block; font-weight: 500; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+.backends .bk span { display: block; font-size: 12px; color: var(--muted); white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+.add-backend { display: flex; gap: 6px; width: 100%; }
+.add-backend input {
+  flex: 1; min-width: 0; height: 32px; border-radius: var(--r-ctl); border: 1px solid var(--line); background: var(--panel-2);
+  padding: 0 10px; outline: none; font-size: 13px;
+}
+.add-backend input:focus { border-color: var(--accent); }
+.gate-actions { display: flex; gap: 8px; }
+.drawer { overflow-y: auto; }
+
 /* toast */
 .toast {
   position: fixed; left: 50%; bottom: 24px; transform: translateX(-50%); background: var(--panel-2); border: 1px solid var(--line);
