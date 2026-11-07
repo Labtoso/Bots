@@ -1,0 +1,21 @@
+[Unit]
+Description=Msik Discord music bot
+After=network-online.target
+Wants=network-online.target
+
+[Service]
+Type=simple
+User=msik
+WorkingDirectory=/opt/msik
+ExecStart=/usr/bin/node src/index.js
+Restart=always
+RestartSec=5
+Environment=NODE_ENV=production
+NoNewPrivileges=true
+ProtectSystem=full
+ProtectHome=true
+PrivateTmp=true
+ReadWritePaths=/opt/msik
+
+[Install]
+WantedBy=multi-user.target

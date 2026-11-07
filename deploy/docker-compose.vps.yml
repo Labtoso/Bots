@@ -1,0 +1,32 @@
+# VPS setup: bot + Caddy (automatic HTTPS from Let's Encrypt).
+# Needs a DNS A record API_DOMAIN -> VPS IP and open ports 80/443.
+# Start from the repo root: docker compose -f deploy/docker-compose.vps.yml up -d --build
+services:
+  msik:
+    build: ..
+    restart: unless-stopped
+    env_file: ../.env
+    environment:
+      TUNNEL: "off"
+      PUBLIC_URL: "https://${API_DOMAIN}"
+      PORT: "8080"
+    expose:
+      - "8080"
+
+  caddy:
+    image: caddy:2
+    restart: unless-stopped
+    depends_on: [msik]
+    ports:
+      - "80:80"
+      - "443:443"
+    environment:
+      API_DOMAIN: "${API_DOMAIN}"
+    volumes:
+      - ./Caddyfile:/etc/caddy/Caddyfile:ro
+      - caddy_data:/data
+      - caddy_config:/config
+
+volumes:
+  caddy_data:
+  caddy_config:

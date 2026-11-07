@@ -1,0 +1,7 @@
+{$API_DOMAIN} {
+	encode gzip
+	reverse_proxy {$UPSTREAM:msik:8080} {
+		# keep live updates (server-sent events) flowing
+		flush_interval -1
+	}
+}

@@ -27,6 +27,29 @@ Weil Pages über HTTPS läuft, braucht auch die API HTTPS. Das erledigt der Bot 
    - **Docker:** `.env` anlegen (Vorlage `.env.example`), dann `docker compose up -d --build`.
 5. In Discord in einen Sprachkanal gehen und `/web` eingeben.
 
+## Auf einem VPS (empfohlen für Dauerbetrieb)
+
+Du brauchst einen Linux-VPS (Debian/Ubuntu, 1 GB RAM reicht) und eine Subdomain für die API, z. B. `api.labtoso.de` mit einem **A-Record auf die IP des VPS**. Ports 80 und 443 müssen offen sein. Das HTTPS-Zertifikat holt Caddy automatisch.
+
+**Mit Docker:**
+```
+git clone -b Msik https://github.com/Labtoso/Bots.git msik && cd msik
+cp .env.example .env        # DISCORD_TOKEN, BACKEND_NAME=VPS und SESSION_SECRET eintragen
+API_DOMAIN=api.labtoso.de docker compose -f deploy/docker-compose.vps.yml up -d --build
+```
+
+**Ohne Docker (systemd):**
+```
+curl -fsSL https://raw.githubusercontent.com/Labtoso/Bots/Msik/deploy/install-vps.sh | sudo bash -s -- --token <BOT_TOKEN> --domain api.labtoso.de --name VPS
+```
+Das Skript installiert Node.js, ffmpeg und Caddy, legt den Dienst `msik` an und startet ihn. Logs: `journalctl -u msik -f`, Update: Skript nochmal ausführen. Ohne `--domain` nutzt es den Cloudflare-Tunnel.
+
+Danach im Dashboard unter **Einstellungen → Backend** die Adresse `https://api.labtoso.de` hinzufügen und in Discord `/web` ausführen.
+
+## Mehrere Backends
+
+Das Dashboard merkt sich jedes Backend, über dessen `/web`-Link du es geöffnet hast. In den Einstellungen kannst du zwischen ihnen wechseln (z. B. VPS und PC), weitere Adressen hinzufügen oder entfernen. Feste Einträge für alle stehen in `Msik/backends.json` im Branch `gh-pages`. Der Name in der Liste kommt aus `BACKEND_NAME`.
+
 ## Feste Adresse (optional)
 
 Mit einem eigenen Cloudflare Tunnel oder einem Server mit HTTPS `PUBLIC_URL=https://…` und `SESSION_SECRET=` (beliebiger langer Text) in `.env` setzen. Dann bleiben Links auch nach einem Neustart gültig.
