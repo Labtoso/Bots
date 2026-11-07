@@ -4,6 +4,6 @@ Discord-Bots von LabtosoStudios. Jeder Bot hat seinen eigenen Branch, die Dashbo
 
 | Bot | Branch | Dashboard |
 |---|---|---|
-| Msik (Musik) | [`Msik`](../../tree/Msik) | https://labtoso.github.io/Bots/Msik/ |
+| Msik (Musik) | [`Msik`](../../tree/Msik) | https://bot.labtoso.de/Msik/ |
 
-Dashboards: Branch [`gh-pages`](../../tree/gh-pages), veröffentlicht über GitHub Actions.
+Dashboards: Branch [`gh-pages`](../../tree/gh-pages), veröffentlicht über GitHub Actions unter https://bot.labtoso.de.
