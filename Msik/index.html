@@ -15,8 +15,9 @@
 <body data-accent="blue">
 <header class="top">
   <button class="icon-btn" id="openSettings" data-i18n-title="settings"></button>
-  <div class="brand"><img src="icon.svg" alt="" width="22" height="22"><span>Msik</span></div>
+  <div class="brand"><svg class="logo" viewBox="0 0 64 64" width="22" height="22" aria-hidden="true"><rect width="64" height="64" rx="16"/><path d="M26 44a6 6 0 1 1-4-5.66V20l22-5v22a6 6 0 1 1-4-5.66V22.2l-14 3.2Z"/></svg><span>Msik</span></div>
   <div class="top-right">
+    <button class="icon-btn" id="openHelp" data-i18n-title="help"></button>
     <div class="server" id="server" hidden>
       <img id="serverIcon" alt="" width="28" height="28">
       <span id="serverName"></span>
@@ -102,12 +103,13 @@
 </main>
 
 <section class="gate" id="gate" hidden>
-  <img src="icon.svg" alt="" width="56" height="56">
+  <svg class="logo" viewBox="0 0 64 64" width="56" height="56" aria-hidden="true"><rect width="64" height="64" rx="16"/><path d="M26 44a6 6 0 1 1-4-5.66V20l22-5v22a6 6 0 1 1-4-5.66V22.2l-14 3.2Z"/></svg>
   <h2 id="gateTitle"></h2>
   <p class="muted" id="gateText"></p>
   <div class="gate-actions">
     <button class="btn" id="gateRetry" hidden></button>
     <button class="btn ghost" id="gateBackend" data-i18n="chooseBackend"></button>
+    <button class="btn primary" id="gateHelp" data-i18n="tutorial"></button>
   </div>
 </section>
 
@@ -140,12 +142,30 @@
     </form>
   </div>
   <div class="field">
+    <button class="btn ghost sm" id="drawerHelp" data-i18n="tutorial"></button>
+  </div>
+  <div class="field">
     <span class="label" data-i18n="session"></span>
     <p class="muted small" id="sessionInfo"></p>
     <button class="btn ghost sm" id="logout" data-i18n="logout"></button>
   </div>
   <footer class="drawer-foot muted small">© LabtosoStudios</footer>
 </aside>
+
+<div class="modal-bg" id="helpBg" hidden></div>
+<section class="modal" id="help" role="dialog" aria-modal="true" aria-labelledby="helpTitle" hidden>
+  <div class="modal-head">
+    <span class="muted small num" id="helpStep"></span>
+    <button class="icon-btn" id="closeHelp" data-i18n-title="close"></button>
+  </div>
+  <h2 id="helpTitle"></h2>
+  <div class="help-body" id="helpBody"></div>
+  <div class="help-dots" id="helpDots"></div>
+  <div class="modal-foot">
+    <button class="btn ghost" id="helpPrev" data-i18n="back"></button>
+    <button class="btn primary" id="helpNext"></button>
+  </div>
+</section>
 
 <div class="toast" id="toast" hidden></div>
 <script src="app.js" type="module"></script>

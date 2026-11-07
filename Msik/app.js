@@ -17,6 +17,7 @@ const I = {
   plus: '<path d="M12 5v14"/><path d="M5 12h14"/>',
   up: '<path d="m6 15 6-6 6 6"/>',
   playSm: '<path d="M8 5.5v13l11-6.5-11-6.5Z"/>',
+  help: '<circle cx="12" cy="12" r="9"/><path d="M9.5 9.2a2.6 2.6 0 0 1 5 .9c0 1.7-2.5 2.3-2.5 3.9"/><path d="M12 17h.01"/>',
   note: '<path d="M9 18V5l12-2v13"/><circle cx="6" cy="18" r="3"/><circle cx="18" cy="16" r="3"/>',
 };
 const svg = (n) => `<svg viewBox="0 0 24 24" aria-hidden="true">${I[n]}</svg>`;
@@ -38,6 +39,7 @@ const T = {
     gateExpired: 'Sitzung abgelaufen', retry: 'Erneut versuchen', reconnecting: 'Verbindung wird wiederhergestellt',
     autoplayTag: 'Autoplay', lenTotal: '{n} Titel · {d}',
     backend: 'Backend', addBackend: 'Hinzufügen', chooseBackend: 'Backend wählen', noToken: 'Kein Link, nutze /web',
+    help: 'Anleitung', tutorial: 'Anleitung', back: 'Zurück', nextStep: 'Weiter', done: 'Fertig', stepOf: 'Schritt {a} von {b}',
     invalidUrl: 'Ungültige Adresse (https://…)', backendAdded: 'Backend hinzugefügt', gateNoBackend: 'Kein Backend gewählt',
   },
   en: {
@@ -55,6 +57,7 @@ const T = {
     gateExpired: 'Session expired', retry: 'Try again', reconnecting: 'Reconnecting',
     autoplayTag: 'Autoplay', lenTotal: '{n} tracks · {d}',
     backend: 'Backend', addBackend: 'Add', chooseBackend: 'Choose backend', noToken: 'No link, use /web',
+    help: 'Guide', tutorial: 'Guide', back: 'Back', nextStep: 'Next', done: 'Done', stepOf: 'Step {a} of {b}',
     invalidUrl: 'Invalid address (https://…)', backendAdded: 'Backend added', gateNoBackend: 'No backend selected',
   },
 };
@@ -508,11 +511,24 @@ function applyLang() {
   document.querySelectorAll('#langSeg button').forEach((b) => b.classList.toggle('active', b.dataset.lang === lang));
   renderSessionInfo();
   renderBackends();
+  if (!$('help').hidden) renderHelp();
   if (state) render(state);
 }
-function applyAccent(a) {
-  document.body.dataset.accent = a;
+const ACCENTS = { blue: '#3b82f6', green: '#22c55e', purple: '#8b5cf6' };
+function markSwatches() {
+  const a = document.body.dataset.accent;
   document.querySelectorAll('.sw').forEach((b) => b.classList.toggle('active', b.dataset.accent === a));
+}
+function setAccent(a) {
+  if (!ACCENTS[a]) return;
+  store.set('accent', a);
+  applyAccent(a);
+}
+function applyAccent(a) {
+  if (!ACCENTS[a]) a = 'blue';
+  document.body.dataset.accent = a;
+  document.querySelector('meta[name=theme-color]')?.setAttribute('content', '#0f1115');
+  markSwatches();
   const c = { blue: '#3b82f6', green: '#22c55e', purple: '#8b5cf6' }[a];
   document.querySelector('link[rel=icon]').href = `data:image/svg+xml,${encodeURIComponent(`<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 64 64"><rect width="64" height="64" rx="16" fill="${c}"/><path d="M26 44a6 6 0 1 1-4-5.66V20l22-5v22a6 6 0 1 1-4-5.66V22.2l-14 3.2Z" fill="#fff"/></svg>`)}`;
 }
@@ -521,6 +537,8 @@ function openDrawer(open) {
   $('drawer').setAttribute('aria-hidden', String(!open));
   $('drawerBg').hidden = !open;
 }
+
+function closeHelpIfOpen() { if (!$('help').hidden) closeHelp(); }
 
 let toastTimer;
 function toast(msg, err = false) {
@@ -531,6 +549,92 @@ function toast(msg, err = false) {
   clearTimeout(toastTimer);
   toastTimer = setTimeout(() => { n.hidden = true; }, 3200);
 }
+
+/* ---------- tutorial ---------- */
+const README = 'https://github.com/Labtoso/Bots/tree/Msik#readme';
+const SW = '<div class="help-swatches"><button class="sw" data-accent="blue" style="--c:#3b82f6"></button><button class="sw" data-accent="green" style="--c:#22c55e"></button><button class="sw" data-accent="purple" style="--c:#8b5cf6"></button></div>';
+const GUIDE = {
+  de: [
+    ['Bot bei Discord anlegen', `<ol>
+      <li>Öffne das <a href="https://discord.com/developers/applications" target="_blank" rel="noopener">Discord Developer Portal</a> und klick auf <b>New Application</b>.</li>
+      <li>Unter <b>Bot</b> auf <b>Reset Token</b> klicken und den Token kopieren. Den Token gibst du niemandem.</li>
+      <li>Unter <b>OAuth2 → URL Generator</b> die Scopes <code>bot</code> und <code>applications.commands</code> wählen, dazu die Rechte <b>Connect</b>, <b>Speak</b> und <b>View Channels</b>. Den Link öffnen und den Bot auf deinen Server holen.</li></ol>`],
+    ['Backend starten', `<p>Das Backend ist der Bot selbst. Er läuft bei dir, das Dashboard hier verbindet sich mit ihm.</p><ol>
+      <li><b>Windows-PC:</b> Branch <code>Msik</code> herunterladen, <code>start.bat</code> starten, den Token in die <code>.env</code> eintragen und nochmal starten.</li>
+      <li><b>VPS:</b> Installationsskript oder Docker mit eigener Domain, z. B. <code>api.labtoso.de</code>. Die Befehle stehen in der <a href="${README}" target="_blank" rel="noopener">Anleitung im Repo</a>.</li></ol>`],
+    ['Dashboard öffnen', `<ol>
+      <li>Geh in Discord in einen Sprachkanal.</li>
+      <li>Schreib <code>/web</code> und klick auf <b>Dashboard öffnen</b>.</li>
+      <li>Der Link gilt 12 Stunden und nur für dich und diesen Server. Ist er abgelaufen, einfach nochmal <code>/web</code>.</li></ol>`],
+    ['Backend wählen', `<ol>
+      <li>Klick oben links aufs <b>Zahnrad</b> und such den Bereich <b>Backend</b>.</li>
+      <li>Ein grüner Punkt heißt online, ein roter offline. Klick auf ein Backend, um zu wechseln.</li>
+      <li>Neues Backend: Adresse eintragen (z. B. <code>https://api.labtoso.de</code>) und <b>Hinzufügen</b>. Danach einmal <code>/web</code> von diesem Bot nutzen, damit du Zugriff bekommst.</li>
+      <li>Mit dem <b>X</b> entfernst du ein Backend aus der Liste.</li></ol>`],
+    ['Musik steuern', `<ol>
+      <li>Oben einen Titel suchen oder einen Link einfügen (YouTube, Spotify, SoundCloud) und <b>Enter</b> drücken.</li>
+      <li><b>+</b> hängt den Titel hinten an, der <b>Pfeil nach oben</b> spielt ihn als Nächstes. Bei Playlists gibt es <b>Alle hinzufügen</b>.</li>
+      <li>Die Warteschlange sortierst du per Ziehen. Doppelklick spielt sofort.</li>
+      <li>Auf dem Fortschrittsbalken spulst du, die <b>Leertaste</b> pausiert. Effekte und Autoplay findest du unter dem Lautstärkeregler.</li></ol>`],
+    ['Farbe und Sprache ändern', `<ol>
+      <li>Klick oben links aufs <b>Zahnrad</b>.</li>
+      <li>Unter <b>Akzentfarbe</b> einen der drei Kreise antippen. Du kannst es auch gleich hier ausprobieren:</li></ol>${SW}
+      <p>Die Farbe ändert sofort Logo, Play-Knopf, Regler, Schalter und Fortschritt und bleibt in diesem Browser gespeichert.</p>
+      <p>Bei <b>Sprache</b> wechselst du zwischen Deutsch und Englisch.</p>`],
+  ],
+  en: [
+    ['Create the bot on Discord', `<ol>
+      <li>Open the <a href="https://discord.com/developers/applications" target="_blank" rel="noopener">Discord Developer Portal</a> and click <b>New Application</b>.</li>
+      <li>Under <b>Bot</b>, click <b>Reset Token</b> and copy it. Never share the token.</li>
+      <li>Under <b>OAuth2 → URL Generator</b>, pick the scopes <code>bot</code> and <code>applications.commands</code> and the permissions <b>Connect</b>, <b>Speak</b> and <b>View Channels</b>. Open the link and add the bot to your server.</li></ol>`],
+    ['Start the backend', `<p>The backend is the bot itself. It runs on your machine, and this dashboard connects to it.</p><ol>
+      <li><b>Windows PC:</b> download the <code>Msik</code> branch, run <code>start.bat</code>, put the token into <code>.env</code> and start it again.</li>
+      <li><b>VPS:</b> install script or Docker with your own domain, e.g. <code>api.labtoso.de</code>. The commands are in the <a href="${README}" target="_blank" rel="noopener">repo guide</a>.</li></ol>`],
+    ['Open the dashboard', `<ol>
+      <li>Join a voice channel in Discord.</li>
+      <li>Type <code>/web</code> and click <b>Open dashboard</b>.</li>
+      <li>The link is valid for 12 hours, only for you and that server. When it expires, just use <code>/web</code> again.</li></ol>`],
+    ['Choose a backend', `<ol>
+      <li>Click the <b>gear</b> at the top left and find <b>Backend</b>.</li>
+      <li>A green dot means online, red means offline. Click a backend to switch.</li>
+      <li>New backend: enter its address (e.g. <code>https://api.labtoso.de</code>) and click <b>Add</b>. Then use <code>/web</code> from that bot once to get access.</li>
+      <li>The <b>X</b> removes a backend from the list.</li></ol>`],
+    ['Control the music', `<ol>
+      <li>Search a track at the top or paste a link (YouTube, Spotify, SoundCloud) and press <b>Enter</b>.</li>
+      <li><b>+</b> adds it to the end, the <b>up arrow</b> plays it next. Playlists get <b>Add all</b>.</li>
+      <li>Drag to reorder the queue. Double-click plays right away.</li>
+      <li>Click the progress bar to seek, <b>Space</b> pauses. Effects and autoplay are below the volume slider.</li></ol>`],
+    ['Change colour and language', `<ol>
+      <li>Click the <b>gear</b> at the top left.</li>
+      <li>Under <b>Accent colour</b>, tap one of the three circles. You can try it right here:</li></ol>${SW}
+      <p>The colour changes the logo, play button, sliders, switches and progress at once and is saved in this browser.</p>
+      <p>Under <b>Language</b> you switch between German and English.</p>`],
+  ],
+};
+let helpIdx = 0;
+function renderHelp() {
+  const steps = GUIDE[lang];
+  const [title, html] = steps[helpIdx];
+  $('helpTitle').textContent = title;
+  $('helpBody').innerHTML = html;
+  $('helpStep').textContent = t('stepOf', { a: helpIdx + 1, b: steps.length });
+  $('helpDots').replaceChildren(...steps.map((_, i) => el('span', i === helpIdx ? 'on' : '')));
+  $('helpPrev').disabled = helpIdx === 0;
+  $('helpNext').textContent = helpIdx === steps.length - 1 ? t('done') : t('nextStep');
+  $('helpBody').querySelectorAll('.sw').forEach((b) => {
+    b.title = b.dataset.accent;
+    b.addEventListener('click', () => setAccent(b.dataset.accent));
+  });
+  markSwatches();
+}
+function openHelp(step = 0) {
+  helpIdx = step;
+  openDrawer(false);
+  renderHelp();
+  $('help').hidden = false; $('helpBg').hidden = false;
+  $('helpNext').focus();
+}
+function closeHelp() { $('help').hidden = true; $('helpBg').hidden = true; store.set('helpSeen', true); }
 
 /* ---------- wire up ---------- */
 $('openSettings').innerHTML = svg('gear');
@@ -546,16 +650,26 @@ $('openSettings').onclick = () => { renderBackends(); backends.forEach(checkHeal
 $('closeSettings').onclick = () => openDrawer(false);
 $('drawerBg').onclick = () => openDrawer(false);
 document.addEventListener('keydown', (e) => {
-  if (e.key === 'Escape') { openDrawer(false); $('results').hidden = true; }
+  if (e.key === 'Escape') { openDrawer(false); closeHelpIfOpen(); $('results').hidden = true; }
   const typing = ['INPUT', 'SELECT', 'TEXTAREA'].includes(document.activeElement?.tagName);
   if (e.code === 'Space' && !typing && state?.current) { e.preventDefault(); control('toggle'); }
 });
 document.querySelectorAll('#langSeg button').forEach((b) => b.addEventListener('click', () => {
   lang = b.dataset.lang; store.set('lang', lang); applyLang();
 }));
-document.querySelectorAll('.sw').forEach((b) => b.addEventListener('click', () => {
-  store.set('accent', b.dataset.accent); applyAccent(b.dataset.accent);
-}));
+document.querySelectorAll('#swatches .sw').forEach((b) => {
+  b.type = 'button';
+  b.addEventListener('click', () => setAccent(b.dataset.accent));
+});
+$('openHelp').innerHTML = svg('help');
+$('closeHelp').innerHTML = svg('x');
+$('openHelp').onclick = () => openHelp(0);
+$('gateHelp').onclick = () => openHelp(0);
+$('drawerHelp').onclick = () => openHelp(0);
+$('closeHelp').onclick = closeHelp;
+$('helpBg').onclick = closeHelp;
+$('helpPrev').onclick = () => { if (helpIdx > 0) { helpIdx--; renderHelp(); } };
+$('helpNext').onclick = () => { if (helpIdx < GUIDE[lang].length - 1) { helpIdx++; renderHelp(); } else closeHelp(); };
 $('logout').onclick = () => {
   const b = backends.find((x) => x.api === activeApi);
   if (b) { delete b.token; saveBackends(); }
@@ -632,4 +746,8 @@ document.querySelectorAll('.tab').forEach((b) => b.addEventListener('click', () 
 
 applyAccent(store.get('accent', 'blue'));
 applyLang();
-loadPresetBackends().then(() => { renderBackends(); start(); });
+loadPresetBackends().then(() => {
+  renderBackends();
+  start();
+  if (!backends.length && !store.get('helpSeen', false)) openHelp(0);
+});
