@@ -106,12 +106,11 @@ function Get-Env([string]$key) {
   return ''
 }
 if ($Token) { Set-Env 'DISCORD_TOKEN' $Token }
-if (-not $SpotifyId -and -not (Get-Env 'SPOTIFY_CLIENT_ID') -and -not $haveToken) {
+if (-not $SpotifySecret -and -not (Get-Env 'SPOTIFY_CLIENT_SECRET') -and -not $haveToken) {
   Write-Host ''
-  Write-Host 'Spotify search (optional): Client ID and secret of a free app on https://developer.spotify.com/dashboard'
-  Write-Host 'Press Enter to skip, you can add them to .env later.'
-  $SpotifyId = (Read-Host 'Spotify Client ID (optional)').Trim()
-  if ($SpotifyId) { $SpotifySecret = (Read-Host 'Spotify Client secret').Trim() }
+  Write-Host 'Spotify search (optional): the Client ID is built in, only the Client secret is needed.'
+  Write-Host 'Press Enter to skip, you can add SPOTIFY_CLIENT_SECRET to .env later.'
+  $SpotifySecret = (Read-Host 'Spotify Client secret (optional)').Trim()
 }
 if ($SpotifyId) { Set-Env 'SPOTIFY_CLIENT_ID' $SpotifyId }
 if ($SpotifySecret) { Set-Env 'SPOTIFY_CLIENT_SECRET' $SpotifySecret }
