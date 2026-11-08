@@ -34,9 +34,11 @@ curl -fsSL https://bot.labtoso.de/install.sh | sudo bash
 
 Fragt nach Token und optional einer Domain für die API. Mit Domain richtet er Caddy mit HTTPS ein (A-Record der Domain auf den Server, Ports 80/443 offen), ohne Domain nutzt er den Cloudflare-Tunnel. Der Bot läuft danach als Dienst `msik` und startet mit dem Server. Logs: `journalctl -u msik -f`.
 
+**Automatische Updates (VPS):** Ein systemd-Timer schaut alle 15 Minuten, ob es auf dem Branch `Msik` etwas Neues gibt, holt es, installiert bei Bedarf neue Abhängigkeiten und startet den Bot neu. Läuft gerade Musik, wartet er damit (höchstens 6 Stunden). yt-dlp hält er dabei auch aktuell. Verlauf: `journalctl -u msik-update`, sofort prüfen: `sudo systemctl start msik-update`, abschalten: Installer mit `--no-auto-update` ausführen.
+
 **Token vorher holen:** https://discord.com/developers/applications → **New Application** → **Bot** → **Reset Token**.
 
-**Updaten:** einfach den Installer nochmal ausführen, die Einstellungen bleiben.
+**Updaten:** Auf dem VPS automatisch, unter Windows den Installer nochmal ausführen. Die Einstellungen bleiben.
 **Entfernen:** Windows `Uninstall.bat` im Installationsordner, Linux `curl -fsSL https://bot.labtoso.de/uninstall.sh | sudo bash`.
 
 Danach in Discord in einen Sprachkanal gehen und `/web` eingeben. Unter Einstellungen → Backend im Dashboard kannst du zwischen mehreren Installationen wechseln (z. B. PC und VPS).

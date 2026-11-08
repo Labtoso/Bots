@@ -9,13 +9,14 @@
 #   --name NAME       name of this backend in the dashboard (default: hostname)
 #   --dir DIR         install directory (default: /opt/msik)
 #   --no-service      install only, do not create/start the systemd service
+#   --no-auto-update  do not install the update timer (default: checks GitHub every 15 minutes)
 #   --yes             do not ask, use defaults (tunnel instead of domain)
 set -euo pipefail
 
 REPO="https://github.com/Labtoso/Bots.git"
 BRANCH="Msik"
 DIR="/opt/msik"
-TOKEN=""; DOMAIN=""; NAME="$(hostname -s 2>/dev/null || echo VPS)"; SERVICE=1; ASK=1
+TOKEN=""; DOMAIN=""; NAME="$(hostname -s 2>/dev/null || echo VPS)"; SERVICE=1; ASK=1; AUTOUPDATE=1
 
 while [ $# -gt 0 ]; do
   case "$1" in
@@ -24,6 +25,7 @@ while [ $# -gt 0 ]; do
     --name) NAME="$2"; shift 2 ;;
     --dir) DIR="$2"; shift 2 ;;
     --no-service) SERVICE=0; shift ;;
+    --no-auto-update) AUTOUPDATE=0; shift ;;
     --yes|-y) ASK=0; shift ;;
     *) echo "Unknown option: $1"; exit 1 ;;
   esac
@@ -152,8 +154,18 @@ chmod 600 .env
 # ---------- service ----------
 if [ "$SERVICE" = 1 ] && command -v systemctl >/dev/null && [ -d /run/systemd/system ]; then
   sed "s|/opt/msik|$DIR|g" deploy/msik.service > /etc/systemd/system/msik.service
+  if [ "$AUTOUPDATE" = 1 ]; then
+    sed "s|/opt/msik|$DIR|g" deploy/msik-update.service > /etc/systemd/system/msik-update.service
+    cp deploy/msik-update.timer /etc/systemd/system/msik-update.timer
+  fi
   systemctl daemon-reload
   systemctl enable -q msik
+  if [ "$AUTOUPDATE" = 1 ]; then
+    systemctl enable -q --now msik-update.timer
+    say "Automatic updates on (every 15 minutes, waits while music plays)"
+  else
+    systemctl disable -q --now msik-update.timer 2>/dev/null || true
+  fi
   systemctl restart msik
   say "Started. Waiting for the bot ..."
   for _ in $(seq 1 30); do
@@ -172,6 +184,10 @@ echo "  Invite the bot with the \"Einladen\" link above (also in: journalctl -u 
 echo "  then join a voice channel and type /web."
 [ -n "$DOMAIN" ] && echo "  Dashboard backend: https://$DOMAIN"
 echo "  Logs:      journalctl -u msik -f"
-echo "  Update:    run this installer again"
+if [ "$AUTOUPDATE" = 1 ]; then
+  echo "  Updates:   automatic (journalctl -u msik-update to see them)"
+else
+  echo "  Update:    run this installer again"
+fi
 echo "  Uninstall: curl -fsSL https://bot.labtoso.de/uninstall.sh | sudo bash"
 printf "${c_dim}  Settings: $DIR/.env${c_off}\n"

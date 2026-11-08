@@ -1,0 +1,9 @@
+[Unit]
+Description=Update the Msik music bot from GitHub
+After=network-online.target
+Wants=network-online.target
+
+[Service]
+Type=oneshot
+Environment=MSIK_DIR=/opt/msik
+ExecStart=/opt/msik/deploy/msik-update.sh
