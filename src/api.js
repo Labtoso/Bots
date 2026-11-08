@@ -4,6 +4,7 @@ import { verifyToken } from './auth.js';
 import { log } from './log.js';
 import { resolve, searchAll } from './resolve.js';
 import { settings } from './settings.js';
+import { spotifyReady, spotifySearch } from './spotify.js';
 
 /**
  * REST + Server-Sent-Events API used by the dashboard on GitHub Pages.
@@ -49,6 +50,8 @@ export function createApi(bot) {
 
   const errors = {
     NOT_IN_VOICE: [409, 'Geh zuerst in einen Sprachkanal oder wähl im Dashboard einen Kanal aus.'],
+    SPOTIFY_NOT_SET: [400, 'Spotify-Suche ist auf diesem Bot nicht eingerichtet (SPOTIFY_CLIENT_ID und SPOTIFY_CLIENT_SECRET in .env). Stell in den Einstellungen auf YouTube.'],
+    SPOTIFY_BAD_KEYS: [400, 'Spotify-Schlüssel ungültig. SPOTIFY_CLIENT_ID und SPOTIFY_CLIENT_SECRET in .env prüfen.'],
     NO_CHANNEL: [400, 'Kein Kanal gewählt.'],
     CHANNEL_GONE: [404, 'Diesen Sprachkanal gibt es nicht mehr.'],
     NO_VOICE_PERMS: [403, 'Der Bot darf in diesem Kanal nicht verbinden oder sprechen.'],
@@ -63,7 +66,7 @@ export function createApi(bot) {
     if (p === '/' || p === '/health') {
       return send(res, 200, {
         ok: true, name: 'msik', backend: config.backendName || bot.getName?.() || 'Msik', bot: bot.getName?.() || null,
-        active: bot.activeCount?.() || 0,
+        active: bot.activeCount?.() || 0, spotify: spotifyReady(),
       });
     }
 
@@ -110,7 +113,7 @@ export function createApi(bot) {
         const r = await resolve(q);
         return send(res, 200, { results: r.tracks.slice(0, 50), playlist: r.playlist, total: r.tracks.length });
       }
-      const r = await searchAll(q, 8);
+      const r = url.searchParams.get('source') === 'spotify' ? await spotifySearch(q) : await searchAll(q, 8);
       return send(res, 200, { results: r.tracks, playlists: r.playlists });
     }
 

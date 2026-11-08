@@ -62,3 +62,17 @@ test('fast YouTube search reads videos and playlists from real responses', async
   assert.equal(p.playlists[0].count, 60);
   assert.equal(p.playlists[0].artist, 'just.rick_6');
 });
+
+test('Spotify search results become tracks that play through YouTube', async () => {
+  const { parseSpotifySearch } = await import('../src/spotify.js');
+  const r = parseSpotifySearch({
+    tracks: { items: [{ name: 'Get Lucky', duration_ms: 248413, artists: [{ name: 'Daft Punk' }, { name: 'Pharrell Williams' }], album: { images: [{ url: 's', width: 64 }, { url: 'big', width: 640 }] } }] },
+    playlists: { items: [null, { id: 'p1', type: 'playlist', name: 'Funk', owner: { display_name: 'Spotify' }, tracks: { total: 50 }, images: [{ url: 'pi' }], external_urls: { spotify: 'https://open.spotify.com/playlist/p1' } }] },
+    albums: { items: [{ id: 'a1', type: 'album', name: 'RAM', artists: [{ name: 'Daft Punk' }], total_tracks: 13, images: [] }] },
+  });
+  assert.equal(r.tracks[0].query, 'Daft Punk, Pharrell Williams - Get Lucky');
+  assert.equal(r.tracks[0].duration, 248);
+  assert.equal(r.tracks[0].thumbnail, 'big');
+  assert.equal(r.tracks[0].url, null);
+  assert.deepEqual(r.playlists.map((p) => [p.title, p.count, p.url]), [['Funk', 50, 'https://open.spotify.com/playlist/p1'], ['RAM', 13, 'https://open.spotify.com/album/a1']]);
+});

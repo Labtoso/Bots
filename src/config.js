@@ -34,6 +34,9 @@ export const config = {
   guildId: env.GUILD_ID || '', // optional: register /web instantly on one server
   // Name shown in the dashboard's backend list, e.g. "VPS" or "Home PC"
   backendName: env.BACKEND_NAME || '',
+  // optional, for the Spotify search switch: free app on developer.spotify.com
+  spotifyId: env.SPOTIFY_CLIENT_ID || '',
+  spotifySecret: env.SPOTIFY_CLIENT_SECRET || '',
   mock: env.MOCK === '1',
   binDir: path.join(ROOT, 'bin'),
 };
