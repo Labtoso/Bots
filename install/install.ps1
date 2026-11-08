@@ -1,4 +1,4 @@
-# Msik installer for Windows. No admin rights needed.
+# Msik installer for Windows. No extra rights needed.
 #
 #   irm https://bot.labtoso.de/install.ps1 | iex
 #

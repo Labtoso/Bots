@@ -35,7 +35,7 @@ Du brauchst etwa 5 Minuten. Am Ende ist der Bot auf deinem Server online, und `/
 
 ### 3. Installieren
 
-**Windows** (ohne Admin-Rechte, Node.js ist dabei). PowerShell öffnen (Start → „PowerShell“) und einfügen:
+**Windows** (keine extra Rechte nötig, Node.js ist dabei). PowerShell öffnen (Start → „PowerShell“) und einfügen:
 
 ```
 irm https://bot.labtoso.de/install.ps1 | iex
