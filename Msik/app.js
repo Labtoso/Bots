@@ -585,6 +585,14 @@ const GUIDE = {
       <li>Tipp <code>/web</code> und wähl den Befehl deines Bots. Beim ersten Mal kann es ein paar Minuten dauern, notfalls Discord mit <b>Strg+R</b> neu laden.</li>
       <li><b>Dashboard öffnen</b> klicken. Der Link gilt 12 Stunden, nur für dich.</li>
       <li>Ein <b>grüner Punkt</b> oben rechts heißt: verbunden. Jetzt oben einen Song suchen und <b>+</b> klicken, der Bot kommt in deinen Kanal.</li></ol>`],
+    ['Backend verbinden', `<p><b>Das passiert automatisch.</b> Der Link von <code>/web</code> enthält die Adresse deines Backends und deinen Zugang. Das Dashboard verbindet sich damit von selbst und merkt sich das Backend. Du musst nichts eintragen.</p><ol>
+      <li><b>Verbunden?</b> Oben rechts ist ein <b>grüner Punkt</b>, daneben dein Server. Rot heißt: keine Verbindung.</li>
+      <li>Unter <b>Zahnrad → Backend</b> steht dein Backend mit grünem Punkt. Mit Klick wechselst du zwischen mehreren (z. B. PC und VPS).</li>
+      <li><b>Von Hand hinzufügen</b> brauchst du nur für ein weiteres Backend. Die Adresse ist:
+        <br>VPS mit Domain: <code>https://api.deinedomain.de</code>
+        <br>Mit Tunnel (PC oder VPS ohne Domain): die <code>https://….trycloudflare.com</code>-Adresse, die der Bot als „Öffentliche API-Adresse“ anzeigt (Fenster „Msik“ bzw. <code>journalctl -u msik | grep API</code>).</li>
+      <li>Danach einmal <code>/web</code> von diesem Bot ausführen, denn erst der Link gibt dir Zugriff.</li>
+      <li><b>Kein grüner Punkt?</b> Bot offline oder neu gestartet (beim Tunnel ändert sich dann die Adresse). Einfach <code>/web</code> nochmal.</li></ol>`],
     ['Probleme lösen', `<ol>
       <li><b>Bot bleibt offline:</b> Läuft das Fenster bzw. der Dienst? Steht im Log „Token ungültig“, neuen Token holen und den Installer nochmal ausführen.</li>
       <li><b>/web fehlt:</b> Bot mit <code>applications.commands</code> neu einladen, Discord mit Strg+R neu laden.</li>
@@ -597,11 +605,6 @@ const GUIDE = {
       <li><b>Windows:</b> Zum Updaten den Installer einfach nochmal ausführen, Token und Einstellungen bleiben.</li>
       <li><b>Entfernen:</b> Unter Windows <code>Uninstall.bat</code> im Ordner <code>%LOCALAPPDATA%\\Msik</code> starten. Unter Linux:</li></ol>
       ${CMD('curl -fsSL https://bot.labtoso.de/uninstall.sh | sudo bash')}`],
-    ['Backend wählen', `<ol>
-      <li>Klick oben links aufs <b>Zahnrad</b> und such den Bereich <b>Backend</b>.</li>
-      <li>Ein grüner Punkt heißt online, ein roter offline. Klick auf ein Backend, um zu wechseln.</li>
-      <li>Neues Backend: Adresse eintragen (z. B. <code>https://api.labtoso.de</code>) und <b>Hinzufügen</b>. Danach einmal <code>/web</code> von diesem Bot nutzen, damit du Zugriff bekommst.</li>
-      <li>Mit dem <b>X</b> entfernst du ein Backend aus der Liste.</li></ol>`],
     ['Musik steuern', `<ol>
       <li>Oben einen Titel suchen oder einen Link einfügen (YouTube, Spotify, SoundCloud) und <b>Enter</b> drücken.</li>
       <li><b>+</b> hängt den Titel hinten an, der <b>Pfeil nach oben</b> spielt ihn als Nächstes. Bei Playlists gibt es <b>Alle hinzufügen</b>.</li>
@@ -643,6 +646,14 @@ const GUIDE = {
       <li>Type <code>/web</code> and pick your bot's command. The first time it can take a few minutes, reload Discord with <b>Ctrl+R</b> if needed.</li>
       <li>Click <b>Open dashboard</b>. The link is valid for 12 hours, only for you.</li>
       <li>A <b>green dot</b> at the top right means connected. Search a song at the top and click <b>+</b>, the bot joins your channel.</li></ol>`],
+    ['Connect the backend', `<p><b>This happens automatically.</b> The <code>/web</code> link contains your backend's address and your access. The dashboard connects on its own and remembers the backend. You do not need to enter anything.</p><ol>
+      <li><b>Connected?</b> There is a <b>green dot</b> at the top right next to your server. Red means no connection.</li>
+      <li>Under <b>gear → Backend</b> your backend is listed with a green dot. Click to switch between several (e.g. PC and VPS).</li>
+      <li><b>Adding by hand</b> is only needed for another backend. The address is:
+        <br>VPS with a domain: <code>https://api.yourdomain.com</code>
+        <br>With the tunnel (PC or VPS without a domain): the <code>https://….trycloudflare.com</code> address the bot shows as "Öffentliche API-Adresse" (the "Msik" window or <code>journalctl -u msik | grep API</code>).</li>
+      <li>Then run <code>/web</code> from that bot once, because the link is what gives you access.</li>
+      <li><b>No green dot?</b> The bot is offline or restarted (with the tunnel the address changes). Just run <code>/web</code> again.</li></ol>`],
     ['Troubleshooting', `<ol>
       <li><b>Bot stays offline:</b> is the window or service running? If the log says "Token ungültig", get a new token and run the installer again.</li>
       <li><b>/web missing:</b> invite the bot again with <code>applications.commands</code>, reload Discord with Ctrl+R.</li>
@@ -655,11 +666,6 @@ const GUIDE = {
       <li><b>Windows:</b> to update, just run the installer again. Token and settings are kept.</li>
       <li><b>Remove:</b> on Windows run <code>Uninstall.bat</code> in <code>%LOCALAPPDATA%\\Msik</code>. On Linux:</li></ol>
       ${CMD('curl -fsSL https://bot.labtoso.de/uninstall.sh | sudo bash')}`],
-    ['Choose a backend', `<ol>
-      <li>Click the <b>gear</b> at the top left and find <b>Backend</b>.</li>
-      <li>A green dot means online, red means offline. Click a backend to switch.</li>
-      <li>New backend: enter its address (e.g. <code>https://api.labtoso.de</code>) and click <b>Add</b>. Then use <code>/web</code> from that bot once to get access.</li>
-      <li>The <b>X</b> removes a backend from the list.</li></ol>`],
     ['Control the music', `<ol>
       <li>Search a track at the top or paste a link (YouTube, Spotify, SoundCloud) and press <b>Enter</b>.</li>
       <li><b>+</b> adds it to the end, the <b>up arrow</b> plays it next. Playlists get <b>Add all</b>.</li>
