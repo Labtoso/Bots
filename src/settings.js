@@ -20,7 +20,22 @@ function save() {
   }, 200);
 }
 
+const GLOBAL = '_all'; // settings for the whole bot, not one server
+
 export const settings = {
+  global() { return { blocked: [], hidden: false, ...(data[GLOBAL] || {}) }; },
+  setGlobal(patch) {
+    data[GLOBAL] = { ...settings.global(), ...patch };
+    save();
+    return data[GLOBAL];
+  },
+  /** Blocked by Discord ID or name (case does not matter). */
+  isBlocked(userId, name) {
+    const list = settings.global().blocked;
+    if (!list.length) return false;
+    const n = String(name || '').toLowerCase();
+    return list.some((b) => (userId && b === String(userId)) || (n && b.toLowerCase() === n));
+  },
   get(guildId) { return { channelId: null, npEnabled: false, npChannelId: null, webChannelId: null, guestEpoch: 0, ...(data[guildId] || {}) }; },
   set(guildId, patch) {
     data[guildId] = { ...settings.get(guildId), ...patch };

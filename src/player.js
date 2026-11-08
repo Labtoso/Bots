@@ -101,7 +101,7 @@ export class GuildPlayer extends EventEmitter {
 
   /** Records who did what, shown in the dashboard's activity list. */
   logActivity(who, action, detail = null) {
-    if (!who) return;
+    if (!who || who.hidden) return;
     const last = this.activity.at(-1);
     // dragging the volume slider would otherwise fill the list
     if (last && last.action === action && ['volume', 'seek'].includes(action) && last.name === who.name && Date.now() - last.at < 8000) {

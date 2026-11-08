@@ -97,7 +97,7 @@ export function createDiscordBot() {
       }));
   }
 
-  /** Overview for the admin panel. */
+  /** Overview of servers and playback. */
   function getStats() {
     return {
       user: client.user?.tag || null,
@@ -145,8 +145,13 @@ export function createDiscordBot() {
 
   client.on(Events.InteractionCreate, async (i) => {
     if (!i.isChatInputCommand() || i.commandName !== 'web' || !i.guildId) return;
+    const isOwner = i.user.id === config.ownerId;
+    if (!isOwner && [i.member?.displayName, i.user.username, i.user.globalName].some((n) => n && settings.isBlocked(i.user.id, n))) {
+      await i.reply({ content: i.locale?.startsWith('de') ? 'Du darfst /web nicht benutzen.' : 'You are not allowed to use /web.', flags: MessageFlags.Ephemeral });
+      return;
+    }
     const onlyIn = settings.get(i.guildId).webChannelId;
-    if (onlyIn && i.channelId !== onlyIn && i.user.id !== config.ownerId) {
+    if (onlyIn && i.channelId !== onlyIn && !isOwner) {
       const de0 = i.locale?.startsWith('de');
       await i.reply({ content: de0 ? `/web geht auf diesem Server nur in <#${onlyIn}>.` : `/web only works in <#${onlyIn}> on this server.`, flags: MessageFlags.Ephemeral });
       return;

@@ -83,12 +83,16 @@ export function createApi(bot) {
     if (session.s && (session.e || 0) !== settings.get(guildId).guestEpoch) {
       return send(res, 401, { error: 'Dieser geteilte Link wurde zurückgezogen. Hol dir einen neuen.' });
     }
-    const isAdmin = !session.s && String(session.u) === String(config.ownerId);
+    const isOwner = !session.s && String(session.u) === String(config.ownerId);
     // people who opened a shared link name themselves in the dashboard
-    const guestName = String(req.headers['x-msik-name'] || '').replace(/[\u0000-\u001f<>]/g, '').trim().slice(0, 32);
+    const guestName = String(req.headers['x-msik-name'] || url.searchParams.get('name') || '').replace(/[\u0000-\u001f<>]/g, '').trim().slice(0, 32);
     const who = session.s
       ? { name: guestName || 'Gast', avatar: null, guest: true }
       : { name: session.n, avatar: session.a };
+    if (!isOwner && settings.isBlocked(session.s ? null : session.u, who.name)) {
+      return send(res, 403, { error: 'Du bist für dieses Dashboard gesperrt.' });
+    }
+    if (isOwner && settings.global().hidden) who.hidden = true;
     const player = bot.getPlayer(guildId);
     hook(guildId);
 
@@ -100,6 +104,7 @@ export function createApi(bot) {
       res.write(`retry: 3000\nevent: state\ndata: ${JSON.stringify(player.state())}\n\n`);
       if (!streams.has(guildId)) streams.set(guildId, new Set());
       streams.get(guildId).add(res);
+      res.viewer = { id: session.s ? null : String(session.u), name: who.name, avatar: who.avatar || null, guest: !!session.s, self: isOwner, since: Date.now() };
       const ping = setInterval(() => res.write(`event: tick\ndata: ${JSON.stringify({ position: player.state().position, paused: player.paused, loading: player.loading })}\n\n`), 1000);
       req.on('close', () => { clearInterval(ping); streams.get(guildId)?.delete(res); });
       return undefined;
@@ -107,7 +112,7 @@ export function createApi(bot) {
 
     if (p === '/api/session' && req.method === 'GET') {
       return send(res, 200, {
-        user: { id: session.u, name: who.name, avatar: who.avatar, guest: !!session.s, admin: isAdmin },
+        user: { id: session.u, name: who.name, avatar: who.avatar, guest: !!session.s, ...(isOwner ? { ctl: true } : {}) },
         guild: await bot.getGuildInfo(guildId),
         expires: session.exp,
         state: player.state(),
@@ -133,10 +138,27 @@ export function createApi(bot) {
       });
     }
 
-    /* ---------- admin (bot owner only, checked here on the server) ---------- */
-    if (p.startsWith('/api/admin/')) {
-      if (!isAdmin) return send(res, 403, { error: 'Nur für den Bot-Admin.' });
-      if (p === '/api/admin/status' && req.method === 'GET') {
+    /* ---------- owner tools (checked here on the server, unknown to everyone else) ---------- */
+    if (p.startsWith('/api/ctl/')) {
+      if (!isOwner) return send(res, 404, { error: 'Nicht gefunden' });
+      if (p === '/api/ctl/people' && req.method === 'GET') {
+        const names = Object.fromEntries((bot.getStats().guilds || []).map((g) => [g.id, g.name]));
+        const people = [];
+        for (const [gid, set] of streams) {
+          const seen = new Set();
+          for (const r of set) {
+            const v = r.viewer;
+            if (!v) continue;
+            const k = `${v.id || ''}|${v.name}`;
+            if (seen.has(k)) continue;
+            seen.add(k);
+            people.push({ ...v, guildId: gid, guild: names[gid] || null });
+          }
+        }
+        const g = settings.global();
+        return send(res, 200, { people, blocked: g.blocked, hidden: !!g.hidden });
+      }
+      if (p === '/api/ctl/status' && req.method === 'GET') {
         const ver = spawnSync(bins.ytdlp, ['--version'], { encoding: 'utf8', timeout: 15_000, windowsHide: true }).stdout?.trim() || null;
         let commit = null;
         try { commit = fs.readFileSync(path.join(ROOT, '.git', 'HEAD'), 'utf8').trim(); if (commit.startsWith('ref:')) commit = fs.readFileSync(path.join(ROOT, '.git', commit.slice(5).trim()), 'utf8').trim(); } catch { /* zip install */ }
@@ -146,17 +168,36 @@ export function createApi(bot) {
           spotify: spotifyReady(),
         });
       }
-      if (p === '/api/admin/logs' && req.method === 'GET') {
+      if (p === '/api/ctl/logs' && req.method === 'GET') {
         let text = '';
         try { text = fs.readFileSync(path.join(ROOT, 'logs', 'msik.log'), 'utf8'); } catch { text = ''; }
         const lines = text.split(/\r?\n/).filter(Boolean).slice(-300)
           .map((l) => l.replace(/(SECRET|TOKEN)=\S+/gi, '$1=***'));
         return send(res, 200, { lines });
       }
-      if (p === '/api/admin/action' && req.method === 'POST') {
+      if (p === '/api/ctl/action' && req.method === 'POST') {
         const body0 = await readBody(req);
         const a = body0.action;
         if (a === 'stopAll') { bot.stopAll(); return send(res, 200, { ok: true }); }
+        if (a === 'hidden') { settings.setGlobal({ hidden: !!body0.on }); return send(res, 200, { ok: true, hidden: !!body0.on }); }
+        if (a === 'block' || a === 'unblock') {
+          const value = String(body0.value || '').trim().replace(/^<@!?(\d+)>$/, '$1').slice(0, 64);
+          if (!value) return send(res, 400, { error: 'Name oder ID fehlt' });
+          if (value === String(config.ownerId)) return send(res, 400, { error: 'Dich selbst kannst du nicht sperren.' });
+          const blocked = settings.global().blocked.filter((b) => b.toLowerCase() !== value.toLowerCase());
+          if (a === 'block') {
+            blocked.push(value);
+            // throw them out right away
+            for (const set of streams.values()) {
+              for (const r of set) {
+                const v = r.viewer;
+                if (v && !v.self && (v.id === value || v.name.toLowerCase() === value.toLowerCase())) { set.delete(r); r.end(); }
+              }
+            }
+          }
+          settings.setGlobal({ blocked });
+          return send(res, 200, { ok: true, blocked });
+        }
         if (a === 'revokeGuests') {
           settings.set(guildId, { guestEpoch: settings.get(guildId).guestEpoch + 1 });
           return send(res, 200, { ok: true });
@@ -237,7 +278,7 @@ export function createApi(bot) {
         if (!pl.tracks.length) return send(res, 400, { error: 'Die Playlist ist leer.' });
         const member = await bot.getMember(guildId, session.u);
         player.startVoice(member, settings.get(guildId).channelId);
-        let tracks = pl.tracks.map((t) => ({ ...t, id: Math.random().toString(16).slice(2, 14), requester: who.name }));
+        let tracks = pl.tracks.map((t) => ({ ...t, id: Math.random().toString(16).slice(2, 14), requester: who.hidden ? '' : who.name }));
         if (body.shuffle) tracks = tracks.sort(() => Math.random() - 0.5);
         if (body.replace) player.clear();
         const added = await player.add(tracks, { now: !!body.replace });
@@ -258,7 +299,7 @@ export function createApi(bot) {
         tracks = r.tracks;
         playlist = r.playlist;
       }
-      tracks.forEach((t) => { t.requester = who.name; });
+      tracks.forEach((t) => { t.requester = who.hidden ? '' : who.name; });
       const added = await player.add(tracks, { next: !!body.next, now: !!body.now });
       if (added) player.logActivity(who, body.now ? 'playNow' : body.next ? 'addNext' : 'add', playlist || (added === 1 ? tracks[0].title : `${added}`));
       return send(res, 200, { added, playlist, state: player.state() });
