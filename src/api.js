@@ -90,7 +90,7 @@ export function createApi(bot) {
       res.write(`retry: 3000\nevent: state\ndata: ${JSON.stringify(player.state())}\n\n`);
       if (!streams.has(guildId)) streams.set(guildId, new Set());
       streams.get(guildId).add(res);
-      const ping = setInterval(() => res.write(`event: tick\ndata: ${JSON.stringify({ position: player.state().position, paused: player.paused })}\n\n`), 1000);
+      const ping = setInterval(() => res.write(`event: tick\ndata: ${JSON.stringify({ position: player.state().position, paused: player.paused, loading: player.loading })}\n\n`), 1000);
       req.on('close', () => { clearInterval(ping); streams.get(guildId)?.delete(res); });
       return undefined;
     }
@@ -124,7 +124,10 @@ export function createApi(bot) {
         const r = await resolve(q);
         return send(res, 200, { results: r.tracks.slice(0, 50), playlist: r.playlist, total: r.tracks.length });
       }
-      const r = url.searchParams.get('source') === 'spotify' ? await spotifySearch(q) : await searchAll(q, 8);
+      const spotify = url.searchParams.get('source') === 'spotify';
+      const r = spotify ? await spotifySearch(q) : await searchAll(q, 8);
+      // Spotify hits play through YouTube: look up the first matches now, so + starts sooner
+      if (spotify) r.tracks.slice(0, 4).forEach((t) => searchAll(t.query, 1).catch(() => {}));
       return send(res, 200, { results: r.tracks, playlists: r.playlists });
     }
 

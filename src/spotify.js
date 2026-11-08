@@ -36,7 +36,7 @@ export function parseSpotifySearch(data) {
     const artist = (t.artists || []).map((a) => a.name).join(', ');
     return {
       id: uid(), title: t.name, artist, duration: Math.round((t.duration_ms || 0) / 1000),
-      thumbnail: img(t.album?.images), url: null, source: 'spotify', query: `${artist} - ${t.name}`,
+      thumbnail: img(t.album?.images), url: null, source: 'spotify', query: `${(t.artists || [])[0]?.name || artist} - ${t.name}`,
     };
   });
   const playlists = [...(data.playlists?.items || []), ...(data.albums?.items || [])].filter(Boolean).map((p) => ({

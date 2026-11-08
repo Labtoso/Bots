@@ -70,7 +70,7 @@ test('Spotify search results become tracks that play through YouTube', async () 
     playlists: { items: [null, { id: 'p1', type: 'playlist', name: 'Funk', owner: { display_name: 'Spotify' }, tracks: { total: 50 }, images: [{ url: 'pi' }], external_urls: { spotify: 'https://open.spotify.com/playlist/p1' } }] },
     albums: { items: [{ id: 'a1', type: 'album', name: 'RAM', artists: [{ name: 'Daft Punk' }], total_tracks: 13, images: [] }] },
   });
-  assert.equal(r.tracks[0].query, 'Daft Punk, Pharrell Williams - Get Lucky');
+  assert.equal(r.tracks[0].query, 'Daft Punk - Get Lucky');
   assert.equal(r.tracks[0].duration, 248);
   assert.equal(r.tracks[0].thumbnail, 'big');
   assert.equal(r.tracks[0].url, null);
