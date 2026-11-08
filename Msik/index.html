@@ -195,15 +195,26 @@
     <label class="select wide"><span data-i18n="webChannel"></span><select id="webChannel"></select></label>
     <span class="muted small" id="npHint" hidden data-i18n="npNoPerm"></span>
   </div>
-  <div class="field admin-field" id="adminField" hidden>
-    <span class="label" data-i18n="admin"></span>
-    <div class="admin-stats muted small" id="adminStats"></div>
-    <div class="admin-btns">
-      <button class="btn ghost sm" id="adminLogs" data-i18n="adminLogs"></button>
-      <button class="btn ghost sm" id="adminYtdlp" data-i18n="adminYtdlp"></button>
-      <button class="btn ghost sm" id="adminRevoke" data-i18n="adminRevoke"></button>
-      <button class="btn ghost sm" id="adminStop" data-i18n="adminStop"></button>
-      <button class="btn ghost sm danger" id="adminRestart" data-i18n="adminRestart"></button>
+  <div class="field own-field" id="ownField" hidden>
+    <span class="label" data-i18n="own"></span>
+    <label class="switch">
+      <input type="checkbox" id="ownHidden"><span class="track"></span><span data-i18n="ownHidden"></span>
+    </label>
+    <span class="label sub" data-i18n="ownPeople"></span>
+    <ul class="own-people" id="ownPeople"></ul>
+    <span class="label sub" data-i18n="ownBlocked"></span>
+    <form class="pl-new own-block" id="ownBlockForm" autocomplete="off">
+      <input id="ownBlockInput" maxlength="64" data-i18n-ph="ownBlockPh">
+      <button class="btn primary sm" data-i18n="ownBlock"></button>
+    </form>
+    <ul class="own-people" id="ownBlockedList"></ul>
+    <div class="own-stats muted small" id="ownStats"></div>
+    <div class="own-btns">
+      <button class="btn ghost sm" id="ownLogs" data-i18n="ownLogs"></button>
+      <button class="btn ghost sm" id="ownYtdlp" data-i18n="ownYtdlp"></button>
+      <button class="btn ghost sm" id="ownRevoke" data-i18n="ownRevoke"></button>
+      <button class="btn ghost sm" id="ownStop" data-i18n="ownStop"></button>
+      <button class="btn ghost sm danger" id="ownRestart" data-i18n="ownRestart"></button>
     </div>
   </div>
   <div class="field">
@@ -217,7 +228,7 @@
 <div class="pop" id="plPop" hidden></div>
 <div class="modal-bg" id="logBg" hidden></div>
 <section class="modal log-modal" id="logBox" role="dialog" aria-modal="true" hidden>
-  <div class="modal-head"><h2 data-i18n="adminLogs"></h2><button class="icon-btn" id="closeLog" data-i18n-title="close"></button></div>
+  <div class="modal-head"><h2 data-i18n="ownLogs"></h2><button class="icon-btn" id="closeLog" data-i18n-title="close"></button></div>
   <pre class="log-pre" id="logPre"></pre>
 </section>
 <div class="modal-bg" id="nameBg" hidden></div>

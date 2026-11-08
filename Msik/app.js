@@ -64,9 +64,9 @@ const T = {
     on: 'an', off: 'aus', guest: 'Gast',
     serverSettings: 'Server', npPost: 'Laufenden Song posten', npChannel: 'Textkanal', webChannel: '/web erlaubt in',
     everywhere: 'Überall', npNoPerm: 'Der Bot darf in diesem Kanal nicht schreiben (Nachrichten senden, Links einbetten).', saved: 'Gespeichert',
-    admin: 'Admin', adminLogs: 'Logs', adminYtdlp: 'yt-dlp aktualisieren', adminRevoke: 'Geteilte Links zurückziehen',
-    adminStop: 'Überall stoppen', adminRestart: 'Bot neu starten', adminRestartAsk: 'Bot wirklich neu starten? Die Musik stoppt kurz, der Tunnel bekommt eine neue Adresse (dann /web).',
-    adminRevoked: 'Alle geteilten Links gelten nicht mehr', adminStopped: 'Auf allen Servern gestoppt', adminRestarting: 'Bot startet neu …',
+    own: 'Nur für dich', ownHidden: 'Unsichtbar (nicht in der Aktivität)', ownPeople: 'Gerade im Panel', ownBlocked: 'Gesperrt', ownBlock: 'Sperren', ownUnblock: 'Entsperren', ownBlockPh: 'Discord-Name oder ID', ownNobody: 'Niemand', ownYou: 'du', ownGuest: 'Gast', ownBlockedOk: '{n} ist gesperrt', ownHiddenOn: 'Du bist jetzt unsichtbar', ownHiddenOff: 'Du bist wieder sichtbar', ownLogs: 'Logs', ownYtdlp: 'yt-dlp aktualisieren', ownRevoke: 'Geteilte Links zurückziehen',
+    ownStop: 'Überall stoppen', ownRestart: 'Bot neu starten', ownRestartAsk: 'Bot wirklich neu starten? Die Musik stoppt kurz, der Tunnel bekommt eine neue Adresse (dann /web).',
+    ownRevoked: 'Alle geteilten Links gelten nicht mehr', ownStopped: 'Auf allen Servern gestoppt', ownRestarting: 'Bot startet neu …',
     upFor: 'läuft seit {t}', servers: 'Server', mem: 'Speicher', none: 'nichts',
     myPlaylists: 'Playlists', plNewPh: 'Neue Playlist', plCreate: 'Anlegen', plSaveQueue: 'Warteschlange als Playlist speichern',
     plEmpty: 'Noch keine Playlists. Leg oben eine an.', plTracksEmpty: 'Noch leer. Füg Songs über das Listen-Symbol bei Suche oder Warteschlange hinzu.',
@@ -113,9 +113,9 @@ const T = {
     on: 'on', off: 'off', guest: 'guest',
     serverSettings: 'Server', npPost: 'Post the current song', npChannel: 'Text channel', webChannel: '/web allowed in',
     everywhere: 'Everywhere', npNoPerm: 'The bot may not write in this channel (Send Messages, Embed Links).', saved: 'Saved',
-    admin: 'Admin', adminLogs: 'Logs', adminYtdlp: 'Update yt-dlp', adminRevoke: 'Revoke shared links',
-    adminStop: 'Stop everywhere', adminRestart: 'Restart bot', adminRestartAsk: 'Really restart the bot? Music stops briefly and the tunnel gets a new address (then /web).',
-    adminRevoked: 'All shared links are revoked', adminStopped: 'Stopped on all servers', adminRestarting: 'Bot is restarting …',
+    own: 'Only you', ownHidden: 'Invisible (not in the activity)', ownPeople: 'In the panel now', ownBlocked: 'Blocked', ownBlock: 'Block', ownUnblock: 'Unblock', ownBlockPh: 'Discord name or ID', ownNobody: 'Nobody', ownYou: 'you', ownGuest: 'guest', ownBlockedOk: '{n} is blocked', ownHiddenOn: 'You are invisible now', ownHiddenOff: 'You are visible again', ownLogs: 'Logs', ownYtdlp: 'Update yt-dlp', ownRevoke: 'Revoke shared links',
+    ownStop: 'Stop everywhere', ownRestart: 'Restart bot', ownRestartAsk: 'Really restart the bot? Music stops briefly and the tunnel gets a new address (then /web).',
+    ownRevoked: 'All shared links are revoked', ownStopped: 'Stopped on all servers', ownRestarting: 'Bot is restarting …',
     upFor: 'up for {t}', servers: 'Servers', mem: 'Memory', none: 'nothing',
     myPlaylists: 'Playlists', plNewPh: 'New playlist', plCreate: 'Create', plSaveQueue: 'Save queue as playlist',
     plEmpty: 'No playlists yet. Create one above.', plTracksEmpty: 'Still empty. Add songs with the list icon in search or the queue.',
@@ -716,7 +716,7 @@ let es = null;
 let resyncing = false;
 function connect() {
   es?.close();
-  es = new EventSource(`${session.api}/api/events?token=${encodeURIComponent(session.token)}`);
+  es = new EventSource(`${session.api}/api/events?token=${encodeURIComponent(session.token)}${store.get('guestName', '') ? `&name=${encodeURIComponent(store.get('guestName', ''))}` : ''}`);
   es.addEventListener('state', (e) => { setConn(true); render(JSON.parse(e.data)); });
   es.addEventListener('tick', (e) => {
     const d = JSON.parse(e.data);
@@ -772,7 +772,7 @@ async function start() {
     $('server').hidden = false;
     if (s.user.avatar) { $('userAvatar').src = s.user.avatar; $('userAvatar').hidden = false; }
     $('userAvatar').title = s.user.name;
-    sessInfo = { name: s.user.name, exp: s.expires, guest: !!s.user.guest, admin: !!s.user.admin };
+    sessInfo = { name: s.user.name, exp: s.expires, guest: !!s.user.guest, ctl: !!s.user.ctl };
     $('shareLink').hidden = false;
     if (s.user.guest && !store.get('guestName', '')) askName();
     renderSessionInfo();
@@ -894,7 +894,7 @@ async function openPlPicker(btn, tracks) {
 document.addEventListener('click', (e) => { if (!$('plPop').hidden && !$('plPop').contains(e.target)) closePop(); });
 document.addEventListener('scroll', closePop, true);
 
-/* ---------- server settings + admin ---------- */
+/* ---------- server settings + owner tools ---------- */
 function fillTextSelect(sel, list, value, firstLabel) {
   sel.replaceChildren();
   const first = el('option', '', firstLabel); first.value = ''; sel.append(first);
@@ -919,12 +919,13 @@ async function saveServer(patch) {
   try { await api('/api/settings', { method: 'POST', body: patch }); Object.assign(channels, patch); updateNpHint(); toast(t('saved')); } catch (e) { toast(e.message, true); loadServerSettings(); }
 }
 const dur = (s) => { const h = Math.floor(s / 3600); const m = Math.floor((s % 3600) / 60); return h ? `${h} h ${m} min` : `${m} min`; };
-async function loadAdmin() {
-  if (!sessInfo?.admin) { $('adminField').hidden = true; return; }
-  $('adminField').hidden = false;
+async function loadOwn() {
+  if (!sessInfo?.ctl) { $('ownField').hidden = true; return; }
+  $('ownField').hidden = false;
+  loadPeople();
   try {
-    const a = await api('/api/admin/status');
-    const box = $('adminStats');
+    const a = await api('/api/ctl/status');
+    const box = $('ownStats');
     box.replaceChildren();
     const line = (k, v) => { const d = el('div'); d.append(document.createTextNode(`${k}: `), el('b', '', v)); box.append(d); };
     line('Bot', `${a.user || '?'} · ${t('upFor', { t: dur(a.uptime) })}`);
@@ -934,13 +935,49 @@ async function loadAdmin() {
     const ul = el('ul');
     for (const g of a.guilds) ul.append(el('li', '', `${g.name} (${g.members}) · ${g.playing ? `▶ ${g.playing}${g.channel ? ` in ${g.channel}` : ''}` : t('none')}`));
     box.append(ul);
-  } catch (e) { $('adminStats').textContent = e.message; }
+  } catch (e) { $('ownStats').textContent = e.message; }
 }
-async function adminAction(action, okMsg) {
+async function loadPeople() {
+  if (!sessInfo?.ctl) return;
+  let r;
+  try { r = await api('/api/ctl/people'); } catch { return; }
+  $('ownHidden').checked = !!r.hidden;
+  const ul = $('ownPeople'); ul.replaceChildren();
+  for (const v of r.people) {
+    const li = el('li');
+    if (v.avatar) { const im = el('img'); im.src = v.avatar; im.alt = ''; li.append(im); } else li.append(el('span', 'ava'));
+    const nm = el('span', 'nm', v.name);
+    const extra = [v.self ? t('ownYou') : '', v.guest ? t('ownGuest') : '', v.id && !v.self ? v.id : '', v.guild || ''].filter(Boolean).join(' · ');
+    if (extra) nm.append(el('small', '', extra));
+    li.append(nm);
+    if (!v.self) { const b = el('button', 'btn ghost sm danger', t('ownBlock')); b.onclick = () => block(v.id || v.name); li.append(b); }
+    ul.append(li);
+  }
+  if (!r.people.length) ul.append(el('li', 'empty-row', t('ownNobody')));
+  renderBlocked(r.blocked);
+}
+function renderBlocked(list) {
+  const ul = $('ownBlockedList'); ul.replaceChildren();
+  for (const b of list) {
+    const li = el('li'); li.append(el('span', 'nm', b));
+    const btn = el('button', 'btn ghost sm', t('ownUnblock'));
+    btn.onclick = async () => { try { renderBlocked((await api('/api/ctl/action', { method: 'POST', body: { action: 'unblock', value: b } })).blocked); } catch (e) { toast(e.message, true); } };
+    li.append(btn); ul.append(li);
+  }
+  if (!list.length) ul.append(el('li', 'empty-row', t('ownNobody')));
+}
+async function block(value) {
   try {
-    const r = await api('/api/admin/action', { method: 'POST', body: { action } });
+    await api('/api/ctl/action', { method: 'POST', body: { action: 'block', value } });
+    toast(t('ownBlockedOk', { n: value }));
+    loadPeople();
+  } catch (e) { toast(e.message, true); }
+}
+async function ownAction(action, okMsg) {
+  try {
+    const r = await api('/api/ctl/action', { method: 'POST', body: { action } });
     toast(r.output || okMsg || t('saved'));
-    loadAdmin();
+    loadOwn();
   } catch (e) { toast(e.message, true); }
 }
 
@@ -1033,7 +1070,7 @@ const GUIDE = {
       <li>Bei <b>Token</b> auf <b>Reset Token</b>, bestätigen, dann <b>Copy</b>.</li>
       <li>Der Token ist das Passwort des Bots. Nie weitergeben. Taucht er irgendwo auf, einfach nochmal <b>Reset Token</b>.</li>
       <li>Die <b>Privileged Gateway Intents</b> brauchst du nicht, lass alle drei aus.</li></ol>`],
-    ['Installieren', `<p><b>Windows</b> (ohne Admin): PowerShell öffnen (Start → „PowerShell“) und einfügen, oder <a href="../Install.bat">Install.bat</a> laden und doppelklicken.</p>
+    ['Installieren', `<p><b>Windows</b> (keine extra Rechte nötig): PowerShell öffnen (Start → „PowerShell“) und einfügen, oder <a href="../Install.bat">Install.bat</a> laden und doppelklicken.</p>
       ${CMD('irm https://bot.labtoso.de/install.ps1 | iex')}
       <p>Token mit Rechtsklick einfügen. Danach läuft der Bot im Fenster „Msik“ und startet mit Windows.</p>
       <p><b>Linux / VPS</b> per SSH:</p>
@@ -1097,7 +1134,7 @@ const GUIDE = {
       <li>Under <b>Token</b> click <b>Reset Token</b>, confirm, then <b>Copy</b>.</li>
       <li>The token is the bot's password. Never share it. If it leaks, just <b>Reset Token</b> again.</li>
       <li>You do not need the <b>Privileged Gateway Intents</b>, leave all three off.</li></ol>`],
-    ['Install', `<p><b>Windows</b> (no admin): open PowerShell (Start → "PowerShell") and paste this, or download <a href="../Install.bat">Install.bat</a> and double-click it.</p>
+    ['Install', `<p><b>Windows</b> (no extra rights needed): open PowerShell (Start → "PowerShell") and paste this, or download <a href="../Install.bat">Install.bat</a> and double-click it.</p>
       ${CMD('irm https://bot.labtoso.de/install.ps1 | iex')}
       <p>Paste the token with a right click. The bot then runs in the "Msik" window and starts with Windows.</p>
       <p><b>Linux / VPS</b> over SSH:</p>
@@ -1194,7 +1231,7 @@ $('btnShuffle').innerHTML = svg('shuffle');
 $('searchIcon').innerHTML = svg('search');
 $('coverPh').innerHTML = svg('note');
 
-$('openSettings').onclick = () => { renderBackends(); backends.forEach(checkHealth); openDrawer(true); if (session) { loadServerSettings(); loadAdmin(); } };
+$('openSettings').onclick = () => { renderBackends(); backends.forEach(checkHealth); openDrawer(true); if (session) { loadServerSettings(); loadOwn(); } };
 $('closeSettings').onclick = () => openDrawer(false);
 $('drawerBg').onclick = () => openDrawer(false);
 document.addEventListener('keydown', (e) => {
@@ -1245,15 +1282,23 @@ $('closeLog').innerHTML = svg('x');
 $('npEnabled').onchange = (e) => saveServer({ npEnabled: e.target.checked, npChannelId: $('npChannel').value || null });
 $('npChannel').onchange = (e) => saveServer({ npChannelId: e.target.value || null });
 $('webChannel').onchange = (e) => saveServer({ webChannelId: e.target.value || null });
-$('adminRevoke').onclick = () => adminAction('revokeGuests', t('adminRevoked'));
-$('adminStop').onclick = () => adminAction('stopAll', t('adminStopped'));
-$('adminYtdlp').onclick = (e) => { e.target.disabled = true; adminAction('ytdlp').finally(() => { e.target.disabled = false; }); };
-$('adminRestart').onclick = () => { if (confirm(t('adminRestartAsk'))) adminAction('restart', t('adminRestarting')); };
+$('ownHidden').onchange = async (e) => {
+  try { await api('/api/ctl/action', { method: 'POST', body: { action: 'hidden', on: e.target.checked } }); toast(t(e.target.checked ? 'ownHiddenOn' : 'ownHiddenOff')); } catch (er) { toast(er.message, true); e.target.checked = !e.target.checked; }
+};
+$('ownBlockForm').onsubmit = (e) => {
+  e.preventDefault();
+  const v = $('ownBlockInput').value.trim();
+  if (v) { block(v); $('ownBlockInput').value = ''; }
+};
+$('ownRevoke').onclick = () => ownAction('revokeGuests', t('ownRevoked'));
+$('ownStop').onclick = () => ownAction('stopAll', t('ownStopped'));
+$('ownYtdlp').onclick = (e) => { e.target.disabled = true; ownAction('ytdlp').finally(() => { e.target.disabled = false; }); };
+$('ownRestart').onclick = () => { if (confirm(t('ownRestartAsk'))) ownAction('restart', t('ownRestarting')); };
 const closeLog = () => { $('logBox').hidden = true; $('logBg').hidden = true; };
 $('closeLog').onclick = closeLog; $('logBg').onclick = closeLog;
-$('adminLogs').onclick = async () => {
+$('ownLogs').onclick = async () => {
   try {
-    const r = await api('/api/admin/logs');
+    const r = await api('/api/ctl/logs');
     $('logPre').textContent = r.lines.join('\n') || '—';
     $('logBox').hidden = false; $('logBg').hidden = false;
     $('logPre').scrollTop = $('logPre').scrollHeight;
