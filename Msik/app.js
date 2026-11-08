@@ -39,7 +39,7 @@ const T = {
     gateExpired: 'Sitzung abgelaufen', retry: 'Erneut versuchen', reconnecting: 'Verbindung wird wiederhergestellt',
     autoplayTag: 'Autoplay', lenTotal: '{n} Titel · {d}',
     backend: 'Backend', addBackend: 'Hinzufügen', chooseBackend: 'Backend wählen', noToken: 'Kein Link, nutze /web',
-    help: 'Anleitung', tutorial: 'Anleitung', back: 'Zurück', nextStep: 'Weiter', done: 'Fertig', stepOf: 'Schritt {a} von {b}',
+    help: 'Anleitung', tutorial: 'Anleitung', copy: 'Kopieren', copied: 'Kopiert', back: 'Zurück', nextStep: 'Weiter', done: 'Fertig', stepOf: 'Schritt {a} von {b}',
     invalidUrl: 'Ungültige Adresse (https://…)', backendAdded: 'Backend hinzugefügt', gateNoBackend: 'Kein Backend gewählt',
   },
   en: {
@@ -57,7 +57,7 @@ const T = {
     gateExpired: 'Session expired', retry: 'Try again', reconnecting: 'Reconnecting',
     autoplayTag: 'Autoplay', lenTotal: '{n} tracks · {d}',
     backend: 'Backend', addBackend: 'Add', chooseBackend: 'Choose backend', noToken: 'No link, use /web',
-    help: 'Guide', tutorial: 'Guide', back: 'Back', nextStep: 'Next', done: 'Done', stepOf: 'Step {a} of {b}',
+    help: 'Guide', tutorial: 'Guide', copy: 'Copy', copied: 'Copied', back: 'Back', nextStep: 'Next', done: 'Done', stepOf: 'Step {a} of {b}',
     invalidUrl: 'Invalid address (https://…)', backendAdded: 'Backend added', gateNoBackend: 'No backend selected',
   },
 };
@@ -553,15 +553,18 @@ function toast(msg, err = false) {
 /* ---------- tutorial ---------- */
 const README = 'https://github.com/Labtoso/Bots/tree/Msik#readme';
 const SW = '<div class="help-swatches"><button class="sw" data-accent="blue" style="--c:#3b82f6"></button><button class="sw" data-accent="green" style="--c:#22c55e"></button><button class="sw" data-accent="purple" style="--c:#8b5cf6"></button></div>';
+const CMD = (c) => `<div class="cmd"><code>${c}</code><button class="btn sm copy" type="button" data-copy="${c}"></button></div>`;
 const GUIDE = {
   de: [
-    ['Bot bei Discord anlegen', `<ol>
-      <li>Öffne das <a href="https://discord.com/developers/applications" target="_blank" rel="noopener">Discord Developer Portal</a> und klick auf <b>New Application</b>.</li>
-      <li>Unter <b>Bot</b> auf <b>Reset Token</b> klicken und den Token kopieren. Den Token gibst du niemandem.</li>
-      <li>Unter <b>OAuth2 → URL Generator</b> die Scopes <code>bot</code> und <code>applications.commands</code> wählen, dazu die Rechte <b>Connect</b>, <b>Speak</b> und <b>View Channels</b>. Den Link öffnen und den Bot auf deinen Server holen.</li></ol>`],
-    ['Backend starten', `<p>Das Backend ist der Bot selbst. Er läuft bei dir, das Dashboard hier verbindet sich mit ihm.</p><ol>
-      <li><b>Windows-PC:</b> Branch <code>Msik</code> herunterladen, <code>start.bat</code> starten, den Token in die <code>.env</code> eintragen und nochmal starten.</li>
-      <li><b>VPS:</b> Installationsskript oder Docker mit eigener Domain, z. B. <code>api.labtoso.de</code>. Die Befehle stehen in der <a href="${README}" target="_blank" rel="noopener">Anleitung im Repo</a>.</li></ol>`],
+    ['Token holen', `<ol>
+      <li>Öffne das <a href="https://discord.com/developers/applications" target="_blank" rel="noopener">Discord Developer Portal</a> und klick auf <b>New Application</b>. Name z. B. „Msik“.</li>
+      <li>Links auf <b>Bot</b>, dann <b>Reset Token</b> und den Token kopieren. Den Token gibst du niemandem.</li></ol>
+      <p>Mehr brauchst du im Portal nicht, den Rest macht der Installer.</p>`],
+    ['Bot installieren', `<p><b>Windows:</b> PowerShell öffnen und einfügen, oder <a href="../Install.bat">Install.bat</a> laden und doppelklicken.</p>
+      ${CMD('irm https://bot.labtoso.de/install.ps1 | iex')}
+      <p><b>Linux / VPS:</b></p>
+      ${CMD('curl -fsSL https://bot.labtoso.de/install.sh | sudo bash')}
+      <p>Der Installer fragt nach dem Token, installiert alles, öffnet den Einladungslink für deinen Server und startet den Bot. Er startet danach automatisch mit. Zum Updaten einfach nochmal ausführen.</p>`],
     ['Dashboard öffnen', `<ol>
       <li>Geh in Discord in einen Sprachkanal.</li>
       <li>Schreib <code>/web</code> und klick auf <b>Dashboard öffnen</b>.</li>
@@ -583,13 +586,15 @@ const GUIDE = {
       <p>Bei <b>Sprache</b> wechselst du zwischen Deutsch und Englisch.</p>`],
   ],
   en: [
-    ['Create the bot on Discord', `<ol>
-      <li>Open the <a href="https://discord.com/developers/applications" target="_blank" rel="noopener">Discord Developer Portal</a> and click <b>New Application</b>.</li>
-      <li>Under <b>Bot</b>, click <b>Reset Token</b> and copy it. Never share the token.</li>
-      <li>Under <b>OAuth2 → URL Generator</b>, pick the scopes <code>bot</code> and <code>applications.commands</code> and the permissions <b>Connect</b>, <b>Speak</b> and <b>View Channels</b>. Open the link and add the bot to your server.</li></ol>`],
-    ['Start the backend', `<p>The backend is the bot itself. It runs on your machine, and this dashboard connects to it.</p><ol>
-      <li><b>Windows PC:</b> download the <code>Msik</code> branch, run <code>start.bat</code>, put the token into <code>.env</code> and start it again.</li>
-      <li><b>VPS:</b> install script or Docker with your own domain, e.g. <code>api.labtoso.de</code>. The commands are in the <a href="${README}" target="_blank" rel="noopener">repo guide</a>.</li></ol>`],
+    ['Get a token', `<ol>
+      <li>Open the <a href="https://discord.com/developers/applications" target="_blank" rel="noopener">Discord Developer Portal</a> and click <b>New Application</b>. Name it e.g. "Msik".</li>
+      <li>Click <b>Bot</b> on the left, then <b>Reset Token</b> and copy it. Never share the token.</li></ol>
+      <p>That is all you need in the portal, the installer does the rest.</p>`],
+    ['Install the bot', `<p><b>Windows:</b> open PowerShell and paste this, or download <a href="../Install.bat">Install.bat</a> and double-click it.</p>
+      ${CMD('irm https://bot.labtoso.de/install.ps1 | iex')}
+      <p><b>Linux / VPS:</b></p>
+      ${CMD('curl -fsSL https://bot.labtoso.de/install.sh | sudo bash')}
+      <p>The installer asks for the token, installs everything, opens the invite link for your server and starts the bot. It starts automatically from then on. Run it again to update.</p>`],
     ['Open the dashboard', `<ol>
       <li>Join a voice channel in Discord.</li>
       <li>Type <code>/web</code> and click <b>Open dashboard</b>.</li>
@@ -621,6 +626,13 @@ function renderHelp() {
   $('helpDots').replaceChildren(...steps.map((_, i) => el('span', i === helpIdx ? 'on' : '')));
   $('helpPrev').disabled = helpIdx === 0;
   $('helpNext').textContent = helpIdx === steps.length - 1 ? t('done') : t('nextStep');
+  $('helpBody').querySelectorAll('.copy').forEach((b) => {
+    b.textContent = t('copy');
+    b.addEventListener('click', async () => {
+      try { await navigator.clipboard.writeText(b.dataset.copy); b.textContent = t('copied'); } catch { /* blocked */ }
+      setTimeout(() => { b.textContent = t('copy'); }, 1500);
+    });
+  });
   $('helpBody').querySelectorAll('.sw').forEach((b) => {
     b.title = b.dataset.accent;
     b.addEventListener('click', () => setAccent(b.dataset.accent));

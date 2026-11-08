@@ -7,25 +7,72 @@
 <link rel="icon" href="Msik/icon.svg" type="image/svg+xml">
 <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600&display=swap" rel="stylesheet">
 <style>
-  :root { color-scheme: dark; }
+  :root { color-scheme: dark; --line: #252a35; --panel: #161920; --muted: #8a92a5; --accent: #3b82f6; }
+  * { box-sizing: border-box; }
   body { margin: 0; min-height: 100vh; background: #0f1115; color: #e7e9ee; font: 15px/1.5 Inter, system-ui, sans-serif;
-    display: flex; flex-direction: column; align-items: center; justify-content: center; padding: 24px 16px; box-sizing: border-box; }
-  h1 { font-size: 20px; font-weight: 600; margin: 0 0 20px; }
-  ul { list-style: none; margin: 0; padding: 0; width: min(420px, 100%); display: grid; gap: 10px; }
-  a { display: flex; align-items: center; gap: 14px; padding: 14px 16px; border-radius: 12px; background: #161920;
-    border: 1px solid #252a35; color: inherit; text-decoration: none; transition: background .12s; }
-  a:hover { background: #1c2029; }
-  a img { width: 40px; height: 40px; }
-  a b { display: block; font-weight: 600; }
-  a span { color: #8a92a5; font-size: 13px; }
-  footer { margin-top: 28px; color: #8a92a5; font-size: 12.5px; }
+    display: flex; flex-direction: column; align-items: center; padding: 48px 16px 32px; }
+  main { width: min(560px, 100%); display: grid; grid-template-columns: minmax(0, 1fr); gap: 28px; }
+  h1 { font-size: 22px; font-weight: 600; margin: 0; }
+  h2 { font-size: 16px; font-weight: 600; margin: 0 0 10px; }
+  p { margin: 0 0 10px; color: #c9cdd8; }
+  a.bot { display: flex; align-items: center; gap: 14px; padding: 14px 16px; border-radius: 12px; background: var(--panel);
+    border: 1px solid var(--line); color: inherit; text-decoration: none; transition: background .12s; }
+  a.bot:hover { background: #1c2029; }
+  a.bot svg { width: 44px; height: 44px; flex: none; }
+  a.bot b { display: block; font-weight: 600; }
+  a.bot span { color: var(--muted); font-size: 13px; }
+  .tabs { display: inline-flex; gap: 3px; background: var(--panel); border: 1px solid var(--line); border-radius: 7px; padding: 3px; margin-bottom: 12px; }
+  .tabs button { border: 0; background: transparent; color: var(--muted); padding: 5px 14px; border-radius: 5px; font: inherit; font-size: 14px; }
+  .tabs button.on { background: #222733; color: #e7e9ee; }
+  .cmd { display: flex; align-items: center; gap: 8px; background: var(--panel); border: 1px solid var(--line); border-radius: 10px; padding: 10px 10px 10px 14px; margin-bottom: 10px; }
+  .cmd code { flex: 1; min-width: 0; overflow-x: auto; white-space: nowrap; font-size: 13px; }
+  .btn { border: 1px solid var(--line); background: #1c2029; color: #e7e9ee; border-radius: 7px; padding: 5px 12px; font: inherit; font-size: 13px; flex: none; }
+  .btn:hover { background: #222733; }
+  .btn.primary { background: var(--accent); border-color: transparent; color: #fff; text-decoration: none; display: inline-block; }
+  .muted { color: var(--muted); font-size: 13px; }
+  footer { margin-top: 32px; color: var(--muted); font-size: 12.5px; }
 </style>
 </head>
 <body>
+<main>
   <h1>Bots</h1>
-  <ul>
-    <li><a href="Msik/"><img src="Msik/icon.svg" alt=""><div><b>Msik</b><span>Musik-Dashboard</span></div></a></li>
-  </ul>
-  <footer>© LabtosoStudios</footer>
+  <a class="bot" href="Msik/">
+    <svg viewBox="0 0 64 64" aria-hidden="true"><rect width="64" height="64" rx="16" fill="#3b82f6"/><path d="M26 44a6 6 0 1 1-4-5.66V20l22-5v22a6 6 0 1 1-4-5.66V22.2l-14 3.2Z" fill="#fff"/></svg>
+    <div><b>Msik</b><span>Musik-Dashboard</span></div>
+  </a>
+
+  <section>
+    <h2>Msik installieren</h2>
+    <p>Hol dir zuerst im <a href="https://discord.com/developers/applications" style="color:var(--accent)">Discord Developer Portal</a> einen Bot-Token (New Application → Bot → Reset Token). Der Installer fragt danach, richtet alles ein, öffnet den Einladungslink und startet den Bot.</p>
+    <div class="tabs" role="tablist">
+      <button class="on" data-os="win">Windows</button><button data-os="linux">Linux / VPS</button>
+    </div>
+    <div data-pane="win">
+      <p><a class="btn primary" href="Install.bat" download>Install.bat herunterladen</a></p>
+      <p class="muted">Oder in PowerShell einfügen:</p>
+      <div class="cmd"><code>irm https://bot.labtoso.de/install.ps1 | iex</code><button class="btn" data-copy>Kopieren</button></div>
+      <p class="muted">Ohne Admin-Rechte, Node.js ist dabei. Startet automatisch mit Windows.</p>
+    </div>
+    <div data-pane="linux" hidden>
+      <div class="cmd"><code>curl -fsSL https://bot.labtoso.de/install.sh | sudo bash</code><button class="btn" data-copy>Kopieren</button></div>
+      <p class="muted">Debian, Ubuntu oder Fedora. Mit eigener Domain gibt es HTTPS über Caddy, sonst einen Cloudflare-Tunnel. Läuft als Dienst <code>msik</code>.</p>
+    </div>
+    <p class="muted">Zum Updaten den Installer nochmal ausführen. Danach in Discord in einen Sprachkanal gehen und <code>/web</code> eingeben.</p>
+  </section>
+</main>
+<footer>© LabtosoStudios</footer>
+<script>
+  const isLinux = /Linux|X11/.test(navigator.userAgent) && !/Android/.test(navigator.userAgent);
+  const show = (os) => {
+    document.querySelectorAll('[data-os]').forEach((b) => b.classList.toggle('on', b.dataset.os === os));
+    document.querySelectorAll('[data-pane]').forEach((p) => { p.hidden = p.dataset.pane !== os; });
+  };
+  document.querySelectorAll('[data-os]').forEach((b) => b.addEventListener('click', () => show(b.dataset.os)));
+  if (isLinux) show('linux');
+  document.querySelectorAll('[data-copy]').forEach((b) => b.addEventListener('click', async () => {
+    try { await navigator.clipboard.writeText(b.previousElementSibling.textContent); b.textContent = 'Kopiert'; } catch {}
+    setTimeout(() => { b.textContent = 'Kopieren'; }, 1500);
+  }));
+</script>
 </body>
 </html>
