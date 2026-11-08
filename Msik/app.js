@@ -45,6 +45,8 @@ const T = {
     channelJoined: 'Bot ist jetzt in „{c}“', channelAutoSaved: 'Bot geht ab jetzt in deinen Sprachkanal', inChannel: 'Gerade in',
     playlists: 'Playlists', plCount: '{n} Titel', addPlaylist: 'Ganze Playlist hinzufügen', showPlaylist: 'Titel anzeigen',
     loadingPlaylist: 'Playlist wird geladen …',
+    searchSource: 'Suche über', searchSourceHint: 'Gespielt wird immer über YouTube, Spotify liefert nur Titel und Cover.',
+    searchPhSpotify: 'Auf Spotify suchen oder Link einfügen',
   },
   en: {
     settings: 'Settings', close: 'Close', shuffle: 'Shuffle', previous: 'Previous', next: 'Next',
@@ -67,6 +69,8 @@ const T = {
     channelJoined: 'Bot is now in "{c}"', channelAutoSaved: 'Bot now joins your voice channel', inChannel: 'Currently in',
     playlists: 'Playlists', plCount: '{n} tracks', addPlaylist: 'Add the whole playlist', showPlaylist: 'Show tracks',
     loadingPlaylist: 'Loading playlist …',
+    searchSource: 'Search with', searchSourceHint: 'Playback always comes from YouTube, Spotify only supplies titles and covers.',
+    searchPhSpotify: 'Search Spotify or paste a link',
   },
 };
 
@@ -410,6 +414,7 @@ const clearDrop = () => document.querySelectorAll('.drop-before,.drop-after').fo
 let lastResults = [];
 let searchSeq = 0;
 let searchCtl = null;
+let source = store.get('source', 'youtube');
 let searchTimer = null;
 const searchCache = new Map();
 const isLink = (q) => /^https?:\/\//i.test(q);
@@ -429,7 +434,8 @@ function setBusy(on) {
 
 async function doSearch(q) {
   clearTimeout(searchTimer);
-  const key = `${activeApi}|${q.toLowerCase()}`;
+  const src = isLink(q) ? 'link' : source;
+  const key = `${activeApi}|${src}|${q.toLowerCase()}`;
   const hit = searchCache.get(key);
   if (hit) { searchCtl?.abort(); setBusy(false); showResults(hit, q); return; }
   const seq = ++searchSeq;
@@ -437,7 +443,7 @@ async function doSearch(q) {
   searchCtl = new AbortController();
   setBusy(true);
   try {
-    const res = await fetch(`${session.api}/api/search?q=${encodeURIComponent(q)}`, {
+    const res = await fetch(`${session.api}/api/search?q=${encodeURIComponent(q)}&source=${src === 'spotify' ? 'spotify' : 'youtube'}`, {
       headers: { Authorization: `Bearer ${session.token}` }, signal: searchCtl.signal,
     });
     const r = await res.json().catch(() => ({}));
@@ -647,6 +653,8 @@ function applyLang() {
   document.querySelectorAll('[data-i18n-ph]').forEach((n) => { n.placeholder = t(n.dataset.i18nPh); });
   $('filter').options[0].textContent = t('filterNone');
   document.querySelectorAll('#langSeg button').forEach((b) => b.classList.toggle('active', b.dataset.lang === lang));
+  document.querySelectorAll('#sourceSeg button').forEach((b) => b.classList.toggle('active', b.dataset.source === source));
+  $('searchInput').placeholder = t(source === 'spotify' ? 'searchPhSpotify' : 'searchPh');
   renderSessionInfo();
   renderBackends();
   if (!$('help').hidden) renderHelp();
@@ -870,6 +878,11 @@ document.addEventListener('keydown', (e) => {
   const typing = ['INPUT', 'SELECT', 'TEXTAREA'].includes(document.activeElement?.tagName);
   if (e.code === 'Space' && !typing && state?.current) { e.preventDefault(); control('toggle'); }
 });
+document.querySelectorAll('#sourceSeg button').forEach((b) => b.addEventListener('click', () => {
+  source = b.dataset.source; store.set('source', source); applyLang();
+  const q = $('searchInput').value.trim();
+  if (q.length >= 2 && !isLink(q)) doSearch(q);
+}));
 document.querySelectorAll('#langSeg button').forEach((b) => b.addEventListener('click', () => {
   lang = b.dataset.lang; store.set('lang', lang); applyLang();
 }));
