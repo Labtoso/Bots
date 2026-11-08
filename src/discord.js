@@ -73,6 +73,8 @@ export function createDiscordBot() {
     await rest.put(route, { body: [command.toJSON()] });
     if (config.guildId) await rest.put(Routes.applicationCommands(c.user.id), { body: [] });
     log.info('/web registriert');
+    // Connect, Speak, View Channels
+    log.info(`Einladen: https://discord.com/oauth2/authorize?client_id=${c.user.id}&scope=bot+applications.commands&permissions=3146752`);
     c.user.setActivity('/web');
   });
 

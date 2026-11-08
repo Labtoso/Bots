@@ -4,6 +4,7 @@ setlocal
 cd /d "%~dp0"
 title Msik
 
+if exist "%~dp0node\node.exe" set "PATH=%~dp0node;%PATH%"
 where node >nul 2>nul
 if errorlevel 1 (
   echo Node.js not found, installing Node.js LTS with winget ...
