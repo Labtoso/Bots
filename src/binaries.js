@@ -35,19 +35,54 @@ function cloudflaredAsset() {
   return process.arch === 'arm64' ? 'cloudflared-linux-arm64' : 'cloudflared-linux-amd64';
 }
 
+/* The one-file yt-dlp unpacks itself on every start (about 2 s on Windows). The folder build
+   (Windows) or the Python zipapp (Linux with Python 3.10+) starts in a fraction of that. */
+async function fastYtdlp() {
+  try {
+    if (isWin) {
+      const dir = path.join(config.binDir, 'yt-dlp_win');
+      const exe = path.join(dir, 'yt-dlp.exe');
+      if (!fs.existsSync(exe)) {
+        const zip = path.join(config.binDir, 'yt-dlp_win.zip');
+        await download('https://github.com/yt-dlp/yt-dlp/releases/latest/download/yt-dlp_win.zip', zip);
+        fs.mkdirSync(dir, { recursive: true });
+        const r = spawnSync('tar', ['-xf', zip, '-C', dir], { windowsHide: true, timeout: 120_000 });
+        fs.rmSync(zip, { force: true });
+        if (r.status !== 0 || !fs.existsSync(exe)) { fs.rmSync(dir, { recursive: true, force: true }); return null; }
+      } else selfUpdate(exe);
+      return exe;
+    }
+    if (process.platform === 'linux') {
+      const py = spawnSync('python3', ['-c', 'import sys; print(sys.version_info >= (3, 10))'], { encoding: 'utf8' });
+      if (py.status !== 0 || !py.stdout.includes('True')) return null;
+      const app = path.join(config.binDir, 'yt-dlp.pyz');
+      if (!fs.existsSync(app)) await download('https://github.com/yt-dlp/yt-dlp/releases/latest/download/yt-dlp', app);
+      else selfUpdate(app);
+      return app;
+    }
+  } catch (e) {
+    log.warn('Schnelles yt-dlp nicht verfügbar:', e.message);
+  }
+  return null;
+}
+
+async function singleYtdlp() {
+  const local = path.join(config.binDir, isWin ? 'yt-dlp.exe' : 'yt-dlp');
+  const found = fs.existsSync(local) ? local : onPath('yt-dlp');
+  if (found) { if (found === local) selfUpdate(local); return found; }
+  await download(`https://github.com/yt-dlp/yt-dlp/releases/latest/download/${ytdlpAsset()}`, local);
+  return local;
+}
+
+// keep yt-dlp current, YouTube changes often
+function selfUpdate(bin) {
+  spawnSync(bin, ['-U'], { stdio: 'ignore', timeout: 60_000, windowsHide: true });
+}
+
 export async function ensureBinaries({ tunnel }) {
   bins.ffmpeg = process.env.FFMPEG_PATH || onPath('ffmpeg') || ffmpegStatic;
 
-  const ytLocal = path.join(config.binDir, isWin ? 'yt-dlp.exe' : 'yt-dlp');
-  bins.ytdlp = process.env.YTDLP_PATH || (fs.existsSync(ytLocal) ? ytLocal : onPath('yt-dlp'));
-  if (!bins.ytdlp) {
-    await download(`https://github.com/yt-dlp/yt-dlp/releases/latest/download/${ytdlpAsset()}`, ytLocal);
-    bins.ytdlp = ytLocal;
-  } else if (bins.ytdlp === ytLocal) {
-    // keep yt-dlp current, YouTube changes often
-    spawnSync(ytLocal, ['-U'], { stdio: 'ignore', timeout: 60_000 });
-  }
-
+  bins.ytdlp = process.env.YTDLP_PATH || await fastYtdlp() || await singleYtdlp();
   if (tunnel) {
     const cfLocal = path.join(config.binDir, isWin ? 'cloudflared.exe' : 'cloudflared');
     bins.cloudflared = process.env.CLOUDFLARED_PATH || (fs.existsSync(cfLocal) ? cfLocal : onPath('cloudflared'));
