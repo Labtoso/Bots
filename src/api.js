@@ -156,7 +156,20 @@ export function createApi(bot) {
           }
         }
         const g = settings.global();
-        return send(res, 200, { people, blocked: g.blocked, hidden: !!g.hidden });
+        const counts = {};
+        for (const v of people) counts[v.guildId] = (counts[v.guildId] || 0) + 1;
+        const guilds = (bot.getStats().guilds || []).map((gu) => ({
+          id: gu.id, name: gu.name, members: gu.members, playing: gu.playing, channel: gu.channel, queue: gu.queue, viewers: counts[gu.id] || 0,
+        }));
+        return send(res, 200, { people, guilds, blocked: g.blocked, hidden: !!g.hidden });
+      }
+      if (p === '/api/ctl/open' && req.method === 'POST') {
+        // the owner opens any server's panel on this bot without needing someone's link
+        const body0 = await readBody(req);
+        const gid = String(body0.guildId || '').trim();
+        if (!gid) return send(res, 400, { error: 'Server fehlt' });
+        const token = createToken({ userId: session.u, guildId: gid, userName: session.n, avatar: session.a });
+        return send(res, 200, { token });
       }
       if (p === '/api/ctl/status' && req.method === 'GET') {
         const ver = spawnSync(bins.ytdlp, ['--version'], { encoding: 'utf8', timeout: 15_000, windowsHide: true }).stdout?.trim() || null;
