@@ -297,3 +297,6 @@ input[type=range]:disabled { opacity: .4; }
   .item .acts { opacity: 1; }
   .results .item { grid-template-columns: 44px minmax(0, 1fr) auto; }
 }
+
+#btnPlay.loading svg { animation: spin-c 1s linear infinite; }
+@keyframes spin-c { to { transform: rotate(360deg); } }

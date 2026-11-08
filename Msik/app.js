@@ -44,7 +44,7 @@ const T = {
     channel: 'Sprachkanal', channelTip: 'In welchen Sprachkanal der Bot geht', channelAuto: 'Automatisch: dein Sprachkanal',
     channelJoined: 'Bot ist jetzt in „{c}“', channelAutoSaved: 'Bot geht ab jetzt in deinen Sprachkanal', inChannel: 'Gerade in',
     playlists: 'Playlists', plCount: '{n} Titel', addPlaylist: 'Ganze Playlist hinzufügen', showPlaylist: 'Titel anzeigen',
-    loadingPlaylist: 'Playlist wird geladen …',
+    loadingPlaylist: 'Playlist wird geladen …', loadingTrack: 'Wird geladen …',
     searchSource: 'Suche über', searchSourceHint: 'Gespielt wird immer über YouTube, Spotify liefert nur Titel und Cover.',
     searchPhSpotify: 'Auf Spotify suchen oder Link einfügen',
   },
@@ -68,7 +68,7 @@ const T = {
     channel: 'Voice channel', channelTip: 'Which voice channel the bot joins', channelAuto: 'Automatic: your voice channel',
     channelJoined: 'Bot is now in "{c}"', channelAutoSaved: 'Bot now joins your voice channel', inChannel: 'Currently in',
     playlists: 'Playlists', plCount: '{n} tracks', addPlaylist: 'Add the whole playlist', showPlaylist: 'Show tracks',
-    loadingPlaylist: 'Loading playlist …',
+    loadingPlaylist: 'Loading playlist …', loadingTrack: 'Loading …',
     searchSource: 'Search with', searchSourceHint: 'Playback always comes from YouTube, Spotify only supplies titles and covers.',
     searchPhSpotify: 'Search Spotify or paste a link',
   },
@@ -283,11 +283,12 @@ function render(s) {
     cover.hidden = true; $('coverPh').hidden = false; cover.dataset.src = '';
   }
   $('title').textContent = c ? c.title : t('nothing');
-  $('artist').textContent = c ? (c.artist || '') : t('nothingSub');
+  $('artist').textContent = c ? (s.loading ? t('loadingTrack') : (c.artist || '')) : t('nothingSub');
   $('requester').textContent = c ? [c.requester ? t('requestedBy', { n: c.requester }) : '', c.autoplay ? t('autoplayTag') : ''].filter(Boolean).join(' · ') : '';
   document.title = c ? `${c.title} · Msik` : 'Msik';
 
-  $('btnPlay').innerHTML = svg(!c || s.paused ? 'play' : 'pause');
+  $('btnPlay').innerHTML = svg(c && s.loading ? 'load' : (!c || s.paused ? 'play' : 'pause'));
+  $('btnPlay').classList.toggle('loading', !!(c && s.loading));
   for (const id of ['btnPlay', 'btnNext', 'btnStop']) $(id).disabled = !c;
   $('seek').disabled = !c || !c.duration;
   $('dur').textContent = c?.duration ? fmt(c.duration) : (c ? '--:--' : '0:00');
@@ -511,15 +512,28 @@ async function addPlaylist(url) {
   toast(t('loadingPlaylist'));
   try {
     const r = await api('/api/queue', { method: 'POST', body: { query: url } });
+    if (r.state) render(r.state);
     toast(t('addedMany', { n: r.added }));
   } catch (e) { toast(e.message, true); }
 }
 
 async function addTracks(tracks, next = false) {
+  // show it at once: as the current song (loading) or in the queue
+  if (state) {
+    const s = { ...state, queue: [...state.queue] };
+    const list = tracks.map((tr) => ({ ...tr, id: `tmp-${Math.random().toString(16).slice(2)}`, requester: sessInfo?.name }));
+    if (!s.current) { s.current = list.shift(); s.loading = true; s.position = 0; s.paused = false; }
+    if (next) s.queue.unshift(...list); else s.queue.push(...list);
+    render(s);
+  }
   try {
     const r = await api('/api/queue', { method: 'POST', body: { tracks, next } });
+    if (r.state) render(r.state);
     toast(r.added === 1 ? t('added', { t: tracks[0].title }) : t('addedMany', { n: r.added }));
-  } catch (e) { toast(e.message, true); }
+  } catch (e) {
+    toast(e.message, true);
+    api('/api/state').then(render).catch(() => {});
+  }
 }
 
 async function addAll() {
