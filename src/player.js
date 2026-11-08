@@ -17,7 +17,7 @@ export const FILTERS = {
   '8d': 'apulsator=hz=0.08',
   karaoke: 'stereotools=mlev=0.03',
   // heavily overdriven on purpose; the limiter keeps it from clipping into silence
-  earrape: 'bass=g=15:f=90,volume=20dB,acrusher=bits=6:mode=log:aa=1:mix=0.6,alimiter=limit=0.9:level=disabled',
+  earrape: 'bass=g=30:f=80,treble=g=12,volume=45dB,acrusher=bits=2:mode=log:aa=0:mix=1,volume=12dB,alimiter=limit=0.99:level=disabled',
 };
 const SPEED = { nightcore: 1.25, vaporwave: 0.8 };
 const LOOPS = ['off', 'track', 'queue'];
