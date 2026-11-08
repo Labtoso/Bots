@@ -122,6 +122,7 @@ export function createApi(bot) {
 
     if (p === '/api/queue' && req.method === 'POST') {
       const member = await bot.getMember(guildId, session.u);
+      player.startVoice(member, settings.get(guildId).channelId); // join while the songs are looked up
       let tracks;
       let playlist = null;
       if (Array.isArray(body.tracks) && body.tracks.length) {
@@ -132,9 +133,8 @@ export function createApi(bot) {
         playlist = r.playlist;
       }
       tracks.forEach((t) => { t.requester = session.n; });
-      await player.ensureVoice(member, settings.get(guildId).channelId);
       const added = await player.add(tracks, { next: !!body.next });
-      return send(res, 200, { added, playlist });
+      return send(res, 200, { added, playlist, state: player.state() });
     }
 
     if (p === '/api/settings' && req.method === 'POST') {

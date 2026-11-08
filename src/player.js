@@ -98,10 +98,27 @@ export class GuildPlayer extends EventEmitter {
   /** Joins a voice channel: the chosen one (dashboard setting) or the one the user is in. */
   async ensureVoice(member, channelId = null) {
     if (this.channel) return;
+    if (this.joining) { await this.joining; return; }
     const target = channelId || member?.voiceChannelId;
     if (!target) throw new Error('NOT_IN_VOICE');
-    this.channel = await this.connectFn(target, this.audio);
+    this.joining = this.connectFn(target, this.audio);
+    try {
+      this.channel = await this.joining;
+    } finally {
+      this.joining = null;
+    }
     this.changed();
+  }
+
+  /** Starts joining without waiting; playback waits for it before sending audio. */
+  startVoice(member, channelId = null) {
+    if (this.channel || this.joining) return;
+    if (!(channelId || member?.voiceChannelId)) throw new Error('NOT_IN_VOICE');
+    this.#run(this.ensureVoice(member, channelId).catch((err) => {
+      this.error = `Sprachkanal: ${err.message}`;
+      this.stop();
+      throw err;
+    }));
   }
 
   /** Joins or moves to a specific channel right away. */
@@ -141,7 +158,8 @@ export class GuildPlayer extends EventEmitter {
     this.error = null;
     this.changed();
     try {
-      const info = await streamInfo(track);
+      // stream lookup and voice join run at the same time
+      const [info] = await Promise.all([streamInfo(track), this.joining?.catch(() => null)]);
       if (id !== this.playId) return;
       const args = ['-hide_banner', '-loglevel', 'error'];
       if (/^https?:/.test(info.url)) {
