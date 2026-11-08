@@ -7,7 +7,7 @@ import {
 import { bins } from './binaries.js';
 import { config } from './config.js';
 import { log } from './log.js';
-import { prefetchStream, runYtdlp, streamInfo, toTrack } from './resolve.js';
+import { forgetStream, prefetchStream, runYtdlp, streamInfo, toTrack } from './resolve.js';
 
 export const FILTERS = {
   none: null,
@@ -143,9 +143,9 @@ export class GuildPlayer extends EventEmitter {
     try {
       const info = await streamInfo(track);
       if (id !== this.playId) return;
-      const args = ['-hide_banner', '-loglevel', 'error', '-probesize', '512k', '-analyzeduration', '0'];
+      const args = ['-hide_banner', '-loglevel', 'error'];
       if (/^https?:/.test(info.url)) {
-        args.push('-reconnect', '1', '-reconnect_streamed', '1', '-reconnect_on_network_error', '1', '-reconnect_delay_max', '5', '-rw_timeout', '15000000');
+        args.push('-reconnect', '1', '-reconnect_streamed', '1', '-reconnect_delay_max', '5');
         const headers = Object.entries(info.headers).map(([k, v]) => `${k}: ${v}\r\n`).join('');
         if (headers) args.push('-headers', headers);
       }
@@ -155,7 +155,17 @@ export class GuildPlayer extends EventEmitter {
       if (af) args.push('-af', af);
       args.push('-f', 's16le', '-ar', '48000', '-ac', '2', 'pipe:1');
       const ff = spawn(bins.ffmpeg, args, { windowsHide: true });
-      ff.stderr.on('data', (d) => log.warn('ffmpeg:', String(d).trim()));
+      ff.stderr.on('data', (d) => {
+        const msg = String(d).trim();
+        log.warn('ffmpeg:', msg);
+        // stream link expired or was refused: fetch a fresh one once and continue at the same spot
+        if (/403|410|Forbidden/i.test(msg) && id === this.playId && !track.retried) {
+          track.retried = true;
+          forgetStream(track);
+          const pos = this.position;
+          this.#run(this.#play(track, pos > 1 ? pos : seek));
+        }
+      });
       ff.on('error', (e) => log.error('ffmpeg start:', e.message));
       ff.stdout.on('error', () => {});
       this.ffmpeg = ff;
@@ -170,6 +180,7 @@ export class GuildPlayer extends EventEmitter {
       this.loading = false;
       this.audio.play(resource);
       this.failures = 0;
+      setTimeout(() => { if (id === this.playId) delete track.retried; }, 30_000);
       this.#prefetchNext();
     } catch (err) {
       if (id !== this.playId) return;

@@ -173,17 +173,15 @@ async function fetchStream(track) {
     if (!track.duration) track.duration = hit.duration;
     if (!track.thumbnail) track.thumbnail = hit.thumbnail;
   }
-  // YouTube: let Node solve the JavaScript challenge. Without it YouTube throttles the
-  // stream, which causes jumps and gaps. Falls back to a plain call if that fails.
   const args = ['-j', '--no-playlist', '-f', 'bestaudio/best', target];
-  const yt = /youtu/.test(target);
   let out;
   try {
-    out = await runYtdlp(yt ? ['--js-runtimes', `node:${process.execPath}`, ...args] : args);
-  } catch (err) {
-    if (!yt) throw err;
-    log.warn('Stream ohne JS-Laufzeit:', err.message);
     out = await runYtdlp(args);
+  } catch (err) {
+    // YouTube sometimes needs its JavaScript challenge solved; Node is already here, so use it for the retry
+    if (!/youtu/.test(target)) throw err;
+    log.warn('Stream erneut mit JS-Laufzeit:', err.message);
+    out = await runYtdlp(['--js-runtimes', `node:${process.execPath}`, ...args]);
   }
   const info = JSON.parse(out);
   return {
@@ -207,6 +205,11 @@ export async function streamInfo(track) {
   if (!track.duration && info.duration) track.duration = info.duration;
   if (!track.thumbnail && info.thumbnail) track.thumbnail = info.thumbnail;
   return info;
+}
+
+/** Drops a cached stream URL, e.g. after YouTube answered 403. */
+export function forgetStream(track) {
+  if (track) streams.delete(streamKey(track));
 }
 
 /** Resolves the stream in the background, errors are ignored here. */
