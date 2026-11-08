@@ -1,6 +1,6 @@
 import {
-  ActionRowBuilder, ButtonBuilder, ButtonStyle, Client, EmbedBuilder, Events, GatewayIntentBits,
-  MessageFlags, REST, Routes, SlashCommandBuilder,
+  ActionRowBuilder, ButtonBuilder, ButtonStyle, ChannelType, Client, EmbedBuilder, Events, GatewayIntentBits,
+  MessageFlags, PermissionFlagsBits, REST, Routes, SlashCommandBuilder,
 } from 'discord.js';
 import { VoiceConnectionStatus, entersState, getVoiceConnection, joinVoiceChannel } from '@discordjs/voice';
 import { config } from './config.js';
@@ -21,12 +21,17 @@ export function createDiscordBot() {
       const player = new GuildPlayer(guildId, {
         connect: async (channelId, audio) => {
           const guild = await client.guilds.fetch(guildId);
-          const channel = await guild.channels.fetch(channelId);
+          const channel = await guild.channels.fetch(channelId).catch(() => null);
+          if (!channel?.isVoiceBased()) throw new Error('CHANNEL_GONE');
+          const perms = channel.permissionsFor(guild.members.me);
+          if (!perms?.has([PermissionFlagsBits.Connect, PermissionFlagsBits.Speak])) throw new Error('NO_VOICE_PERMS');
           const conn = joinVoiceChannel({
             channelId, guildId, adapterCreator: guild.voiceAdapterCreator, selfDeaf: true,
           });
           await entersState(conn, VoiceConnectionStatus.Ready, 20_000);
           conn.subscribe(audio);
+          if (conn.msikHooked) return { id: channel.id, name: channel.name };
+          conn.msikHooked = true;
           conn.on(VoiceConnectionStatus.Disconnected, async () => {
             try {
               await Promise.race([
@@ -57,6 +62,22 @@ export function createDiscordBot() {
     const g = client.guilds.cache.get(guildId) || await client.guilds.fetch(guildId);
     const m = await g.members.fetch(userId).catch(() => null);
     return { id: userId, voiceChannelId: m?.voice?.channelId || null };
+  }
+
+  /** Voice channels the bot may join, sorted like in Discord. */
+  async function getVoiceChannels(guildId) {
+    const g = client.guilds.cache.get(guildId) || await client.guilds.fetch(guildId);
+    const all = await g.channels.fetch();
+    const me = g.members.me || await g.members.fetchMe();
+    return [...all.values()]
+      .filter((c) => c && (c.type === ChannelType.GuildVoice || c.type === ChannelType.GuildStageVoice))
+      .filter((c) => c.permissionsFor(me)?.has([PermissionFlagsBits.ViewChannel, PermissionFlagsBits.Connect]))
+      .sort((a, b) => (a.parent?.rawPosition ?? -1) - (b.parent?.rawPosition ?? -1) || a.rawPosition - b.rawPosition)
+      .map((c) => ({
+        id: c.id, name: c.name, category: c.parent?.name || null,
+        users: c.members.filter((m) => !m.user.bot).size,
+        canSpeak: !!c.permissionsFor(me)?.has(PermissionFlagsBits.Speak),
+      }));
   }
 
   const command = new SlashCommandBuilder()
@@ -122,7 +143,7 @@ export function createDiscordBot() {
 
   return {
     getPlayer,
-    getGuildInfo, getMember,
+    getGuildInfo, getMember, getVoiceChannels,
     activeCount: () => [...players.values()].filter((p) => p.current && !p.paused).length,
     getName: () => client.user?.username || null,
     setPublicUrl: (u) => { publicUrl = u; },

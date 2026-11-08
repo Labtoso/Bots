@@ -32,7 +32,7 @@ async function waitFor(fn, ms = 20000) {
 
 test.before(async () => {
   proc = fork(fileURLToPath(new URL('../src/index.js', import.meta.url)), {
-    env: { ...process.env, MOCK: '1', TUNNEL: 'off', PORT: String(PORT), NO_PROXY: '127.0.0.1,localhost' },
+    env: { ...process.env, SETTINGS_FILE: `/tmp/msik-test-settings-${process.pid}.json`, MOCK: '1', TUNNEL: 'off', PORT: String(PORT), NO_PROXY: '127.0.0.1,localhost' },
     stdio: ['ignore', 'inherit', 'inherit', 'ipc'],
   });
   token = await new Promise((resolve, reject) => {
@@ -162,6 +162,37 @@ test('client supplied tracks are sanitised', async () => {
   const t = s.queue.at(-1);
   assert.equal(t.title, 'ok');
   assert.equal(t.thumbnail, null);
+});
+
+test('voice channels: list, choose, move, back to automatic', async () => {
+  let r = await call('/api/channels');
+  assert.equal(r.status, 200);
+  assert.deepEqual(r.data.channels.map((c) => c.name), ['Musik', 'Chillen']);
+  assert.equal(r.data.selected, null);
+  r = await call('/api/settings', 'POST', { channelId: 'voice-2', join: true });
+  assert.equal(r.status, 200, JSON.stringify(r.data));
+  assert.equal(r.data.state.channel.name, 'Chillen');
+  assert.equal((await call('/api/channels')).data.selected, 'voice-2');
+  r = await call('/api/settings', 'POST', { channelId: null });
+  assert.equal(r.data.settings.channelId, null);
+  r = await call('/api/settings', 'POST', { channelId: '../../x' });
+  assert.equal(r.data.settings.channelId, null);
+});
+
+test('skip answers at once and the prefetched next track starts quickly', async () => {
+  await call('/api/control', 'POST', { action: 'stop' });
+  await call('/api/queue', 'POST', { query: `${BASE}/track1.html` });
+  await call('/api/queue', 'POST', { query: `${BASE}/track3.html` });
+  await waitFor((st) => st.current && !st.loading && st.queue.length === 1);
+  await sleep(1500); // give the prefetch time
+  const t0 = Date.now();
+  const r = await call('/api/control', 'POST', { action: 'skip' });
+  const answer = Date.now() - t0;
+  assert.ok(answer < 400, `skip took ${answer} ms`);
+  assert.match(r.data.current.title, /Leise Wellen/);
+  await waitFor((st) => st.current && !st.loading && /Leise Wellen/.test(st.current.title) && st.position > 0.3);
+  const started = Date.now() - t0;
+  assert.ok(started < 2500, `next track needed ${started} ms`);
 });
 
 test('stop clears everything', async () => {

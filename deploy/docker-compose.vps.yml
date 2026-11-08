@@ -6,6 +6,8 @@ services:
     build: ..
     restart: unless-stopped
     env_file: ../.env
+    volumes:
+      - ../data:/app/data
     environment:
       TUNNEL: "off"
       PUBLIC_URL: "https://${API_DOMAIN}"

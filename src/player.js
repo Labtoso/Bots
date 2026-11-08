@@ -6,7 +6,7 @@ import {
 import { bins } from './binaries.js';
 import { config } from './config.js';
 import { log } from './log.js';
-import { runYtdlp, streamInfo, toTrack } from './resolve.js';
+import { prefetchStream, runYtdlp, streamInfo, toTrack } from './resolve.js';
 
 export const FILTERS = {
   none: null,
@@ -40,6 +40,7 @@ export class GuildPlayer extends EventEmitter {
     this.ffmpeg = null;
     this.loading = false;
     this.idleTimer = null;
+    this.failures = 0;
 
     this.audio = createAudioPlayer({ behaviors: { noSubscriber: NoSubscriberBehavior.Play } });
     this.audio.on('stateChange', (oldS, newS) => {
@@ -71,6 +72,7 @@ export class GuildPlayer extends EventEmitter {
       this.idleTimer = setTimeout(() => this.leave(), config.idleMinutes * 60_000);
     }
     this.emit('update', this.state());
+    if (this.current && !this.loading) this.#prefetchNext();
   }
 
   state() {
@@ -92,11 +94,21 @@ export class GuildPlayer extends EventEmitter {
     };
   }
 
-  async ensureVoice(member) {
+  /** Joins a voice channel: the chosen one (dashboard setting) or the one the user is in. */
+  async ensureVoice(member, channelId = null) {
     if (this.channel) return;
-    if (!member?.voiceChannelId) throw new Error('NOT_IN_VOICE');
-    const ch = await this.connectFn(member.voiceChannelId, this.audio);
-    this.channel = ch;
+    const target = channelId || member?.voiceChannelId;
+    if (!target) throw new Error('NOT_IN_VOICE');
+    this.channel = await this.connectFn(target, this.audio);
+    this.changed();
+  }
+
+  /** Joins or moves to a specific channel right away. */
+  async moveTo(channelId) {
+    if (!channelId) throw new Error('NO_CHANNEL');
+    if (this.channel?.id === channelId) return;
+    this.channel = await this.connectFn(channelId, this.audio);
+    this.changed();
   }
 
   async add(tracks, { next = false } = {}) {
@@ -104,9 +116,19 @@ export class GuildPlayer extends EventEmitter {
     const list = tracks.slice(0, Math.max(0, room));
     if (next) this.queue.unshift(...list);
     else this.queue.push(...list);
-    if (!this.current && !this.loading) await this.#advance({});
-    else this.changed();
+    // do not wait for the stream: the dashboard gets an answer at once, playback follows
+    if (!this.current && !this.loading) this.#run(this.#advance({}));
+    else { this.changed(); this.#prefetchNext(); }
     return list.length;
+  }
+
+  #run(promise) {
+    promise.catch((err) => log.warn(`Player (${this.guildId}):`, err.message));
+  }
+
+  #prefetchNext() {
+    if (this.loop === 'track') return;
+    prefetchStream(this.queue[0]);
   }
 
   async #play(track, seek = 0) {
@@ -120,7 +142,7 @@ export class GuildPlayer extends EventEmitter {
     try {
       const info = await streamInfo(track);
       if (id !== this.playId) return;
-      const args = ['-hide_banner', '-loglevel', 'error'];
+      const args = ['-hide_banner', '-loglevel', 'error', '-probesize', '512k', '-analyzeduration', '0'];
       if (/^https?:/.test(info.url)) {
         args.push('-reconnect', '1', '-reconnect_streamed', '1', '-reconnect_delay_max', '5');
         const headers = Object.entries(info.headers).map(([k, v]) => `${k}: ${v}\r\n`).join('');
@@ -143,6 +165,8 @@ export class GuildPlayer extends EventEmitter {
       this.resource = resource;
       this.loading = false;
       this.audio.play(resource);
+      this.failures = 0;
+      this.#prefetchNext();
     } catch (err) {
       if (id !== this.playId) return;
       log.warn(`Konnte "${track.title}" nicht abspielen:`, err.message);
@@ -150,6 +174,13 @@ export class GuildPlayer extends EventEmitter {
       this.error = `${track.title}: ${err.message}`;
       this.history.push(track);
       this.current = null;
+      // after several failures in a row stop, instead of emptying the whole queue
+      if (++this.failures >= 3) {
+        this.failures = 0;
+        this.playId++;
+        this.changed();
+        return;
+      }
       await this.#advance({});
     }
   }
@@ -201,23 +232,24 @@ export class GuildPlayer extends EventEmitter {
   pause() { this.audio.pause(); this.changed(); }
   resume() { this.audio.unpause(); this.changed(); }
   toggle() { return this.paused ? this.resume() : this.pause(); }
-  async skip() { this.playId++; await this.#advance({ finished: false }); }
+  // skip, previous, jump and seek answer at once; the new track follows via the live updates
+  skip() { this.playId++; this.#run(this.#advance({ finished: false })); }
 
-  async previous() {
+  previous() {
     if (this.current && this.position > 5) return this.seek(0);
     const prev = this.history.pop();
     if (!prev) return this.seek(0);
     if (this.current) this.queue.unshift(this.current);
     this.current = null;
-    await this.#play(prev);
+    this.#run(this.#play(prev));
+    return undefined;
   }
 
-  async seek(seconds) {
+  seek(seconds) {
     if (!this.current) return;
     const s = Math.max(0, Math.min(Number(seconds) || 0, (this.current.duration || 1e9) - 1));
     const wasPaused = this.paused;
-    await this.#play(this.current, s);
-    if (wasPaused) this.pause();
+    this.#run(this.#play(this.current, s).then(() => { if (wasPaused) this.pause(); }));
   }
 
   setVolume(v) {
@@ -255,12 +287,12 @@ export class GuildPlayer extends EventEmitter {
     this.changed();
   }
 
-  async jump(id) {
+  jump(id) {
     const i = this.queue.findIndex((t) => t.id === id);
     if (i < 0) return;
     const [t] = this.queue.splice(i, 1);
     this.queue.unshift(t);
-    await this.skip();
+    this.skip();
   }
 
   shuffle() {

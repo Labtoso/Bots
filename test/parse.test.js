@@ -41,3 +41,24 @@ test('tokens are bound to user and server and can not be forged', () => {
   assert.equal(verifyToken(`${payload}.x`), null);
   assert.equal(verifyToken('nope'), null);
 });
+
+test('fast YouTube search reads videos and playlists from real responses', async () => {
+  const { parseSearch } = await import('../src/youtube.js');
+  const fs = await import('node:fs');
+  const zlib = await import('node:zlib');
+  const load = (f) => JSON.parse(zlib.gunzipSync(fs.readFileSync(new URL(`./fixtures/${f}`, import.meta.url))));
+  const v = parseSearch(load('yt-search-videos.json.gz'));
+  assert.ok(v.videos.length >= 10);
+  assert.equal(v.videos[0].url, 'https://www.youtube.com/watch?v=dQw4w9WgXcQ');
+  assert.equal(v.videos[0].artist, 'Rick Astley');
+  assert.equal(v.videos[0].duration, 214);
+  assert.match(v.videos[0].thumbnail, /^https:\/\/i\.ytimg\.com\/vi\/dQw4w9WgXcQ\//);
+  const p = parseSearch(load('yt-search-playlists.json.gz'));
+  assert.ok(p.playlists.length >= 10);
+  for (const pl of p.playlists) {
+    assert.match(pl.url, /^https:\/\/www\.youtube\.com\/playlist\?list=[\w-]+$/);
+    assert.ok(pl.title);
+  }
+  assert.equal(p.playlists[0].count, 60);
+  assert.equal(p.playlists[0].artist, 'just.rick_6');
+});

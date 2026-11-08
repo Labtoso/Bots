@@ -2,7 +2,8 @@ import http from 'node:http';
 import { config } from './config.js';
 import { verifyToken } from './auth.js';
 import { log } from './log.js';
-import { resolve, search } from './resolve.js';
+import { resolve, searchAll } from './resolve.js';
+import { settings } from './settings.js';
 
 /**
  * REST + Server-Sent-Events API used by the dashboard on GitHub Pages.
@@ -47,7 +48,10 @@ export function createApi(bot) {
   }
 
   const errors = {
-    NOT_IN_VOICE: [409, 'Geh zuerst in einen Sprachkanal auf dem Server.'],
+    NOT_IN_VOICE: [409, 'Geh zuerst in einen Sprachkanal oder wähl im Dashboard einen Kanal aus.'],
+    NO_CHANNEL: [400, 'Kein Kanal gewählt.'],
+    CHANNEL_GONE: [404, 'Diesen Sprachkanal gibt es nicht mehr.'],
+    NO_VOICE_PERMS: [403, 'Der Bot darf in diesem Kanal nicht verbinden oder sprechen.'],
   };
 
   async function handle(req, res) {
@@ -94,6 +98,11 @@ export function createApi(bot) {
 
     if (p === '/api/state' && req.method === 'GET') return send(res, 200, player.state());
 
+    if (p === '/api/channels' && req.method === 'GET') {
+      const [channels, member] = await Promise.all([bot.getVoiceChannels(guildId), bot.getMember(guildId, session.u)]);
+      return send(res, 200, { channels, selected: settings.get(guildId).channelId, mine: member.voiceChannelId });
+    }
+
     if (p === '/api/search' && req.method === 'GET') {
       const q = (url.searchParams.get('q') || '').trim();
       if (!q) return send(res, 200, { results: [] });
@@ -101,7 +110,8 @@ export function createApi(bot) {
         const r = await resolve(q);
         return send(res, 200, { results: r.tracks.slice(0, 50), playlist: r.playlist, total: r.tracks.length });
       }
-      return send(res, 200, { results: await search(q, 8) });
+      const r = await searchAll(q, 8);
+      return send(res, 200, { results: r.tracks, playlists: r.playlists });
     }
 
     if (req.method !== 'POST' && req.method !== 'DELETE') return send(res, 404, { error: 'Nicht gefunden' });
@@ -119,9 +129,16 @@ export function createApi(bot) {
         playlist = r.playlist;
       }
       tracks.forEach((t) => { t.requester = session.n; });
-      await player.ensureVoice(member);
+      await player.ensureVoice(member, settings.get(guildId).channelId);
       const added = await player.add(tracks, { next: !!body.next });
       return send(res, 200, { added, playlist });
+    }
+
+    if (p === '/api/settings' && req.method === 'POST') {
+      const channelId = typeof body.channelId === 'string' && /^[\w-]{1,32}$/.test(body.channelId) ? body.channelId : null;
+      const saved = settings.set(guildId, { channelId });
+      if (channelId && body.join) await player.moveTo(channelId);
+      return send(res, 200, { settings: saved, state: player.state() });
     }
 
     const qm = p.match(/^\/api\/queue\/([\w-]+)$/);
@@ -147,7 +164,7 @@ export function createApi(bot) {
         move: () => player.move(value?.id, value?.to),
         jump: () => player.jump(value),
         remove: () => player.remove(value),
-        join: async () => player.ensureVoice(await bot.getMember(guildId, session.u)),
+        join: async () => (value ? player.moveTo(String(value)) : player.ensureVoice(await bot.getMember(guildId, session.u), settings.get(guildId).channelId)),
       };
       if (!actions[action]) return send(res, 400, { error: 'Unbekannte Aktion' });
       await actions[action]();
