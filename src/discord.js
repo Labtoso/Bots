@@ -121,7 +121,9 @@ export function createDiscordBot() {
   });
 
   return {
-    getPlayer, getGuildInfo, getMember,
+    getPlayer,
+    getGuildInfo, getMember,
+    activeCount: () => [...players.values()].filter((p) => p.current && !p.paused).length,
     getName: () => client.user?.username || null,
     setPublicUrl: (u) => { publicUrl = u; },
     start: () => client.login(config.token),

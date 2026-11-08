@@ -57,7 +57,10 @@ export function createApi(bot) {
     const p = url.pathname;
 
     if (p === '/' || p === '/health') {
-      return send(res, 200, { ok: true, name: 'msik', backend: config.backendName || bot.getName?.() || 'Msik', bot: bot.getName?.() || null });
+      return send(res, 200, {
+        ok: true, name: 'msik', backend: config.backendName || bot.getName?.() || 'Msik', bot: bot.getName?.() || null,
+        active: bot.activeCount?.() || 0,
+      });
     }
 
     const token = (req.headers.authorization || '').replace(/^Bearer\s+/i, '') || url.searchParams.get('token');

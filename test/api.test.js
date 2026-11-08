@@ -47,6 +47,7 @@ test('health is public and names the backend', async () => {
   const data = await res.json();
   assert.equal(data.ok, true);
   assert.equal(data.bot, 'Msik Test');
+  assert.equal(data.active, 0);
   assert.equal(res.headers.get('access-control-allow-origin'), 'https://bot.labtoso.de');
 });
 

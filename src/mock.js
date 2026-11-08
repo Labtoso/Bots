@@ -15,6 +15,7 @@ export function createMockBot() {
   };
   return {
     getPlayer,
+    activeCount: () => [...players.values()].filter((p) => p.current && !p.paused).length,
     getName: () => 'Msik Test',
     getGuildInfo: async (id) => ({ id, name: 'Testserver', icon: null }),
     getMember: async (gid, uid) => ({ id: uid, voiceChannelId: 'voice-1' }),
