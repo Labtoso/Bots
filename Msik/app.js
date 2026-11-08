@@ -201,8 +201,34 @@ async function api(path, { method = 'GET', body } = {}) {
   if (!res.ok) throw new Error(data.error || `HTTP ${res.status}`);
   return data;
 }
-const control = (action, value) => api('/api/control', { method: 'POST', body: { action, value } })
-  .then((s) => { render(s); return s; }).catch((e) => toast(e.message, true));
+/* Shows the expected result at once; the bot's answer then confirms or corrects it. */
+function predict(action, value) {
+  if (!state) return;
+  const s = { ...state, queue: [...state.queue], history: [...state.history] };
+  const take = (id) => { const i = s.queue.findIndex((x) => x.id === id); return i < 0 ? null : s.queue.splice(i, 1)[0]; };
+  switch (action) {
+    case 'toggle': if (!s.current) return; s.paused = !s.paused; break;
+    case 'pause': s.paused = true; break;
+    case 'resume': s.paused = false; break;
+    case 'skip':
+      if (s.current) s.history.unshift(s.current);
+      s.current = s.queue.shift() || null; s.position = 0; s.loading = !!s.current; s.paused = false; break;
+    case 'jump': { const tr = take(value); if (!tr) return; if (s.current) s.history.unshift(s.current); s.current = tr; s.position = 0; s.loading = true; break; }
+    case 'remove': if (!take(value)) return; break;
+    case 'move': { const tr = take(value?.id); if (!tr) return; s.queue.splice(Math.max(0, Math.min(value.to, s.queue.length)), 0, tr); break; }
+    case 'clear': s.queue = []; break;
+    case 'stop': if (s.current) s.history.unshift(s.current); s.current = null; s.queue = []; break;
+    case 'volume': s.volume = value; break;
+    case 'filter': s.filter = value; break;
+    case 'autoplay': s.autoplay = !!value; break;
+    case 'seek': s.position = value; break;
+    default: return;
+  }
+  render(s);
+}
+const control = (action, value) => (predict(action, value), api('/api/control', { method: 'POST', body: { action, value } }))
+  .then((s) => { render(s); return s; })
+  .catch((e) => { toast(e.message, true); api('/api/state').then(render).catch(() => {}); });
 
 /* ---------- formatting ---------- */
 const fmt = (s) => {
@@ -889,12 +915,14 @@ $('btnClear').onclick = () => control('clear');
 $('filter').onchange = (e) => control('filter', e.target.value);
 $('autoplay').onchange = (e) => control('autoplay', e.target.checked);
 
-let volTimer;
+let volTimer; let volSent = 0;
 $('volume').addEventListener('input', (e) => {
   const v = Number(e.target.value);
   setVolumeUI(v);
+  // send while dragging (at most every 70 ms) and once more at the end
   clearTimeout(volTimer);
-  volTimer = setTimeout(() => control('volume', v), 120);
+  const now = performance.now();
+  if (now - volSent > 70) { volSent = now; control('volume', v); } else volTimer = setTimeout(() => { volSent = performance.now(); control('volume', v); }, 70);
 });
 $('btnMute').onclick = () => {
   const v = Number($('volume').value);
