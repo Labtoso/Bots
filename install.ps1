@@ -7,6 +7,8 @@
 # shortcuts and starts the bot. Run it again to update; settings are kept.
 param(
   [string]$Token = $env:MSIK_TOKEN,
+  [string]$SpotifyId = $env:MSIK_SPOTIFY_ID,
+  [string]$SpotifySecret = $env:MSIK_SPOTIFY_SECRET,
   [string]$Dir = (Join-Path $env:LOCALAPPDATA 'Msik'),
   [switch]$NoStart,
   [switch]$NoShortcuts,
@@ -104,6 +106,15 @@ function Get-Env([string]$key) {
   return ''
 }
 if ($Token) { Set-Env 'DISCORD_TOKEN' $Token }
+if (-not $SpotifyId -and -not (Get-Env 'SPOTIFY_CLIENT_ID') -and -not $haveToken) {
+  Write-Host ''
+  Write-Host 'Spotify search (optional): Client ID and secret of a free app on https://developer.spotify.com/dashboard'
+  Write-Host 'Press Enter to skip, you can add them to .env later.'
+  $SpotifyId = (Read-Host 'Spotify Client ID (optional)').Trim()
+  if ($SpotifyId) { $SpotifySecret = (Read-Host 'Spotify Client secret').Trim() }
+}
+if ($SpotifyId) { Set-Env 'SPOTIFY_CLIENT_ID' $SpotifyId }
+if ($SpotifySecret) { Set-Env 'SPOTIFY_CLIENT_SECRET' $SpotifySecret }
 if (-not (Get-Env 'BACKEND_NAME')) { Set-Env 'BACKEND_NAME' $env:COMPUTERNAME }
 [IO.File]::WriteAllLines($envFile, $lines)
 
