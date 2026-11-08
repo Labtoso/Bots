@@ -335,11 +335,13 @@ let lastVol = store.get('lastVol', 60);
 // Answers can arrive out of order (live update before the HTTP reply). Only newer bot states win,
 // otherwise an old "loading" state could stick on the play button.
 let serverAt = 0;
+let serverRev = 0;
 let lastError = null;
 function render(s, local = false) {
   if (!local) {
     if (s.updatedAt && s.updatedAt < serverAt) return;
     serverAt = s.updatedAt || serverAt;
+    if (s.rev != null) serverRev = Math.max(serverRev, s.rev);
   }
   if (!local && s.error && s.error !== lastError) toast(s.error, true);
   if (!local) lastError = s.error;
@@ -721,8 +723,10 @@ function connect() {
   es.addEventListener('tick', (e) => {
     const d = JSON.parse(e.data);
     if (state && !seeking) { state.paused = d.paused; tickBase = { pos: d.position, at: performance.now() }; }
-    // safety net: the bot says it is done loading but the page still shows loading
-    if (state && d.loading === false && state.loading && !state.local && !resyncing) {
+    // someone else changed something and we missed the live update (dropped or buffered) -> catch up
+    const missed = state && d.rev != null && d.rev > serverRev && !state.local;
+    const stuckLoading = state && d.loading === false && state.loading && !state.local;
+    if ((missed || stuckLoading) && !resyncing && !seeking) {
       resyncing = true;
       api('/api/state').then((st) => render(st)).catch(() => {}).finally(() => { resyncing = false; });
     }
