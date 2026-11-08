@@ -186,6 +186,26 @@
   <div class="field">
     <button class="btn ghost sm" id="drawerHelp" data-i18n="tutorial"></button>
   </div>
+  <div class="field" id="serverField" hidden>
+    <span class="label" data-i18n="serverSettings"></span>
+    <label class="switch">
+      <input type="checkbox" id="npEnabled"><span class="track"></span><span data-i18n="npPost"></span>
+    </label>
+    <label class="select wide"><span data-i18n="npChannel"></span><select id="npChannel"></select></label>
+    <label class="select wide"><span data-i18n="webChannel"></span><select id="webChannel"></select></label>
+    <span class="muted small" id="npHint" hidden data-i18n="npNoPerm"></span>
+  </div>
+  <div class="field admin-field" id="adminField" hidden>
+    <span class="label" data-i18n="admin"></span>
+    <div class="admin-stats muted small" id="adminStats"></div>
+    <div class="admin-btns">
+      <button class="btn ghost sm" id="adminLogs" data-i18n="adminLogs"></button>
+      <button class="btn ghost sm" id="adminYtdlp" data-i18n="adminYtdlp"></button>
+      <button class="btn ghost sm" id="adminRevoke" data-i18n="adminRevoke"></button>
+      <button class="btn ghost sm" id="adminStop" data-i18n="adminStop"></button>
+      <button class="btn ghost sm danger" id="adminRestart" data-i18n="adminRestart"></button>
+    </div>
+  </div>
   <div class="field">
     <span class="label" data-i18n="session"></span>
     <p class="muted small" id="sessionInfo"></p>
@@ -195,6 +215,11 @@
 </aside>
 
 <div class="pop" id="plPop" hidden></div>
+<div class="modal-bg" id="logBg" hidden></div>
+<section class="modal log-modal" id="logBox" role="dialog" aria-modal="true" hidden>
+  <div class="modal-head"><h2 data-i18n="adminLogs"></h2><button class="icon-btn" id="closeLog" data-i18n-title="close"></button></div>
+  <pre class="log-pre" id="logPre"></pre>
+</section>
 <div class="modal-bg" id="nameBg" hidden></div>
 <section class="modal name-modal" id="nameBox" role="dialog" aria-modal="true" aria-labelledby="nameTitle" hidden>
   <h2 id="nameTitle" data-i18n="nameTitle"></h2>

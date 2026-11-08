@@ -348,3 +348,14 @@ img.yt43 { transform: scale(1.34); }
   .queue .item .acts, #plTracks .item .acts { width: auto; }
   .pl-head { flex-wrap: wrap; }
 }
+
+.select.wide { width: 100%; justify-content: space-between; }
+.select.wide select { max-width: 60%; min-width: 0; }
+.admin-field { border: 1px solid color-mix(in srgb, var(--accent) 45%, var(--line)); border-radius: var(--r-card); padding: 12px; width: 100%; box-sizing: border-box; }
+.admin-stats { width: 100%; line-height: 1.6; }
+.admin-stats b { color: var(--text); font-weight: 500; }
+.admin-stats ul { margin: 4px 0 0; padding-left: 16px; }
+.admin-btns { display: flex; flex-wrap: wrap; gap: 6px; }
+.btn.danger { color: #f87171; }
+.log-modal { max-width: 900px; width: calc(100vw - 32px); }
+.log-pre { margin: 10px 0 0; max-height: 65vh; overflow: auto; background: var(--panel-2); border: 1px solid var(--line); border-radius: var(--r-ctl); padding: 10px; font-size: 12px; line-height: 1.5; white-space: pre-wrap; word-break: break-all; }

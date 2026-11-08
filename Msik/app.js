@@ -62,6 +62,12 @@ const T = {
     a_jump: 'spielt jetzt „{d}“', a_remove: 'hat „{d}“ entfernt', a_seek: 'ist zu {d} gesprungen',
     a_channel: 'hat den Kanal auf „{d}“ gestellt', a_channelAuto: 'hat den Kanal auf Automatisch gestellt',
     on: 'an', off: 'aus', guest: 'Gast',
+    serverSettings: 'Server', npPost: 'Laufenden Song posten', npChannel: 'Textkanal', webChannel: '/web erlaubt in',
+    everywhere: 'Überall', npNoPerm: 'Der Bot darf in diesem Kanal nicht schreiben (Nachrichten senden, Links einbetten).', saved: 'Gespeichert',
+    admin: 'Admin', adminLogs: 'Logs', adminYtdlp: 'yt-dlp aktualisieren', adminRevoke: 'Geteilte Links zurückziehen',
+    adminStop: 'Überall stoppen', adminRestart: 'Bot neu starten', adminRestartAsk: 'Bot wirklich neu starten? Die Musik stoppt kurz, der Tunnel bekommt eine neue Adresse (dann /web).',
+    adminRevoked: 'Alle geteilten Links gelten nicht mehr', adminStopped: 'Auf allen Servern gestoppt', adminRestarting: 'Bot startet neu …',
+    upFor: 'läuft seit {t}', servers: 'Server', mem: 'Speicher', none: 'nichts',
     myPlaylists: 'Playlists', plNewPh: 'Neue Playlist', plCreate: 'Anlegen', plSaveQueue: 'Warteschlange als Playlist speichern',
     plEmpty: 'Noch keine Playlists. Leg oben eine an.', plTracksEmpty: 'Noch leer. Füg Songs über das Listen-Symbol bei Suche oder Warteschlange hinzu.',
     plPlay: 'Abspielen', plShuffle: 'Gemischt abspielen', plToQueue: 'An die Warteschlange hängen', plRename: 'Umbenennen', plDelete: 'Löschen',
@@ -105,6 +111,12 @@ const T = {
     a_jump: 'now plays "{d}"', a_remove: 'removed "{d}"', a_seek: 'jumped to {d}',
     a_channel: 'set the channel to "{d}"', a_channelAuto: 'set the channel to automatic',
     on: 'on', off: 'off', guest: 'guest',
+    serverSettings: 'Server', npPost: 'Post the current song', npChannel: 'Text channel', webChannel: '/web allowed in',
+    everywhere: 'Everywhere', npNoPerm: 'The bot may not write in this channel (Send Messages, Embed Links).', saved: 'Saved',
+    admin: 'Admin', adminLogs: 'Logs', adminYtdlp: 'Update yt-dlp', adminRevoke: 'Revoke shared links',
+    adminStop: 'Stop everywhere', adminRestart: 'Restart bot', adminRestartAsk: 'Really restart the bot? Music stops briefly and the tunnel gets a new address (then /web).',
+    adminRevoked: 'All shared links are revoked', adminStopped: 'Stopped on all servers', adminRestarting: 'Bot is restarting …',
+    upFor: 'up for {t}', servers: 'Servers', mem: 'Memory', none: 'nothing',
     myPlaylists: 'Playlists', plNewPh: 'New playlist', plCreate: 'Create', plSaveQueue: 'Save queue as playlist',
     plEmpty: 'No playlists yet. Create one above.', plTracksEmpty: 'Still empty. Add songs with the list icon in search or the queue.',
     plPlay: 'Play', plShuffle: 'Play shuffled', plToQueue: 'Append to the queue', plRename: 'Rename', plDelete: 'Delete',
@@ -760,7 +772,7 @@ async function start() {
     $('server').hidden = false;
     if (s.user.avatar) { $('userAvatar').src = s.user.avatar; $('userAvatar').hidden = false; }
     $('userAvatar').title = s.user.name;
-    sessInfo = { name: s.user.name, exp: s.expires, guest: !!s.user.guest };
+    sessInfo = { name: s.user.name, exp: s.expires, guest: !!s.user.guest, admin: !!s.user.admin };
     $('shareLink').hidden = false;
     if (s.user.guest && !store.get('guestName', '')) askName();
     renderSessionInfo();
@@ -881,6 +893,56 @@ async function openPlPicker(btn, tracks) {
 }
 document.addEventListener('click', (e) => { if (!$('plPop').hidden && !$('plPop').contains(e.target)) closePop(); });
 document.addEventListener('scroll', closePop, true);
+
+/* ---------- server settings + admin ---------- */
+function fillTextSelect(sel, list, value, firstLabel) {
+  sel.replaceChildren();
+  const first = el('option', '', firstLabel); first.value = ''; sel.append(first);
+  for (const c of list) { const o = el('option', '', `# ${c.name}`); o.value = c.id; sel.append(o); }
+  sel.value = value || '';
+}
+async function loadServerSettings() {
+  if (!sessInfo || sessInfo.guest) { $('serverField').hidden = true; return; }
+  try { channels = await api('/api/channels'); } catch { return; }
+  $('serverField').hidden = false;
+  const text = channels.text || [];
+  fillTextSelect($('npChannel'), text, channels.npChannelId, '—');
+  fillTextSelect($('webChannel'), text, channels.webChannelId, t('everywhere'));
+  $('npEnabled').checked = !!channels.npEnabled;
+  updateNpHint();
+}
+function updateNpHint() {
+  const c = (channels.text || []).find((x) => x.id === $('npChannel').value);
+  $('npHint').hidden = !(c && !c.canPost && $('npEnabled').checked);
+}
+async function saveServer(patch) {
+  try { await api('/api/settings', { method: 'POST', body: patch }); Object.assign(channels, patch); updateNpHint(); toast(t('saved')); } catch (e) { toast(e.message, true); loadServerSettings(); }
+}
+const dur = (s) => { const h = Math.floor(s / 3600); const m = Math.floor((s % 3600) / 60); return h ? `${h} h ${m} min` : `${m} min`; };
+async function loadAdmin() {
+  if (!sessInfo?.admin) { $('adminField').hidden = true; return; }
+  $('adminField').hidden = false;
+  try {
+    const a = await api('/api/admin/status');
+    const box = $('adminStats');
+    box.replaceChildren();
+    const line = (k, v) => { const d = el('div'); d.append(document.createTextNode(`${k}: `), el('b', '', v)); box.append(d); };
+    line('Bot', `${a.user || '?'} · ${t('upFor', { t: dur(a.uptime) })}`);
+    line(t('mem'), `${a.memoryMb} MB · Node ${a.node} · ${a.platform}`);
+    line('yt-dlp', `${a.ytdlp || '?'}${a.commit ? ` · Msik ${a.commit}` : ''} · Spotify ${a.spotify ? '✓' : '–'}`);
+    line(t('servers'), String(a.guilds.length));
+    const ul = el('ul');
+    for (const g of a.guilds) ul.append(el('li', '', `${g.name} (${g.members}) · ${g.playing ? `▶ ${g.playing}${g.channel ? ` in ${g.channel}` : ''}` : t('none')}`));
+    box.append(ul);
+  } catch (e) { $('adminStats').textContent = e.message; }
+}
+async function adminAction(action, okMsg) {
+  try {
+    const r = await api('/api/admin/action', { method: 'POST', body: { action } });
+    toast(r.output || okMsg || t('saved'));
+    loadAdmin();
+  } catch (e) { toast(e.message, true); }
+}
 
 /* ---------- sharing ---------- */
 async function shareLink() {
@@ -1132,7 +1194,7 @@ $('btnShuffle').innerHTML = svg('shuffle');
 $('searchIcon').innerHTML = svg('search');
 $('coverPh').innerHTML = svg('note');
 
-$('openSettings').onclick = () => { renderBackends(); backends.forEach(checkHealth); openDrawer(true); };
+$('openSettings').onclick = () => { renderBackends(); backends.forEach(checkHealth); openDrawer(true); if (session) { loadServerSettings(); loadAdmin(); } };
 $('closeSettings').onclick = () => openDrawer(false);
 $('drawerBg').onclick = () => openDrawer(false);
 document.addEventListener('keydown', (e) => {
@@ -1179,6 +1241,24 @@ $('addBackend').addEventListener('submit', (e) => {
 });
 $('gateRetry').onclick = () => start();
 $('shareIcon').innerHTML = svg('link');
+$('closeLog').innerHTML = svg('x');
+$('npEnabled').onchange = (e) => saveServer({ npEnabled: e.target.checked, npChannelId: $('npChannel').value || null });
+$('npChannel').onchange = (e) => saveServer({ npChannelId: e.target.value || null });
+$('webChannel').onchange = (e) => saveServer({ webChannelId: e.target.value || null });
+$('adminRevoke').onclick = () => adminAction('revokeGuests', t('adminRevoked'));
+$('adminStop').onclick = () => adminAction('stopAll', t('adminStopped'));
+$('adminYtdlp').onclick = (e) => { e.target.disabled = true; adminAction('ytdlp').finally(() => { e.target.disabled = false; }); };
+$('adminRestart').onclick = () => { if (confirm(t('adminRestartAsk'))) adminAction('restart', t('adminRestarting')); };
+const closeLog = () => { $('logBox').hidden = true; $('logBg').hidden = true; };
+$('closeLog').onclick = closeLog; $('logBg').onclick = closeLog;
+$('adminLogs').onclick = async () => {
+  try {
+    const r = await api('/api/admin/logs');
+    $('logPre').textContent = r.lines.join('\n') || '—';
+    $('logBox').hidden = false; $('logBg').hidden = false;
+    $('logPre').scrollTop = $('logPre').scrollHeight;
+  } catch (e) { toast(e.message, true); }
+};
 $('plBack').innerHTML = svg('back');
 $('plShuffle').innerHTML = svg('shuffle');
 $('plQueue').innerHTML = svg('queueAdd');
