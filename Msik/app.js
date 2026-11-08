@@ -556,25 +556,47 @@ const SW = '<div class="help-swatches"><button class="sw" data-accent="blue" sty
 const CMD = (c) => `<div class="cmd"><code>${c}</code><button class="btn sm copy" type="button" data-copy="${c}"></button></div>`;
 const GUIDE = {
   de: [
-    ['Token holen', `<ol>
-      <li>Öffne das <a href="https://discord.com/developers/applications" target="_blank" rel="noopener">Discord Developer Portal</a> und klick auf <b>New Application</b>. Name z. B. „Msik“.</li>
-      <li>Links auf <b>Bot</b>, dann <b>Reset Token</b> und den Token kopieren. Den Token gibst du niemandem.</li></ol>
-      <p>Mehr brauchst du im Portal nicht, den Rest macht der Installer.</p>`],
-    ['Bot installieren', `<p><b>Windows:</b> PowerShell öffnen und einfügen, oder <a href="../Install.bat">Install.bat</a> laden und doppelklicken.</p>
+    ['Discord-Anwendung anlegen', `<ol>
+      <li>Öffne das <a href="https://discord.com/developers/applications" target="_blank" rel="noopener">Discord Developer Portal</a> und melde dich mit deinem Discord-Konto an.</li>
+      <li>Oben rechts auf <b>New Application</b>, Namen eingeben (z. B. <code>Msik</code>), Bedingungen abhaken, <b>Create</b>.</li>
+      <li>Optional: Unter <b>General Information</b> ein Bild hochladen. So sieht der Bot in Discord aus.</li></ol>`],
+    ['Token kopieren', `<ol>
+      <li>Links auf <b>Bot</b> klicken.</li>
+      <li>Bei <b>Token</b> auf <b>Reset Token</b>, bestätigen, dann <b>Copy</b>.</li>
+      <li>Der Token ist das Passwort des Bots. Nie weitergeben. Taucht er irgendwo auf, einfach nochmal <b>Reset Token</b>.</li>
+      <li>Die <b>Privileged Gateway Intents</b> brauchst du nicht, lass alle drei aus.</li></ol>`],
+    ['Installieren', `<p><b>Windows</b> (ohne Admin): PowerShell öffnen (Start → „PowerShell“) und einfügen, oder <a href="../Install.bat">Install.bat</a> laden und doppelklicken.</p>
       ${CMD('irm https://bot.labtoso.de/install.ps1 | iex')}
-      <p><b>Linux / VPS:</b></p>
+      <p>Token mit Rechtsklick einfügen. Danach läuft der Bot im Fenster „Msik“ und startet mit Windows.</p>
+      <p><b>Linux / VPS</b> per SSH:</p>
       ${CMD('curl -fsSL https://bot.labtoso.de/install.sh | sudo bash')}
-      <p>Der Installer fragt nach dem Token, installiert alles, öffnet den Einladungslink für deinen Server und startet den Bot. Er startet danach automatisch mit. Mit Domain bekommt die API HTTPS über Caddy, ohne Domain nutzt er einen kostenlosen Tunnel.</p>`],
+      <p>Fragt nach Token und Domain. <b>Mit Domain</b> (A-Record auf die Server-IP, Ports 80/443 offen) gibt es HTTPS und eine feste Adresse. <b>Ohne Domain</b> (Enter) nutzt er einen Tunnel, dessen Adresse sich bei jedem Neustart ändert.</p>`],
+    ['Bot einladen', `<ol>
+      <li><b>Windows:</b> Der Installer öffnet den Einladungslink selbst.</li>
+      <li><b>Linux:</b> Der Link steht am Ende der Installation, sonst <code>journalctl -u msik | grep Einladen</code>.</li>
+      <li><b>Von Hand:</b> Im Portal unter <b>OAuth2 → URL Generator</b> die Scopes <code>bot</code> und <code>applications.commands</code>, dazu die Rechte <b>View Channels</b>, <b>Connect</b>, <b>Speak</b>. Link unten kopieren und öffnen.</li>
+      <li>Server auswählen und <b>Autorisieren</b>. Dafür brauchst du dort „Server verwalten“.</li></ol>`],
+    ['Prüfen, ob er online ist', `<ol>
+      <li>In Discord steht der Bot in der Mitgliederliste mit <b>grünem Punkt</b> und „<b>Spielt /web</b>“.</li>
+      <li><b>Windows:</b> Im Fenster „Msik“ stehen <code>Eingeloggt als …</code> und <code>/web registriert</code>.</li>
+      <li><b>Linux:</b> <code>systemctl status msik</code> zeigt <code>active (running)</code>, live mitlesen mit <code>journalctl -u msik -f</code>.</li></ol>`],
+    ['Dashboard öffnen', `<ol>
+      <li>Geh in Discord in einen Sprachkanal.</li>
+      <li>Tipp <code>/web</code> und wähl den Befehl deines Bots. Beim ersten Mal kann es ein paar Minuten dauern, notfalls Discord mit <b>Strg+R</b> neu laden.</li>
+      <li><b>Dashboard öffnen</b> klicken. Der Link gilt 12 Stunden, nur für dich.</li>
+      <li>Ein <b>grüner Punkt</b> oben rechts heißt: verbunden. Jetzt oben einen Song suchen und <b>+</b> klicken, der Bot kommt in deinen Kanal.</li></ol>`],
+    ['Probleme lösen', `<ol>
+      <li><b>Bot bleibt offline:</b> Läuft das Fenster bzw. der Dienst? Steht im Log „Token ungültig“, neuen Token holen und den Installer nochmal ausführen.</li>
+      <li><b>/web fehlt:</b> Bot mit <code>applications.commands</code> neu einladen, Discord mit Strg+R neu laden.</li>
+      <li><b>„Bot nicht erreichbar“:</b> Bot offline oder neu gestartet. Einfach <code>/web</code> nochmal.</li>
+      <li><b>Kein Ton:</b> Der Bot braucht im Kanal <b>Verbinden</b> und <b>Sprechen</b>. Lautstärke prüfen.</li>
+      <li><b>Domain geht nicht:</b> A-Record und Ports 80/443 prüfen, Fehler zeigt <code>journalctl -u caddy</code>.</li></ol>`],
     ['Updates und Entfernen', `<ol>
       <li><b>VPS / Linux:</b> Der Bot aktualisiert sich selbst. Alle 15 Minuten schaut er nach einer neuen Version, holt sie und startet neu. Läuft gerade Musik, wartet er damit, höchstens 6 Stunden.</li>
       <li>Updates ansehen: <code>journalctl -u msik-update</code>. Sofort prüfen: <code>sudo systemctl start msik-update</code>.</li>
       <li><b>Windows:</b> Zum Updaten den Installer einfach nochmal ausführen, Token und Einstellungen bleiben.</li>
       <li><b>Entfernen:</b> Unter Windows <code>Uninstall.bat</code> im Ordner <code>%LOCALAPPDATA%\\Msik</code> starten. Unter Linux:</li></ol>
       ${CMD('curl -fsSL https://bot.labtoso.de/uninstall.sh | sudo bash')}`],
-    ['Dashboard öffnen', `<ol>
-      <li>Geh in Discord in einen Sprachkanal.</li>
-      <li>Schreib <code>/web</code> und klick auf <b>Dashboard öffnen</b>.</li>
-      <li>Der Link gilt 12 Stunden und nur für dich und diesen Server. Ist er abgelaufen, einfach nochmal <code>/web</code>.</li></ol>`],
     ['Backend wählen', `<ol>
       <li>Klick oben links aufs <b>Zahnrad</b> und such den Bereich <b>Backend</b>.</li>
       <li>Ein grüner Punkt heißt online, ein roter offline. Klick auf ein Backend, um zu wechseln.</li>
@@ -592,25 +614,47 @@ const GUIDE = {
       <p>Bei <b>Sprache</b> wechselst du zwischen Deutsch und Englisch.</p>`],
   ],
   en: [
-    ['Get a token', `<ol>
-      <li>Open the <a href="https://discord.com/developers/applications" target="_blank" rel="noopener">Discord Developer Portal</a> and click <b>New Application</b>. Name it e.g. "Msik".</li>
-      <li>Click <b>Bot</b> on the left, then <b>Reset Token</b> and copy it. Never share the token.</li></ol>
-      <p>That is all you need in the portal, the installer does the rest.</p>`],
-    ['Install the bot', `<p><b>Windows:</b> open PowerShell and paste this, or download <a href="../Install.bat">Install.bat</a> and double-click it.</p>
+    ['Create a Discord application', `<ol>
+      <li>Open the <a href="https://discord.com/developers/applications" target="_blank" rel="noopener">Discord Developer Portal</a> and sign in with your Discord account.</li>
+      <li>Click <b>New Application</b> at the top right, enter a name (e.g. <code>Msik</code>), accept the terms, <b>Create</b>.</li>
+      <li>Optional: upload a picture under <b>General Information</b>. That is how the bot looks in Discord.</li></ol>`],
+    ['Copy the token', `<ol>
+      <li>Click <b>Bot</b> on the left.</li>
+      <li>Under <b>Token</b> click <b>Reset Token</b>, confirm, then <b>Copy</b>.</li>
+      <li>The token is the bot's password. Never share it. If it leaks, just <b>Reset Token</b> again.</li>
+      <li>You do not need the <b>Privileged Gateway Intents</b>, leave all three off.</li></ol>`],
+    ['Install', `<p><b>Windows</b> (no admin): open PowerShell (Start → "PowerShell") and paste this, or download <a href="../Install.bat">Install.bat</a> and double-click it.</p>
       ${CMD('irm https://bot.labtoso.de/install.ps1 | iex')}
-      <p><b>Linux / VPS:</b></p>
+      <p>Paste the token with a right click. The bot then runs in the "Msik" window and starts with Windows.</p>
+      <p><b>Linux / VPS</b> over SSH:</p>
       ${CMD('curl -fsSL https://bot.labtoso.de/install.sh | sudo bash')}
-      <p>The installer asks for the token, installs everything, opens the invite link for your server and starts the bot. It starts automatically from then on. With a domain the API gets HTTPS through Caddy, without one it uses a free tunnel.</p>`],
+      <p>Asks for the token and a domain. <b>With a domain</b> (A record to the server IP, ports 80/443 open) you get HTTPS and a fixed address. <b>Without</b> (Enter) it uses a tunnel whose address changes on every restart.</p>`],
+    ['Invite the bot', `<ol>
+      <li><b>Windows:</b> the installer opens the invite link for you.</li>
+      <li><b>Linux:</b> the link is shown at the end of the install, or <code>journalctl -u msik | grep Einladen</code>.</li>
+      <li><b>By hand:</b> in the portal under <b>OAuth2 → URL Generator</b> pick the scopes <code>bot</code> and <code>applications.commands</code> and the permissions <b>View Channels</b>, <b>Connect</b>, <b>Speak</b>. Copy the link at the bottom and open it.</li>
+      <li>Pick your server and click <b>Authorize</b>. You need "Manage Server" there.</li></ol>`],
+    ['Check that it is online', `<ol>
+      <li>In Discord the bot shows in the member list with a <b>green dot</b> and "<b>Playing /web</b>".</li>
+      <li><b>Windows:</b> the "Msik" window shows <code>Eingeloggt als …</code> and <code>/web registriert</code>.</li>
+      <li><b>Linux:</b> <code>systemctl status msik</code> shows <code>active (running)</code>, follow the log with <code>journalctl -u msik -f</code>.</li></ol>`],
+    ['Open the dashboard', `<ol>
+      <li>Join a voice channel in Discord.</li>
+      <li>Type <code>/web</code> and pick your bot's command. The first time it can take a few minutes, reload Discord with <b>Ctrl+R</b> if needed.</li>
+      <li>Click <b>Open dashboard</b>. The link is valid for 12 hours, only for you.</li>
+      <li>A <b>green dot</b> at the top right means connected. Search a song at the top and click <b>+</b>, the bot joins your channel.</li></ol>`],
+    ['Troubleshooting', `<ol>
+      <li><b>Bot stays offline:</b> is the window or service running? If the log says "Token ungültig", get a new token and run the installer again.</li>
+      <li><b>/web missing:</b> invite the bot again with <code>applications.commands</code>, reload Discord with Ctrl+R.</li>
+      <li><b>"Bot unreachable":</b> the bot is offline or restarted. Just run <code>/web</code> again.</li>
+      <li><b>No sound:</b> the bot needs <b>Connect</b> and <b>Speak</b> in that channel. Check the volume.</li>
+      <li><b>Domain not working:</b> check the A record and ports 80/443, errors are in <code>journalctl -u caddy</code>.</li></ol>`],
     ['Updates and removal', `<ol>
       <li><b>VPS / Linux:</b> the bot updates itself. Every 15 minutes it checks for a new version, pulls it and restarts. If music is playing it waits, at most 6 hours.</li>
       <li>See updates: <code>journalctl -u msik-update</code>. Check right now: <code>sudo systemctl start msik-update</code>.</li>
       <li><b>Windows:</b> to update, just run the installer again. Token and settings are kept.</li>
       <li><b>Remove:</b> on Windows run <code>Uninstall.bat</code> in <code>%LOCALAPPDATA%\\Msik</code>. On Linux:</li></ol>
       ${CMD('curl -fsSL https://bot.labtoso.de/uninstall.sh | sudo bash')}`],
-    ['Open the dashboard', `<ol>
-      <li>Join a voice channel in Discord.</li>
-      <li>Type <code>/web</code> and click <b>Open dashboard</b>.</li>
-      <li>The link is valid for 12 hours, only for you and that server. When it expires, just use <code>/web</code> again.</li></ol>`],
     ['Choose a backend', `<ol>
       <li>Click the <b>gear</b> at the top left and find <b>Backend</b>.</li>
       <li>A green dot means online, red means offline. Click a backend to switch.</li>
@@ -773,5 +817,8 @@ applyLang();
 loadPresetBackends().then(() => {
   renderBackends();
   start();
-  if (!backends.length && !store.get('helpSeen', false)) openHelp(0);
+  if (location.hash === '#guide') {
+    history.replaceState(null, '', location.pathname + location.search);
+    openHelp(0);
+  } else if (!backends.length && !store.get('helpSeen', false)) openHelp(0);
 });
