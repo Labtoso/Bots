@@ -16,6 +16,8 @@ export const FILTERS = {
   vaporwave: 'asetrate=48000*0.8,aresample=48000',
   '8d': 'apulsator=hz=0.08',
   karaoke: 'stereotools=mlev=0.03',
+  // heavily overdriven on purpose; the limiter keeps it from clipping into silence
+  earrape: 'bass=g=15:f=90,volume=20dB,acrusher=bits=6:mode=log:aa=1:mix=0.6,alimiter=limit=0.9:level=disabled',
 };
 const SPEED = { nightcore: 1.25, vaporwave: 0.8 };
 const LOOPS = ['off', 'track', 'queue'];
