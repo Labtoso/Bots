@@ -4,6 +4,7 @@ import { createToken, verifyToken } from './auth.js';
 import { log } from './log.js';
 import { resolve, searchAll } from './resolve.js';
 import { settings } from './settings.js';
+import { playlists } from './playlists.js';
 import { spotifyReady, spotifySearch } from './spotify.js';
 
 /**
@@ -29,7 +30,7 @@ export function createApi(bot) {
       res.setHeader('Access-Control-Allow-Origin', origin);
       res.setHeader('Vary', 'Origin');
       res.setHeader('Access-Control-Allow-Headers', 'Authorization, Content-Type, X-Msik-Name');
-      res.setHeader('Access-Control-Allow-Methods', 'GET, POST, DELETE, OPTIONS');
+      res.setHeader('Access-Control-Allow-Methods', 'GET, POST, PATCH, DELETE, OPTIONS');
       res.setHeader('Access-Control-Max-Age', '600');
     }
   }
@@ -52,6 +53,7 @@ export function createApi(bot) {
     NOT_IN_VOICE: [409, 'Geh zuerst in einen Sprachkanal oder wähl im Dashboard einen Kanal aus.'],
     SPOTIFY_NOT_SET: [400, 'Spotify-Suche ist auf diesem Bot nicht eingerichtet (SPOTIFY_CLIENT_SECRET in .env). Stell in den Einstellungen auf YouTube.'],
     SPOTIFY_BAD_KEYS: [400, 'Spotify-Schlüssel ungültig. SPOTIFY_CLIENT_SECRET in .env prüfen.'],
+    PLAYLIST_GONE: [404, 'Diese Playlist gibt es nicht mehr.'],
     NO_CHANNEL: [400, 'Kein Kanal gewählt.'],
     CHANNEL_GONE: [404, 'Diesen Sprachkanal gibt es nicht mehr.'],
     NO_VOICE_PERMS: [403, 'Der Bot darf in diesem Kanal nicht verbinden oder sprechen.'],
@@ -131,8 +133,61 @@ export function createApi(bot) {
       return send(res, 200, { results: r.tracks, playlists: r.playlists });
     }
 
-    if (req.method !== 'POST' && req.method !== 'DELETE') return send(res, 404, { error: 'Nicht gefunden' });
-    const body = req.method === 'POST' ? await readBody(req) : {};
+    if (p === '/api/playlists' && req.method === 'GET') return send(res, 200, { playlists: playlists.list(guildId) });
+    const pm = p.match(/^\/api\/playlists\/([\w-]+)(?:\/(tracks|play)(?:\/([\w-]+))?)?$/);
+    if (pm && !pm[2] && req.method === 'GET') return send(res, 200, playlists.get(guildId, pm[1]));
+
+    if (req.method !== 'POST' && req.method !== 'DELETE' && req.method !== 'PATCH') return send(res, 404, { error: 'Nicht gefunden' });
+    const body = req.method === 'DELETE' ? {} : await readBody(req);
+
+    /* ---------- saved playlists ---------- */
+    if (p === '/api/playlists' && req.method === 'POST') {
+      const name = String(body.name || '').trim();
+      if (!name) return send(res, 400, { error: 'Name fehlt' });
+      const pl = playlists.create(guildId, name, who.name);
+      if (Array.isArray(body.tracks)) playlists.addTracks(guildId, pl.id, body.tracks.map(sanitizeTrack).filter(Boolean));
+      player.logActivity(who, 'plCreate', pl.name);
+      return send(res, 200, { playlist: playlists.get(guildId, pl.id), playlists: playlists.list(guildId) });
+    }
+    if (pm) {
+      const [, pid, sub, tid] = pm;
+      if (!sub && req.method === 'DELETE') {
+        const name = playlists.get(guildId, pid).name;
+        playlists.remove(guildId, pid);
+        player.logActivity(who, 'plDelete', name);
+        return send(res, 200, { playlists: playlists.list(guildId) });
+      }
+      if (!sub && req.method === 'PATCH') {
+        if (body.name) playlists.rename(guildId, pid, String(body.name).trim() || 'Playlist');
+        if (body.move) playlists.moveTrack(guildId, pid, body.move.id, body.move.to);
+        return send(res, 200, { playlist: playlists.get(guildId, pid), playlists: playlists.list(guildId) });
+      }
+      if (sub === 'tracks' && req.method === 'POST') {
+        let tracks;
+        if (Array.isArray(body.tracks)) tracks = body.tracks.slice(0, 500).map(sanitizeTrack).filter(Boolean);
+        else tracks = (await resolve(body.query)).tracks;
+        const added = playlists.addTracks(guildId, pid, tracks);
+        const pl = playlists.get(guildId, pid);
+        player.logActivity(who, 'plAdd', `${added === 1 ? tracks[0].title : added}|${pl.name}`);
+        return send(res, 200, { added, playlist: pl, playlists: playlists.list(guildId) });
+      }
+      if (sub === 'tracks' && tid && req.method === 'DELETE') {
+        const pl = playlists.removeTrack(guildId, pid, tid);
+        return send(res, 200, { playlist: pl, playlists: playlists.list(guildId) });
+      }
+      if (sub === 'play' && req.method === 'POST') {
+        const pl = playlists.get(guildId, pid);
+        if (!pl.tracks.length) return send(res, 400, { error: 'Die Playlist ist leer.' });
+        const member = await bot.getMember(guildId, session.u);
+        player.startVoice(member, settings.get(guildId).channelId);
+        let tracks = pl.tracks.map((t) => ({ ...t, id: Math.random().toString(16).slice(2, 14), requester: who.name }));
+        if (body.shuffle) tracks = tracks.sort(() => Math.random() - 0.5);
+        if (body.replace) player.clear();
+        const added = await player.add(tracks, { now: !!body.replace });
+        player.logActivity(who, 'plPlay', pl.name);
+        return send(res, 200, { added, state: player.state() });
+      }
+    }
 
     if (p === '/api/queue' && req.method === 'POST') {
       const member = await bot.getMember(guildId, session.u);
@@ -147,8 +202,8 @@ export function createApi(bot) {
         playlist = r.playlist;
       }
       tracks.forEach((t) => { t.requester = who.name; });
-      const added = await player.add(tracks, { next: !!body.next });
-      if (added) player.logActivity(who, body.next ? 'addNext' : 'add', playlist || (added === 1 ? tracks[0].title : `${added}`));
+      const added = await player.add(tracks, { next: !!body.next, now: !!body.now });
+      if (added) player.logActivity(who, body.now ? 'playNow' : body.next ? 'addNext' : 'add', playlist || (added === 1 ? tracks[0].title : `${added}`));
       return send(res, 200, { added, playlist, state: player.state() });
     }
 

@@ -147,11 +147,13 @@ export class GuildPlayer extends EventEmitter {
     this.changed();
   }
 
-  async add(tracks, { next = false } = {}) {
+  async add(tracks, { next = false, now = false } = {}) {
     const room = config.maxQueue - this.queue.length;
     const list = tracks.slice(0, Math.max(0, room));
-    if (next) this.queue.unshift(...list);
+    if (next || now) this.queue.unshift(...list);
     else this.queue.push(...list);
+    // play now: the current song goes to the history, the rest of the queue stays
+    if (now && (this.current || this.loading)) { this.skip(); return list.length; }
     // do not wait for the stream: the dashboard gets an answer at once, playback follows
     if (!this.current && !this.loading) this.#run(this.#advance({}));
     else { this.changed(); this.#prefetchNext(); }

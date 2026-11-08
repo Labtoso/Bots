@@ -32,7 +32,7 @@ async function waitFor(fn, ms = 20000) {
 
 test.before(async () => {
   proc = fork(fileURLToPath(new URL('../src/index.js', import.meta.url)), {
-    env: { ...process.env, SETTINGS_FILE: `/tmp/msik-test-settings-${process.pid}.json`, MOCK: '1', TUNNEL: 'off', PORT: String(PORT), NO_PROXY: '127.0.0.1,localhost' },
+    env: { ...process.env, SETTINGS_FILE: `/tmp/msik-test-settings-${process.pid}.json`, PLAYLISTS_FILE: `/tmp/msik-test-pl-${process.pid}.json`, MOCK: '1', TUNNEL: 'off', PORT: String(PORT), NO_PROXY: '127.0.0.1,localhost' },
     stdio: ['ignore', 'inherit', 'inherit', 'ipc'],
   });
   token = await new Promise((resolve, reject) => {
@@ -215,6 +215,41 @@ test('share link: guests act under their own name, everything shows up in the ac
   assert.deepEqual([v2.name, v2.action, v2.detail], ['Tester', 'volume', 50]);
   assert.deepEqual([v1.name, v1.action, v1.detail, v1.guest], ['Maxscript', 'volume', 42, true]);
   assert.ok(s.activity.some((a) => a.action === 'add'));
+});
+
+test('play now keeps the queue', async () => {
+  await call('/api/control', 'POST', { action: 'stop' });
+  await call('/api/queue', 'POST', { query: `${BASE}/track1.html` });
+  await call('/api/queue', 'POST', { query: `${BASE}/track2.html` });
+  await waitFor((st) => st.current && !st.loading);
+  const r = await call('/api/queue', 'POST', { query: `${BASE}/track3.html`, now: true });
+  assert.equal(r.status, 200);
+  const s = await waitFor((st) => st.current && /Leise Wellen/.test(st.current.title) && !st.loading);
+  assert.deepEqual(s.queue.map((t) => t.title).length, 1);
+  assert.match(s.queue[0].title, /Kupferhimmel/);
+  assert.match(s.history[0].title, /Nachtfahrt/);
+});
+
+test('saved playlists: create, add, remove, play', async () => {
+  let r = await call('/api/playlists', 'POST', { name: 'Party' });
+  assert.equal(r.status, 200);
+  const pid = r.data.playlist.id;
+  r = await call(`/api/playlists/${pid}/tracks`, 'POST', { query: `${BASE}/track1.html` });
+  assert.equal(r.data.added, 1);
+  r = await call(`/api/playlists/${pid}/tracks`, 'POST', { tracks: [{ title: 'Zwei', url: `${BASE}/track2.html` }] });
+  assert.equal(r.data.playlist.tracks.length, 2);
+  r = await call(`/api/playlists/${pid}/tracks/${r.data.playlist.tracks[1].id}`, 'DELETE');
+  assert.equal(r.data.playlist.tracks.length, 1);
+  r = await call('/api/playlists');
+  assert.deepEqual(r.data.playlists.map((x) => [x.name, x.count]), [['Party', 1]]);
+  r = await call(`/api/playlists/${pid}`, 'PATCH', { name: 'Feier' });
+  assert.equal(r.data.playlist.name, 'Feier');
+  r = await call(`/api/playlists/${pid}/play`, 'POST', { replace: true });
+  assert.equal(r.data.added, 1);
+  await waitFor((st) => st.current && /Nachtfahrt/.test(st.current.title) && !st.loading);
+  r = await call(`/api/playlists/${pid}`, 'DELETE');
+  assert.equal(r.data.playlists.length, 0);
+  assert.equal((await call(`/api/playlists/${pid}`)).status, 404);
 });
 
 test('stop clears everything', async () => {
