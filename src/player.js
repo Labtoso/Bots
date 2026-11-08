@@ -1,5 +1,6 @@
 import { EventEmitter } from 'node:events';
 import { spawn } from 'node:child_process';
+import { PassThrough } from 'node:stream';
 import {
   AudioPlayerStatus, NoSubscriberBehavior, StreamType, createAudioPlayer, createAudioResource,
 } from '@discordjs/voice';
@@ -10,7 +11,7 @@ import { prefetchStream, runYtdlp, streamInfo, toTrack } from './resolve.js';
 
 export const FILTERS = {
   none: null,
-  bassboost: 'bass=g=8,dynaudnorm=f=200',
+  bassboost: 'bass=g=8:f=110,volume=-5dB', // fixed headroom instead of a normaliser, so nothing pumps
   nightcore: 'asetrate=48000*1.25,aresample=48000,atempo=1.0',
   vaporwave: 'asetrate=48000*0.8,aresample=48000',
   '8d': 'apulsator=hz=0.08',
@@ -144,7 +145,7 @@ export class GuildPlayer extends EventEmitter {
       if (id !== this.playId) return;
       const args = ['-hide_banner', '-loglevel', 'error', '-probesize', '512k', '-analyzeduration', '0'];
       if (/^https?:/.test(info.url)) {
-        args.push('-reconnect', '1', '-reconnect_streamed', '1', '-reconnect_delay_max', '5');
+        args.push('-reconnect', '1', '-reconnect_streamed', '1', '-reconnect_on_network_error', '1', '-reconnect_delay_max', '5', '-rw_timeout', '15000000');
         const headers = Object.entries(info.headers).map(([k, v]) => `${k}: ${v}\r\n`).join('');
         if (headers) args.push('-headers', headers);
       }
@@ -158,7 +159,10 @@ export class GuildPlayer extends EventEmitter {
       ff.on('error', (e) => log.error('ffmpeg start:', e.message));
       ff.stdout.on('error', () => {});
       this.ffmpeg = ff;
-      const resource = createAudioResource(ff.stdout, {
+      // ~20 s read-ahead buffer: short network hiccups no longer cause jumps or gaps
+      const buffer = new PassThrough({ highWaterMark: 4 * 1024 * 1024 });
+      ff.stdout.pipe(buffer);
+      const resource = createAudioResource(buffer, {
         inputType: StreamType.Raw, inlineVolume: true, metadata: { playId: id },
       });
       resource.volume.setVolume(this.volume / 100);
