@@ -34,6 +34,7 @@ export class GuildPlayer extends EventEmitter {
     this.loop = 'off';
     this.volume = config.defaultVolume;
     this.filter = 'none';
+    this.rev = 0;
     this.autoplay = false;
     this.channel = null; // { id, name }
     this.error = null;
@@ -71,6 +72,7 @@ export class GuildPlayer extends EventEmitter {
   }
 
   changed() {
+    this.rev++;
     clearTimeout(this.idleTimer);
     if (!this.current && this.channel) {
       this.idleTimer = setTimeout(() => this.leave(), config.idleMinutes * 60_000);
@@ -96,6 +98,7 @@ export class GuildPlayer extends EventEmitter {
       activity: this.activity.slice(-40).reverse(),
       error: this.error,
       updatedAt: Date.now(),
+      rev: this.rev,
     };
   }
 

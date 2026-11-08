@@ -105,7 +105,7 @@ export function createApi(bot) {
       if (!streams.has(guildId)) streams.set(guildId, new Set());
       streams.get(guildId).add(res);
       res.viewer = { id: session.s ? null : String(session.u), name: who.name, avatar: who.avatar || null, guest: !!session.s, self: isOwner, since: Date.now() };
-      const ping = setInterval(() => res.write(`event: tick\ndata: ${JSON.stringify({ position: player.state().position, paused: player.paused, loading: player.loading })}\n\n`), 1000);
+      const ping = setInterval(() => res.write(`event: tick\ndata: ${JSON.stringify({ position: player.state().position, paused: player.paused, loading: player.loading, rev: player.rev })}\n\n`), 1000);
       req.on('close', () => { clearInterval(ping); streams.get(guildId)?.delete(res); });
       return undefined;
     }
