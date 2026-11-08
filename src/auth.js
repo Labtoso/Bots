@@ -7,9 +7,9 @@ const b64 = (buf) => Buffer.from(buf).toString('base64url');
 const sign = (data) => crypto.createHmac('sha256', secret).update(data).digest('base64url');
 
 /** Creates a dashboard token bound to one user and one server. */
-export function createToken({ userId, guildId, userName, avatar }) {
+export function createToken({ userId, guildId, userName, avatar, guest = false }) {
   const payload = b64(JSON.stringify({
-    u: userId, g: guildId, n: userName, a: avatar || null,
+    u: userId, g: guildId, n: userName, a: avatar || null, ...(guest ? { s: 1 } : {}),
     exp: Date.now() + config.sessionHours * 3600_000,
   }));
   return `${payload}.${sign(payload)}`;

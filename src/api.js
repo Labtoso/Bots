@@ -1,6 +1,6 @@
 import http from 'node:http';
 import { config } from './config.js';
-import { verifyToken } from './auth.js';
+import { createToken, verifyToken } from './auth.js';
 import { log } from './log.js';
 import { resolve, searchAll } from './resolve.js';
 import { settings } from './settings.js';
@@ -28,7 +28,7 @@ export function createApi(bot) {
     if (origin && (config.allowedOrigins.includes(origin) || config.allowedOrigins.includes('*'))) {
       res.setHeader('Access-Control-Allow-Origin', origin);
       res.setHeader('Vary', 'Origin');
-      res.setHeader('Access-Control-Allow-Headers', 'Authorization, Content-Type');
+      res.setHeader('Access-Control-Allow-Headers', 'Authorization, Content-Type, X-Msik-Name');
       res.setHeader('Access-Control-Allow-Methods', 'GET, POST, DELETE, OPTIONS');
       res.setHeader('Access-Control-Max-Age', '600');
     }
@@ -74,6 +74,11 @@ export function createApi(bot) {
     const session = verifyToken(token);
     if (!session) return send(res, 401, { error: 'Sitzung abgelaufen. Hol dir mit /web einen neuen Link.' });
     const guildId = session.g;
+    // people who opened a shared link name themselves in the dashboard
+    const guestName = String(req.headers['x-msik-name'] || '').replace(/[\u0000-\u001f<>]/g, '').trim().slice(0, 32);
+    const who = session.s
+      ? { name: guestName || 'Gast', avatar: null, guest: true }
+      : { name: session.n, avatar: session.a };
     const player = bot.getPlayer(guildId);
     hook(guildId);
 
@@ -92,7 +97,7 @@ export function createApi(bot) {
 
     if (p === '/api/session' && req.method === 'GET') {
       return send(res, 200, {
-        user: { id: session.u, name: session.n, avatar: session.a },
+        user: { id: session.u, name: who.name, avatar: who.avatar, guest: !!session.s },
         guild: await bot.getGuildInfo(guildId),
         expires: session.exp,
         state: player.state(),
@@ -100,6 +105,12 @@ export function createApi(bot) {
     }
 
     if (p === '/api/state' && req.method === 'GET') return send(res, 200, player.state());
+
+    if (p === '/api/share' && req.method === 'POST') {
+      // a link others can open without /web; it is bound to this server and expires like any link
+      const token = createToken({ userId: 'guest', guildId, userName: '', guest: true });
+      return send(res, 200, { token, expires: verifyToken(token).exp });
+    }
 
     if (p === '/api/channels' && req.method === 'GET') {
       const [channels, member] = await Promise.all([bot.getVoiceChannels(guildId), bot.getMember(guildId, session.u)]);
@@ -132,8 +143,9 @@ export function createApi(bot) {
         tracks = r.tracks;
         playlist = r.playlist;
       }
-      tracks.forEach((t) => { t.requester = session.n; });
+      tracks.forEach((t) => { t.requester = who.name; });
       const added = await player.add(tracks, { next: !!body.next });
+      if (added) player.logActivity(who, body.next ? 'addNext' : 'add', playlist || (added === 1 ? tracks[0].title : `${added}`));
       return send(res, 200, { added, playlist, state: player.state() });
     }
 
@@ -141,11 +153,17 @@ export function createApi(bot) {
       const channelId = typeof body.channelId === 'string' && /^[\w-]{1,32}$/.test(body.channelId) ? body.channelId : null;
       const saved = settings.set(guildId, { channelId });
       if (channelId && body.join) await player.moveTo(channelId);
+      player.logActivity(who, 'channel', channelId ? player.channel?.name || channelId : null);
       return send(res, 200, { settings: saved, state: player.state() });
     }
 
     const qm = p.match(/^\/api\/queue\/([\w-]+)$/);
-    if (qm && req.method === 'DELETE') { player.remove(qm[1]); return send(res, 200, { ok: true }); }
+    if (qm && req.method === 'DELETE') {
+      const tr = player.queue.find((x) => x.id === qm[1]);
+      player.remove(qm[1]);
+      if (tr) player.logActivity(who, 'remove', tr.title);
+      return send(res, 200, { ok: true });
+    }
 
     if (p === '/api/control' && req.method === 'POST') {
       const { action, value } = body;
@@ -170,7 +188,18 @@ export function createApi(bot) {
         join: async () => (value ? player.moveTo(String(value)) : player.ensureVoice(await bot.getMember(guildId, session.u), settings.get(guildId).channelId)),
       };
       if (!actions[action]) return send(res, 400, { error: 'Unbekannte Aktion' });
+      const byId = (id) => player.queue.find((x) => x.id === id)?.title || null;
+      const detail = {
+        jump: () => byId(value), remove: () => byId(value), move: () => byId(value?.id),
+        volume: () => Math.round(Number(value) || 0), filter: () => value, loop: () => null,
+        seek: () => Math.round(Number(value) || 0), autoplay: () => !!value,
+        skip: () => player.current?.title || null,
+      }[action]?.() ?? null;
+      const wasPaused = player.paused;
       await actions[action]();
+      if (action === 'loop') player.logActivity(who, 'loop', player.loop);
+      else if (action === 'toggle') player.logActivity(who, wasPaused ? 'resume' : 'pause');
+      else if (action !== 'join') player.logActivity(who, action, detail);
       return send(res, 200, player.state());
     }
 

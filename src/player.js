@@ -44,6 +44,7 @@ export class GuildPlayer extends EventEmitter {
     this.loading = false;
     this.idleTimer = null;
     this.failures = 0;
+    this.activity = []; // who did what, newest last
 
     this.audio = createAudioPlayer({ behaviors: { noSubscriber: NoSubscriberBehavior.Play } });
     this.audio.on('stateChange', (oldS, newS) => {
@@ -92,9 +93,24 @@ export class GuildPlayer extends EventEmitter {
       autoplay: this.autoplay,
       queue: this.queue,
       history: this.history.slice(-20).reverse(),
+      activity: this.activity.slice(-40).reverse(),
       error: this.error,
       updatedAt: Date.now(),
     };
+  }
+
+  /** Records who did what, shown in the dashboard's activity list. */
+  logActivity(who, action, detail = null) {
+    if (!who) return;
+    const last = this.activity.at(-1);
+    // dragging the volume slider would otherwise fill the list
+    if (last && last.action === action && ['volume', 'seek'].includes(action) && last.name === who.name && Date.now() - last.at < 8000) {
+      last.detail = detail; last.at = Date.now();
+    } else {
+      this.activity.push({ at: Date.now(), name: who.name, avatar: who.avatar || null, guest: !!who.guest, action, detail });
+      if (this.activity.length > 100) this.activity.shift();
+    }
+    this.changed();
   }
 
   /** Joins a voice channel: the chosen one (dashboard setting) or the one the user is in. */

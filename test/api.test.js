@@ -195,6 +195,28 @@ test('skip answers at once and the prefetched next track starts quickly', async 
   assert.ok(started < 2500, `next track needed ${started} ms`);
 });
 
+test('share link: guests act under their own name, everything shows up in the activity list', async () => {
+  const r = await call('/api/share', 'POST', {});
+  assert.equal(r.status, 200);
+  const guest = r.data.token;
+  const g = await fetch(`${API}/api/control`, {
+    method: 'POST', headers: { Authorization: `Bearer ${guest}`, 'Content-Type': 'application/json', 'X-Msik-Name': 'Max<script>' },
+    body: JSON.stringify({ action: 'volume', value: 42 }),
+  });
+  assert.equal(g.status, 200);
+  const sess = await (await fetch(`${API}/api/session`, { headers: { Authorization: `Bearer ${guest}`, 'X-Msik-Name': 'Max' } })).json();
+  assert.equal(sess.user.guest, true);
+  assert.equal(sess.user.name, 'Max');
+  await call('/api/control', 'POST', { action: 'volume', value: 50 });
+  await call('/api/control', 'POST', { action: 'filter', value: 'earrape' });
+  const s = (await call('/api/state')).data;
+  const [f, v2, v1] = s.activity;
+  assert.deepEqual([f.name, f.action, f.detail], ['Tester', 'filter', 'earrape']);
+  assert.deepEqual([v2.name, v2.action, v2.detail], ['Tester', 'volume', 50]);
+  assert.deepEqual([v1.name, v1.action, v1.detail, v1.guest], ['Maxscript', 'volume', 42, true]);
+  assert.ok(s.activity.some((a) => a.action === 'add'));
+});
+
 test('stop clears everything', async () => {
   const s = (await call('/api/control', 'POST', { action: 'stop' })).data;
   assert.equal(s.current, null);
