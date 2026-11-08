@@ -176,7 +176,7 @@ async function fetchStream(track) {
   const args = ['-j', '--no-playlist', '-f', 'bestaudio/best', target];
   let out;
   try {
-    out = await runYtdlp(args);
+    out = await runYtdlp(args, { timeout: 25_000 });
   } catch (err) {
     // YouTube sometimes needs its JavaScript challenge solved; Node is already here, so use it for the retry
     if (!/youtu/.test(target)) throw err;
