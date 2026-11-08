@@ -252,7 +252,8 @@ function predict(action, value) {
     case 'seek': s.position = value; break;
     default: return;
   }
-  render(s);
+  s.local = true;
+  render(s, true);
 }
 const control = (action, value) => (predict(action, value), api('/api/control', { method: 'POST', body: { action, value } }))
   .then((s) => { render(s); return s; })
@@ -298,7 +299,14 @@ let tickBase = { pos: 0, at: 0 };
 let seeking = false;
 let lastVol = store.get('lastVol', 60);
 
-function render(s) {
+// Answers can arrive out of order (live update before the HTTP reply). Only newer bot states win,
+// otherwise an old "loading" state could stick on the play button.
+let serverAt = 0;
+function render(s, local = false) {
+  if (!local) {
+    if (s.updatedAt && s.updatedAt < serverAt) return;
+    serverAt = s.updatedAt || serverAt;
+  }
   state = s;
   tickBase = { pos: s.position || 0, at: performance.now() };
   const c = s.current;
@@ -593,7 +601,8 @@ async function addTracks(tracks, next = false) {
     const list = tracks.map((tr) => ({ ...tr, id: `tmp-${Math.random().toString(16).slice(2)}`, requester: sessInfo?.name }));
     if (!s.current) { s.current = list.shift(); s.loading = true; s.position = 0; s.paused = false; }
     if (next) s.queue.unshift(...list); else s.queue.push(...list);
-    render(s);
+    s.local = true;
+    render(s, true);
   }
   try {
     const r = await api('/api/queue', { method: 'POST', body: { tracks, next } });
@@ -659,6 +668,7 @@ async function chooseChannel(id) {
 
 /* ---------- live connection ---------- */
 let es = null;
+let resyncing = false;
 function connect() {
   es?.close();
   es = new EventSource(`${session.api}/api/events?token=${encodeURIComponent(session.token)}`);
@@ -666,6 +676,11 @@ function connect() {
   es.addEventListener('tick', (e) => {
     const d = JSON.parse(e.data);
     if (state && !seeking) { state.paused = d.paused; tickBase = { pos: d.position, at: performance.now() }; }
+    // safety net: the bot says it is done loading but the page still shows loading
+    if (state && d.loading === false && state.loading && !state.local && !resyncing) {
+      resyncing = true;
+      api('/api/state').then((st) => render(st)).catch(() => {}).finally(() => { resyncing = false; });
+    }
   });
   es.onerror = () => {
     setConn(false);
@@ -760,7 +775,7 @@ function applyLang() {
   renderSessionInfo();
   renderBackends();
   if (!$('help').hidden) renderHelp();
-  if (state) render(state);
+  if (state) render(state, true);
 }
 const ACCENTS = { blue: '#3b82f6', green: '#22c55e', purple: '#8b5cf6' };
 function markSwatches() {
