@@ -50,7 +50,7 @@ const T = {
     activity: 'Aktivität', activityEmpty: 'Noch nichts passiert',
     nameTitle: 'Wie heißt du?', nameText: 'Damit die anderen sehen, wer was gemacht hat.', nameOk: 'Los',
     a_add: 'hat „{d}“ hinzugefügt', a_addMany: 'hat {d} Titel hinzugefügt', a_addNext: 'spielt „{d}“ als Nächstes',
-    a_skip: 'hat übersprungen', a_previous: 'ist zurückgesprungen', a_pause: 'hat pausiert', a_resume: 'spielt weiter',
+    a_skip: 'hat übersprungen', a_skipT: 'hat „{d}“ übersprungen', a_previous: 'ist zurückgesprungen', a_pause: 'hat pausiert', a_resume: 'spielt weiter',
     a_stop: 'hat gestoppt', a_leave: 'hat den Bot getrennt', a_volume: 'hat die Lautstärke auf {d} gestellt',
     a_filter: 'hat den Effekt „{d}“ gewählt', a_loop: 'hat Wiederholen auf „{d}“ gestellt', a_autoplay: 'hat Autoplay {d}',
     a_shuffle: 'hat gemischt', a_clear: 'hat die Warteschlange geleert', a_move: 'hat „{d}“ verschoben',
@@ -85,7 +85,7 @@ const T = {
     activity: 'Activity', activityEmpty: 'Nothing has happened yet',
     nameTitle: 'What is your name?', nameText: 'So the others can see who did what.', nameOk: 'Go',
     a_add: 'added "{d}"', a_addMany: 'added {d} tracks', a_addNext: 'plays "{d}" next',
-    a_skip: 'skipped', a_previous: 'went back', a_pause: 'paused', a_resume: 'resumed',
+    a_skip: 'skipped', a_skipT: 'skipped "{d}"', a_previous: 'went back', a_pause: 'paused', a_resume: 'resumed',
     a_stop: 'stopped', a_leave: 'disconnected the bot', a_volume: 'set the volume to {d}',
     a_filter: 'chose the effect "{d}"', a_loop: 'set repeat to "{d}"', a_autoplay: 'turned autoplay {d}',
     a_shuffle: 'shuffled', a_clear: 'cleared the queue', a_move: 'moved "{d}"',
@@ -419,6 +419,7 @@ function activityText(a) {
   let key = `a_${a.action}`;
   if (a.action === 'add' && /^\d+$/.test(String(d))) key = 'a_addMany';
   if (a.action === 'channel' && !d) key = 'a_channelAuto';
+  if (a.action === 'skip' && d) key = 'a_skipT';
   if (a.action === 'autoplay') d = t(d ? 'on' : 'off');
   if (a.action === 'seek') d = fmt(d);
   if (a.action === 'loop') d = t(LOOP_NAMES[d] || 'loopOff').replace(/^.*: /, '');
