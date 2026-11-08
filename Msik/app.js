@@ -41,6 +41,10 @@ const T = {
     backend: 'Backend', addBackend: 'Hinzufügen', chooseBackend: 'Backend wählen', noToken: 'Kein Link, nutze /web',
     help: 'Anleitung', tutorial: 'Anleitung', copy: 'Kopieren', copied: 'Kopiert', back: 'Zurück', nextStep: 'Weiter', done: 'Fertig', stepOf: 'Schritt {a} von {b}',
     invalidUrl: 'Ungültige Adresse (https://…)', backendAdded: 'Backend hinzugefügt', gateNoBackend: 'Kein Backend gewählt',
+    channel: 'Sprachkanal', channelTip: 'In welchen Sprachkanal der Bot geht', channelAuto: 'Automatisch: dein Sprachkanal',
+    channelJoined: 'Bot ist jetzt in „{c}“', channelAutoSaved: 'Bot geht ab jetzt in deinen Sprachkanal', inChannel: 'Gerade in',
+    playlists: 'Playlists', plCount: '{n} Titel', addPlaylist: 'Ganze Playlist hinzufügen', showPlaylist: 'Titel anzeigen',
+    loadingPlaylist: 'Playlist wird geladen …',
   },
   en: {
     settings: 'Settings', close: 'Close', shuffle: 'Shuffle', previous: 'Previous', next: 'Next',
@@ -59,6 +63,10 @@ const T = {
     backend: 'Backend', addBackend: 'Add', chooseBackend: 'Choose backend', noToken: 'No link, use /web',
     help: 'Guide', tutorial: 'Guide', copy: 'Copy', copied: 'Copied', back: 'Back', nextStep: 'Next', done: 'Done', stepOf: 'Step {a} of {b}',
     invalidUrl: 'Invalid address (https://…)', backendAdded: 'Backend added', gateNoBackend: 'No backend selected',
+    channel: 'Voice channel', channelTip: 'Which voice channel the bot joins', channelAuto: 'Automatic: your voice channel',
+    channelJoined: 'Bot is now in "{c}"', channelAutoSaved: 'Bot now joins your voice channel', inChannel: 'Currently in',
+    playlists: 'Playlists', plCount: '{n} tracks', addPlaylist: 'Add the whole playlist', showPlaylist: 'Show tracks',
+    loadingPlaylist: 'Loading playlist …',
   },
 };
 
@@ -264,7 +272,7 @@ function render(s) {
   $('autoplay').checked = !!s.autoplay;
 
   $('voiceDot').className = `dot ${s.channel ? 'on' : ''}`;
-  $('voiceName').textContent = s.channel ? s.channel.name : t('notConnected');
+  renderChannels();
   $('btnLeave').disabled = !s.channel;
 
   renderQueue(s);
@@ -372,32 +380,65 @@ function dnd(li) {
 }
 const clearDrop = () => document.querySelectorAll('.drop-before,.drop-after').forEach((x) => x.classList.remove('drop-before', 'drop-after'));
 
-/* ---------- search ---------- */
+/* ---------- search (live while typing) ---------- */
 let lastResults = [];
+let searchSeq = 0;
+let searchCtl = null;
+let searchTimer = null;
+const searchCache = new Map();
+const isLink = (q) => /^https?:\/\//i.test(q);
+
+function liveSearch() {
+  clearTimeout(searchTimer);
+  const q = $('searchInput').value.trim();
+  if (q.length < 2) { searchCtl?.abort(); $('results').hidden = true; setBusy(false); return; }
+  // links are pasted in one go, so search them at once; text waits until typing pauses
+  searchTimer = setTimeout(() => doSearch(q), isLink(q) ? 0 : 280);
+}
+
+function setBusy(on) {
+  $('searchForm').classList.toggle('busy', on);
+  $('searchIcon').innerHTML = svg(on ? 'load' : 'search');
+}
+
 async function doSearch(q) {
-  const form = $('searchForm');
-  form.classList.add('busy');
-  $('searchIcon').innerHTML = svg('load');
+  clearTimeout(searchTimer);
+  const key = `${activeApi}|${q.toLowerCase()}`;
+  const hit = searchCache.get(key);
+  if (hit) { searchCtl?.abort(); setBusy(false); showResults(hit, q); return; }
+  const seq = ++searchSeq;
+  searchCtl?.abort();
+  searchCtl = new AbortController();
+  setBusy(true);
   try {
-    const r = await api(`/api/search?q=${encodeURIComponent(q)}`);
-    lastResults = r.results;
-    showResults(r);
+    const res = await fetch(`${session.api}/api/search?q=${encodeURIComponent(q)}`, {
+      headers: { Authorization: `Bearer ${session.token}` }, signal: searchCtl.signal,
+    });
+    const r = await res.json().catch(() => ({}));
+    if (res.status === 401) { showGate('expired'); return; }
+    if (!res.ok) throw new Error(r.error || `HTTP ${res.status}`);
+    if (seq !== searchSeq) return;
+    searchCache.set(key, r);
+    if (searchCache.size > 100) searchCache.delete(searchCache.keys().next().value);
+    if ($('searchInput').value.trim() === q) showResults(r, q);
   } catch (e) {
-    toast(e.message, true);
+    if (e.name !== 'AbortError' && seq === searchSeq) toast(e.message, true);
   } finally {
-    form.classList.remove('busy');
-    $('searchIcon').innerHTML = svg('search');
+    if (seq === searchSeq) setBusy(false);
   }
 }
 
-function showResults(r) {
+function showResults(r, q) {
+  lastResults = r.results || [];
   const list = $('resultList');
   list.replaceChildren();
-  $('resultsTitle').textContent = r.results.length ? (r.playlist || t('results')) : t('noResults');
+  const pls = r.playlists || [];
+  $('resultsTitle').textContent = lastResults.length || pls.length ? (r.playlist || t('results')) : t('noResults');
   const all = $('addAll');
-  all.hidden = r.results.length < 2 || !r.playlist;
-  all.textContent = t('addAll', { n: r.total || r.results.length });
-  for (const tr of r.results) {
+  all.hidden = lastResults.length < 2 || !r.playlist;
+  all.textContent = t('addAll', { n: r.total || lastResults.length });
+  all.dataset.query = q;
+  for (const tr of lastResults) {
     const li = el('li', 'item');
     li.append(thumb(tr.thumbnail));
     const tx = el('div', 't');
@@ -412,7 +453,34 @@ function showResults(r) {
     li.addEventListener('dblclick', () => addTracks([tr]));
     list.append(li);
   }
+  const plList = $('playlistList');
+  plList.replaceChildren();
+  for (const pl of pls) {
+    const li = el('li', 'item pl');
+    const tw = el('div', 'thumb-wrap');
+    tw.append(thumb(pl.thumbnail));
+    li.append(tw);
+    const tx = el('div', 't');
+    tx.append(el('b', '', pl.title), el('span', '', [pl.count ? t('plCount', { n: pl.count }) : '', pl.artist].filter(Boolean).join(' · ')));
+    tx.title = `${pl.title} · ${t('showPlaylist')}`;
+    const acts = el('div', 'acts');
+    acts.append(iconBtn('plus', t('addPlaylist'), () => addPlaylist(pl.url)));
+    li.append(tx, el('span', 'd', ''), acts);
+    li.addEventListener('click', () => { $('searchInput').value = pl.url; doSearch(pl.url); });
+    plList.append(li);
+  }
+  $('plHead').hidden = !pls.length;
+  plList.hidden = !pls.length;
   $('results').hidden = false;
+  $('results').scrollTop = 0;
+}
+
+async function addPlaylist(url) {
+  toast(t('loadingPlaylist'));
+  try {
+    const r = await api('/api/queue', { method: 'POST', body: { query: url } });
+    toast(t('addedMany', { n: r.added }));
+  } catch (e) { toast(e.message, true); }
 }
 
 async function addTracks(tracks, next = false) {
@@ -423,12 +491,55 @@ async function addTracks(tracks, next = false) {
 }
 
 async function addAll() {
-  const q = $('searchInput').value.trim();
+  const q = $('addAll').dataset.query || $('searchInput').value.trim();
   try {
     const r = await api('/api/queue', { method: 'POST', body: { query: q } });
     toast(t('addedMany', { n: r.added }));
     $('results').hidden = true;
   } catch (e) { toast(e.message, true); }
+}
+
+/* ---------- voice channel ---------- */
+let channels = { channels: [], selected: null, mine: null };
+async function loadChannels() {
+  try { channels = await api('/api/channels'); renderChannels(); } catch { /* keep old list */ }
+}
+function renderChannels() {
+  const sel = $('channelSel');
+  if (!sel || document.activeElement === sel) return;
+  const cur = state?.channel;
+  sel.replaceChildren();
+  const auto = el('option', '', t('channelAuto'));
+  auto.value = '';
+  sel.append(auto);
+  let group = null; let groupName;
+  const known = new Set();
+  for (const c of channels.channels || []) {
+    if (c.category !== groupName) {
+      groupName = c.category;
+      group = groupName ? el('optgroup') : null;
+      if (group) { group.label = groupName; sel.append(group); }
+    }
+    const o = el('option', '', `${c.name}${c.users ? ` (${c.users})` : ''}`);
+    o.value = c.id;
+    known.add(c.id);
+    (group || sel).append(o);
+  }
+  if (cur && !known.has(cur.id)) { const o = el('option', '', cur.name); o.value = cur.id; sel.append(o); }
+  // show where the bot is now; when it is not in a channel, show the saved choice
+  sel.value = cur?.id || channels.selected || '';
+  sel.title = cur ? `${t('inChannel')}: ${cur.name}` : t('notConnected');
+}
+async function chooseChannel(id) {
+  try {
+    const r = await api('/api/settings', { method: 'POST', body: { channelId: id || null, join: !!id } });
+    channels.selected = r.settings.channelId;
+    render(r.state);
+    if (id) {
+      const c = (channels.channels || []).find((x) => x.id === id);
+      toast(t('channelJoined', { c: c ? c.name : id }));
+    } else toast(t('channelAutoSaved'));
+  } catch (e) { toast(e.message, true); renderChannels(); }
 }
 
 /* ---------- live connection ---------- */
@@ -490,6 +601,7 @@ async function start() {
     renderSessionInfo();
     render(s.state);
     connect();
+    loadChannels();
   } catch (e) {
     if (e.message !== 'expired') showGate('offline');
   }
@@ -606,7 +718,9 @@ const GUIDE = {
       <li><b>Entfernen:</b> Unter Windows <code>Uninstall.bat</code> im Ordner <code>%LOCALAPPDATA%\\Msik</code> starten. Unter Linux:</li></ol>
       ${CMD('curl -fsSL https://bot.labtoso.de/uninstall.sh | sudo bash')}`],
     ['Musik steuern', `<ol>
-      <li>Oben einen Titel suchen oder einen Link einfügen (YouTube, Spotify, SoundCloud) und <b>Enter</b> drücken.</li>
+      <li>Oben einfach lostippen: Die Treffer erscheinen beim Tippen, ohne Enter. Links (YouTube, Spotify, SoundCloud) einfügen geht genauso.</li>
+      <li><b>Playlists:</b> Unter den Treffern stehen passende Playlists. <b>+</b> fügt die ganze Playlist hinzu, ein Klick zeigt erst die Titel. Einen Playlist-Link kannst du auch direkt einfügen.</li>
+      <li><b>Sprachkanal:</b> Unten im Player wählst du, wohin der Bot geht. „Automatisch“ heißt: in deinen Kanal. Wählst du einen Kanal, geht er sofort dorthin und merkt ihn sich für den Server.</li>
       <li><b>+</b> hängt den Titel hinten an, der <b>Pfeil nach oben</b> spielt ihn als Nächstes. Bei Playlists gibt es <b>Alle hinzufügen</b>.</li>
       <li>Die Warteschlange sortierst du per Ziehen. Doppelklick spielt sofort.</li>
       <li>Auf dem Fortschrittsbalken spulst du, die <b>Leertaste</b> pausiert. Effekte und Autoplay findest du unter dem Lautstärkeregler.</li></ol>`],
@@ -667,7 +781,9 @@ const GUIDE = {
       <li><b>Remove:</b> on Windows run <code>Uninstall.bat</code> in <code>%LOCALAPPDATA%\\Msik</code>. On Linux:</li></ol>
       ${CMD('curl -fsSL https://bot.labtoso.de/uninstall.sh | sudo bash')}`],
     ['Control the music', `<ol>
-      <li>Search a track at the top or paste a link (YouTube, Spotify, SoundCloud) and press <b>Enter</b>.</li>
+      <li>Just start typing at the top: results appear as you type, no Enter needed. Pasting links (YouTube, Spotify, SoundCloud) works the same way.</li>
+      <li><b>Playlists:</b> matching playlists appear below the results. <b>+</b> adds the whole playlist, a click shows its tracks first. You can also paste a playlist link.</li>
+      <li><b>Voice channel:</b> at the bottom of the player you pick where the bot goes. "Automatic" means your channel. Pick a channel and it moves there at once and remembers it for the server.</li>
       <li><b>+</b> adds it to the end, the <b>up arrow</b> plays it next. Playlists get <b>Add all</b>.</li>
       <li>Drag to reorder the queue. Double-click plays right away.</li>
       <li>Click the progress bar to seek, <b>Space</b> pauses. Effects and autoplay are below the volume slider.</li></ol>`],
@@ -805,6 +921,11 @@ $('searchForm').addEventListener('submit', (e) => {
   const q = $('searchInput').value.trim();
   if (q) doSearch(q);
 });
+$('searchInput').addEventListener('input', liveSearch);
+$('searchInput').addEventListener('focus', () => { if ($('searchInput').value.trim().length >= 2 && $('resultList').childElementCount) $('results').hidden = false; });
+$('channelSel').addEventListener('change', (e) => { chooseChannel(e.target.value); e.target.blur(); });
+$('channelSel').addEventListener('pointerdown', loadChannels);
+$('channelSel').addEventListener('focus', loadChannels);
 $('closeResults').onclick = () => { $('results').hidden = true; };
 $('addAll').onclick = addAll;
 

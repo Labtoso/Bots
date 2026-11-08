@@ -69,7 +69,10 @@
     </div>
     <div class="row channel">
       <span class="dot" id="voiceDot"></span>
-      <span id="voiceName" class="muted"></span>
+      <label class="chan" data-i18n-title="channelTip">
+        <span class="sr" data-i18n="channel"></span>
+        <select id="channelSel"></select>
+      </label>
       <button class="btn ghost sm" id="btnStop" data-i18n="stop"></button>
       <button class="btn ghost sm" id="btnLeave" data-i18n="leave"></button>
     </div>
@@ -87,6 +90,8 @@
         <button class="icon-btn sm" id="closeResults" data-i18n-title="close"></button>
       </div>
       <ul class="list" id="resultList"></ul>
+      <div class="results-sub" id="plHead" hidden><span class="muted small" data-i18n="playlists"></span></div>
+      <ul class="list" id="playlistList" hidden></ul>
     </div>
     <div class="tabs">
       <button class="tab active" data-tab="queue"><span data-i18n="queue"></span> <span class="count" id="qCount">0</span></button>
