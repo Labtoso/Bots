@@ -12,7 +12,7 @@ Dashboards: Branch [`gh-pages`](../../tree/gh-pages), veröffentlicht über GitH
 
 Vorher einen Bot-Token holen: https://discord.com/developers/applications → **New Application** → **Bot** → **Reset Token**.
 
-**Windows** (ohne Admin-Rechte, Node.js ist dabei), in PowerShell:
+**Windows** (keine extra Rechte nötig, Node.js ist dabei), in PowerShell:
 
 ```
 irm https://bot.labtoso.de/install.ps1 | iex
