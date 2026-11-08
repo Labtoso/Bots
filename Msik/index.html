@@ -102,6 +102,7 @@
     <div class="tabs">
       <button class="tab active" data-tab="queue"><span data-i18n="queue"></span> <span class="count" id="qCount">0</span></button>
       <button class="tab" data-tab="history" data-i18n="history"></button>
+      <button class="tab" data-tab="playlists" data-i18n="myPlaylists"></button>
       <div class="tab-tools">
         <span class="muted small num" id="qTotal"></span>
         <button class="btn ghost sm" id="btnClear" data-i18n="clear"></button>
@@ -110,6 +111,30 @@
     <ul class="list queue" id="queueList"></ul>
     <ul class="list" id="historyList" hidden></ul>
     <div class="empty muted" id="queueEmpty" data-i18n="queueEmpty"></div>
+    <div class="pl-view" id="plView" hidden>
+      <div id="plIndex">
+        <form class="pl-new" id="plNewForm" autocomplete="off">
+          <input id="plNewName" maxlength="60" data-i18n-ph="plNewPh">
+          <button class="btn primary sm" data-i18n="plCreate"></button>
+        </form>
+        <button class="btn ghost sm pl-savequeue" id="plSaveQueue" data-i18n="plSaveQueue"></button>
+        <ul class="list" id="plList"></ul>
+        <div class="empty muted" id="plEmpty" data-i18n="plEmpty" hidden></div>
+      </div>
+      <div id="plDetail" hidden>
+        <div class="pl-head">
+          <button class="icon-btn sm" id="plBack" data-i18n-title="back"></button>
+          <div class="pl-title"><b id="plName"></b><span class="muted small" id="plMeta"></span></div>
+          <button class="btn primary sm" id="plPlay" data-i18n="plPlay"></button>
+          <button class="icon-btn sm" id="plShuffle" data-i18n-title="plShuffle"></button>
+          <button class="icon-btn sm" id="plQueue" data-i18n-title="plToQueue"></button>
+          <button class="icon-btn sm" id="plRename" data-i18n-title="plRename"></button>
+          <button class="icon-btn sm" id="plDelete" data-i18n-title="plDelete"></button>
+        </div>
+        <ul class="list queue" id="plTracks"></ul>
+        <div class="empty muted" id="plTracksEmpty" data-i18n="plTracksEmpty" hidden></div>
+      </div>
+    </div>
   </section>
 </main>
 
@@ -169,6 +194,7 @@
   <footer class="drawer-foot muted small">© LabtosoStudios</footer>
 </aside>
 
+<div class="pop" id="plPop" hidden></div>
 <div class="modal-bg" id="nameBg" hidden></div>
 <section class="modal name-modal" id="nameBox" role="dialog" aria-modal="true" aria-labelledby="nameTitle" hidden>
   <h2 id="nameTitle" data-i18n="nameTitle"></h2>

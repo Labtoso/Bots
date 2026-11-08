@@ -18,6 +18,11 @@ const I = {
   plus: '<path d="M12 5v14"/><path d="M5 12h14"/>',
   up: '<path d="m6 15 6-6 6 6"/>',
   playSm: '<path d="M8 5.5v13l11-6.5-11-6.5Z"/>',
+  listAdd: '<path d="M4 6h11"/><path d="M4 12h11"/><path d="M4 18h7"/><path d="M18 14v6"/><path d="M15 17h6"/>',
+  back: '<path d="m15 18-6-6 6-6"/>',
+  edit: '<path d="M12 20h9"/><path d="M16.5 3.5a2.1 2.1 0 0 1 3 3L7 19l-4 1 1-4Z"/>',
+  trash: '<path d="M3 6h18"/><path d="M8 6V4h8v2"/><path d="M19 6l-1 14H6L5 6"/>',
+  queueAdd: '<path d="M3 6h12"/><path d="M3 12h12"/><path d="M3 18h8"/><path d="M17 15l5 3-5 3Z"/>',
   help: '<circle cx="12" cy="12" r="9"/><path d="M9.5 9.2a2.6 2.6 0 0 1 5 .9c0 1.7-2.5 2.3-2.5 3.9"/><path d="M12 17h.01"/>',
   note: '<path d="M9 18V5l12-2v13"/><circle cx="6" cy="18" r="3"/><circle cx="18" cy="16" r="3"/>',
 };
@@ -57,6 +62,14 @@ const T = {
     a_jump: 'spielt jetzt „{d}“', a_remove: 'hat „{d}“ entfernt', a_seek: 'ist zu {d} gesprungen',
     a_channel: 'hat den Kanal auf „{d}“ gestellt', a_channelAuto: 'hat den Kanal auf Automatisch gestellt',
     on: 'an', off: 'aus', guest: 'Gast',
+    myPlaylists: 'Playlists', plNewPh: 'Neue Playlist', plCreate: 'Anlegen', plSaveQueue: 'Warteschlange als Playlist speichern',
+    plEmpty: 'Noch keine Playlists. Leg oben eine an.', plTracksEmpty: 'Noch leer. Füg Songs über das Listen-Symbol bei Suche oder Warteschlange hinzu.',
+    plPlay: 'Abspielen', plShuffle: 'Gemischt abspielen', plToQueue: 'An die Warteschlange hängen', plRename: 'Umbenennen', plDelete: 'Löschen',
+    plDeleteAsk: 'Playlist „{n}“ wirklich löschen?', plRenameAsk: 'Neuer Name', plAddTo: 'Zu Playlist hinzufügen', plNew: '+ Neue Playlist',
+    plAdded: 'Zu „{n}“ hinzugefügt', plCreated: 'Playlist „{n}“ angelegt', plSaved: 'Als „{n}“ gespeichert', plQueued: '{n} Titel angehängt',
+    plCount: '{n} Titel', plBy: 'von {n}', playNowTip: 'Jetzt abspielen (Warteschlange bleibt)',
+    a_playNow: 'spielt jetzt „{d}“', a_plCreate: 'hat die Playlist „{d}“ angelegt', a_plDelete: 'hat die Playlist „{d}“ gelöscht',
+    a_plAdd: 'hat „{d}“ zu „{e}“ hinzugefügt', a_plAddMany: 'hat {d} Titel zu „{e}“ hinzugefügt', a_plPlay: 'spielt die Playlist „{d}“',
     searchSource: 'Suche über', searchSourceHint: 'Gespielt wird immer über YouTube, Spotify liefert nur Titel und Cover.',
     searchPhSpotify: 'Auf Spotify suchen oder Link einfügen',
   },
@@ -92,6 +105,14 @@ const T = {
     a_jump: 'now plays "{d}"', a_remove: 'removed "{d}"', a_seek: 'jumped to {d}',
     a_channel: 'set the channel to "{d}"', a_channelAuto: 'set the channel to automatic',
     on: 'on', off: 'off', guest: 'guest',
+    myPlaylists: 'Playlists', plNewPh: 'New playlist', plCreate: 'Create', plSaveQueue: 'Save queue as playlist',
+    plEmpty: 'No playlists yet. Create one above.', plTracksEmpty: 'Still empty. Add songs with the list icon in search or the queue.',
+    plPlay: 'Play', plShuffle: 'Play shuffled', plToQueue: 'Append to the queue', plRename: 'Rename', plDelete: 'Delete',
+    plDeleteAsk: 'Really delete playlist "{n}"?', plRenameAsk: 'New name', plAddTo: 'Add to playlist', plNew: '+ New playlist',
+    plAdded: 'Added to "{n}"', plCreated: 'Playlist "{n}" created', plSaved: 'Saved as "{n}"', plQueued: 'Appended {n} tracks',
+    plCount: '{n} tracks', plBy: 'by {n}', playNowTip: 'Play now (queue stays)',
+    a_playNow: 'now plays "{d}"', a_plCreate: 'created the playlist "{d}"', a_plDelete: 'deleted the playlist "{d}"',
+    a_plAdd: 'added "{d}" to "{e}"', a_plAddMany: 'added {d} tracks to "{e}"', a_plPlay: 'plays the playlist "{d}"',
     searchSource: 'Search with', searchSourceHint: 'Playback always comes from YouTube, Spotify only supplies titles and covers.',
     searchPhSpotify: 'Search Spotify or paste a link',
   },
@@ -289,7 +310,7 @@ function thumb(src) {
 function iconBtn(icon, title, onClick) {
   const b = el('button', 'icon-btn sm');
   b.innerHTML = svg(icon); b.title = title; b.type = 'button';
-  b.addEventListener('click', (e) => { e.stopPropagation(); onClick(); });
+  b.addEventListener('click', (e) => { e.stopPropagation(); onClick(b); });
   return b;
 }
 
@@ -393,6 +414,7 @@ function renderQueue(s) {
     acts.append(
       iconBtn('playSm', t('playNow'), () => control('jump', tr.id)),
       ...(i > 0 ? [iconBtn('up', t('addNext'), () => control('move', { id: tr.id, to: 0 }))] : []),
+      iconBtn('listAdd', t('plAddTo'), (b) => openPlPicker(b, [tr])),
       iconBtn('x', t('remove'), () => control('remove', tr.id)),
     );
     li.append(tx, el('span', 'd', tr.duration ? fmt(tr.duration) : ''), acts);
@@ -431,11 +453,16 @@ function activityText(a) {
   if (a.action === 'add' && /^\d+$/.test(String(d))) key = 'a_addMany';
   if (a.action === 'channel' && !d) key = 'a_channelAuto';
   if (a.action === 'skip' && d) key = 'a_skipT';
+  let e = '';
+  if (a.action === 'plAdd' && typeof d === 'string') {
+    const i = d.lastIndexOf('|'); e = d.slice(i + 1); d = d.slice(0, i);
+    if (/^\d+$/.test(d)) key = 'a_plAddMany';
+  }
   if (a.action === 'autoplay') d = t(d ? 'on' : 'off');
   if (a.action === 'seek') d = fmt(d);
   if (a.action === 'loop') d = t(LOOP_NAMES[d] || 'loopOff').replace(/^.*: /, '');
   if (a.action === 'filter') d = d === 'none' ? t('filterNone') : (document.querySelector(`#filter option[value="${d}"]`)?.textContent || d);
-  return t(key, { d: d ?? '' });
+  return t(key, { d: d ?? '', e });
 }
 function ago(ts) {
   const s = Math.max(0, Math.round((Date.now() - ts) / 1000));
@@ -463,6 +490,7 @@ let tab = 'queue';
 function updateEmpty() {
   const n = tab === 'queue' ? (state?.queue.length || 0) : (state?.history.length || 0);
   $('queueEmpty').hidden = n > 0 || tab !== 'queue';
+  if (tab === 'playlists') $('queueEmpty').hidden = true;
 }
 
 /* drag & drop reorder */
@@ -559,7 +587,8 @@ function showResults(r, q) {
     tx.title = tr.title;
     const acts = el('div', 'acts');
     acts.append(
-      iconBtn('up', t('addNext'), () => addTracks([tr], true)),
+      iconBtn('playSm', t('playNowTip'), () => addTracks([tr], false, true)),
+      iconBtn('listAdd', t('plAddTo'), (b) => openPlPicker(b, [tr])),
       iconBtn('plus', t('add'), () => addTracks([tr])),
     );
     li.append(tx, el('span', 'd', tr.duration ? fmt(tr.duration) : ''), acts);
@@ -597,18 +626,19 @@ async function addPlaylist(url) {
   } catch (e) { toast(e.message, true); }
 }
 
-async function addTracks(tracks, next = false) {
+async function addTracks(tracks, next = false, now = false) {
   // show it at once: as the current song (loading) or in the queue
   if (state) {
     const s = { ...state, queue: [...state.queue] };
     const list = tracks.map((tr) => ({ ...tr, id: `tmp-${Math.random().toString(16).slice(2)}`, requester: sessInfo?.name }));
+    if (now && s.current) { s.history = [s.current, ...state.history]; s.current = null; }
     if (!s.current) { s.current = list.shift(); s.loading = true; s.position = 0; s.paused = false; }
-    if (next) s.queue.unshift(...list); else s.queue.push(...list);
+    if (next || now) s.queue.unshift(...list); else s.queue.push(...list);
     s.local = true;
     render(s, true);
   }
   try {
-    const r = await api('/api/queue', { method: 'POST', body: { tracks, next } });
+    const r = await api('/api/queue', { method: 'POST', body: { tracks, next, now } });
     if (r.state) render(r.state);
     toast(r.added === 1 ? t('added', { t: tracks[0].title }) : t('addedMany', { n: r.added }));
   } catch (e) {
@@ -741,6 +771,116 @@ async function start() {
     if (e.message !== 'expired') showGate('offline');
   }
 }
+
+/* ---------- saved playlists ---------- */
+let pls = [];
+let openPl = null;
+async function loadPlaylists() {
+  try { pls = (await api('/api/playlists')).playlists; renderPlIndex(); } catch (e) { toast(e.message, true); }
+  if (openPl) showPl(openPl.id);
+}
+function plMeta(p) { return [t('plCount', { n: p.count ?? p.tracks.length }), p.by ? t('plBy', { n: p.by }) : ''].filter(Boolean).join(' · '); }
+function renderPlIndex() {
+  const list = $('plList');
+  list.replaceChildren();
+  for (const p of pls) {
+    const li = el('li', 'item');
+    li.append(thumb(p.thumbnail));
+    const tx = el('div', 't');
+    tx.append(el('b', '', p.name), el('span', '', plMeta(p)));
+    const acts = el('div', 'acts');
+    acts.append(
+      iconBtn('playSm', t('plPlay'), () => playPl(p.id, { replace: true })),
+      iconBtn('queueAdd', t('plToQueue'), () => playPl(p.id, {})),
+      iconBtn('trash', t('plDelete'), () => deletePl(p)),
+    );
+    li.append(tx, el('span', 'd', p.duration ? fmt(p.duration) : ''), acts);
+    li.addEventListener('click', () => showPl(p.id));
+    list.append(li);
+  }
+  $('plEmpty').hidden = pls.length > 0;
+}
+async function showPl(id) {
+  try { openPl = await api(`/api/playlists/${id}`); } catch (e) { openPl = null; $('plDetail').hidden = true; $('plIndex').hidden = false; return; }
+  $('plIndex').hidden = true; $('plDetail').hidden = false;
+  renderPlDetail();
+}
+function renderPlDetail() {
+  const p = openPl;
+  $('plName').textContent = p.name;
+  const dur = p.tracks.reduce((a, x) => a + (x.duration || 0), 0);
+  $('plMeta').textContent = [plMeta(p), dur ? fmt(dur) : ''].filter(Boolean).join(' · ');
+  const list = $('plTracks');
+  list.replaceChildren();
+  p.tracks.forEach((tr, i) => {
+    const li = el('li', 'item');
+    li.append(el('span', 'idx', String(i + 1)), thumb(tr.thumbnail));
+    const tx = el('div', 't');
+    tx.append(el('b', '', tr.title), el('span', '', tr.artist || ''));
+    const acts = el('div', 'acts');
+    acts.append(
+      iconBtn('playSm', t('playNowTip'), () => addTracks([tr], false, true)),
+      iconBtn('plus', t('add'), () => addTracks([tr])),
+      iconBtn('x', t('remove'), async () => {
+        try { const r = await api(`/api/playlists/${p.id}/tracks/${tr.id}`, { method: 'DELETE' }); openPl = r.playlist; pls = r.playlists; renderPlDetail(); } catch (e) { toast(e.message, true); }
+      }),
+    );
+    li.append(tx, el('span', 'd', tr.duration ? fmt(tr.duration) : ''), acts);
+    li.addEventListener('dblclick', () => addTracks([tr], false, true));
+    list.append(li);
+  });
+  $('plTracksEmpty').hidden = p.tracks.length > 0;
+  $('plPlay').disabled = !p.tracks.length;
+}
+async function playPl(id, opts) {
+  try {
+    const r = await api(`/api/playlists/${id}/play`, { method: 'POST', body: opts });
+    if (r.state) render(r.state);
+    toast(t('plQueued', { n: r.added }));
+  } catch (e) { toast(e.message, true); }
+}
+async function deletePl(p) {
+  if (!confirm(t('plDeleteAsk', { n: p.name }))) return;
+  try { pls = (await api(`/api/playlists/${p.id}`, { method: 'DELETE' })).playlists; openPl = null; $('plDetail').hidden = true; $('plIndex').hidden = false; renderPlIndex(); } catch (e) { toast(e.message, true); }
+}
+async function createPl(name, tracks) {
+  const r = await api('/api/playlists', { method: 'POST', body: { name, tracks } });
+  pls = r.playlists; renderPlIndex();
+  return r.playlist;
+}
+function closePop() { $('plPop').hidden = true; }
+async function openPlPicker(btn, tracks) {
+  if (!pls.length) { try { pls = (await api('/api/playlists')).playlists; } catch { /* empty list */ } }
+  const pop = $('plPop');
+  pop.replaceChildren(el('div', 'pop-title', t('plAddTo')));
+  for (const p of pls) {
+    const b = el('button', '', p.name); b.type = 'button';
+    b.onclick = async () => {
+      closePop();
+      try {
+        const r = await api(`/api/playlists/${p.id}/tracks`, { method: 'POST', body: { tracks } });
+        pls = r.playlists; if (openPl?.id === p.id) { openPl = r.playlist; renderPlDetail(); } else renderPlIndex();
+        toast(t('plAdded', { n: p.name }));
+      } catch (e) { toast(e.message, true); }
+    };
+    pop.append(b);
+  }
+  const nb = el('button', 'pop-new', t('plNew')); nb.type = 'button';
+  nb.onclick = async () => {
+    closePop();
+    const name = (prompt(t('plNewPh')) || '').trim();
+    if (!name) return;
+    try { const p = await createPl(name, tracks); toast(t('plAdded', { n: p.name })); } catch (e) { toast(e.message, true); }
+  };
+  pop.append(nb);
+  pop.hidden = false;
+  const r = btn.getBoundingClientRect();
+  const w = pop.offsetWidth; const h = pop.offsetHeight;
+  pop.style.left = `${Math.max(8, Math.min(r.right - w, innerWidth - w - 8))}px`;
+  pop.style.top = `${r.bottom + 4 + h > innerHeight ? Math.max(8, r.top - h - 4) : r.bottom + 4}px`;
+}
+document.addEventListener('click', (e) => { if (!$('plPop').hidden && !$('plPop').contains(e.target)) closePop(); });
+document.addEventListener('scroll', closePop, true);
 
 /* ---------- sharing ---------- */
 async function shareLink() {
@@ -1039,6 +1179,35 @@ $('addBackend').addEventListener('submit', (e) => {
 });
 $('gateRetry').onclick = () => start();
 $('shareIcon').innerHTML = svg('link');
+$('plBack').innerHTML = svg('back');
+$('plShuffle').innerHTML = svg('shuffle');
+$('plQueue').innerHTML = svg('queueAdd');
+$('plRename').innerHTML = svg('edit');
+$('plDelete').innerHTML = svg('trash');
+$('plBack').onclick = () => { openPl = null; $('plDetail').hidden = true; $('plIndex').hidden = false; renderPlIndex(); };
+$('plPlay').onclick = () => openPl && playPl(openPl.id, { replace: true });
+$('plShuffle').onclick = () => openPl && playPl(openPl.id, { replace: true, shuffle: true });
+$('plQueue').onclick = () => openPl && playPl(openPl.id, {});
+$('plDelete').onclick = () => openPl && deletePl({ id: openPl.id, name: openPl.name });
+$('plRename').onclick = async () => {
+  if (!openPl) return;
+  const name = (prompt(t('plRenameAsk'), openPl.name) || '').trim();
+  if (!name) return;
+  try { const r = await api(`/api/playlists/${openPl.id}`, { method: 'PATCH', body: { name } }); openPl = r.playlist; pls = r.playlists; renderPlDetail(); } catch (e) { toast(e.message, true); }
+};
+$('plNewForm').addEventListener('submit', async (e) => {
+  e.preventDefault();
+  const name = $('plNewName').value.trim();
+  if (!name) return;
+  try { const p = await createPl(name); $('plNewName').value = ''; toast(t('plCreated', { n: p.name })); showPl(p.id); } catch (err) { toast(err.message, true); }
+});
+$('plSaveQueue').onclick = async () => {
+  const tracks = [state?.current, ...(state?.queue || [])].filter(Boolean);
+  if (!tracks.length) return toast(t('queueEmpty'), true);
+  const name = (prompt(t('plNewPh'), `${t('queue')} ${new Date().toLocaleDateString(lang === 'de' ? 'de-DE' : 'en-GB')}`) || '').trim();
+  if (!name) return;
+  try { const p = await createPl(name, tracks); toast(t('plSaved', { n: p.name })); } catch (err) { toast(err.message, true); }
+};
 $('shareLink').onclick = shareLink;
 $('nameForm').addEventListener('submit', (e) => {
   e.preventDefault();
@@ -1106,6 +1275,8 @@ document.querySelectorAll('.tab').forEach((b) => b.addEventListener('click', () 
   document.querySelectorAll('.tab').forEach((x) => x.classList.toggle('active', x === b));
   $('queueList').hidden = tab !== 'queue';
   $('historyList').hidden = tab !== 'history';
+  $('plView').hidden = tab !== 'playlists';
+  if (tab === 'playlists') loadPlaylists();
   $('btnClear').hidden = tab !== 'queue';
   $('qTotal').hidden = tab !== 'queue';
   updateEmpty();
