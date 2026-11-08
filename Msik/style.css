@@ -298,7 +298,7 @@ input[type=range]:disabled { opacity: .4; }
   .results .item { grid-template-columns: 44px minmax(0, 1fr) auto; }
 }
 
-#btnPlay.loading svg { animation: spin-c 1s linear infinite; }
+#btnPlay.loading svg { animation: spin-c .9s linear infinite; fill: none; stroke: currentColor; stroke-width: 2.6; width: 24px; height: 24px; }
 @keyframes spin-c { to { transform: rotate(360deg); } }
 
 /* YouTube's 4:3 thumbnails have black bars baked in: zoom past them so the picture fills the square */

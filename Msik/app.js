@@ -302,11 +302,14 @@ let lastVol = store.get('lastVol', 60);
 // Answers can arrive out of order (live update before the HTTP reply). Only newer bot states win,
 // otherwise an old "loading" state could stick on the play button.
 let serverAt = 0;
+let lastError = null;
 function render(s, local = false) {
   if (!local) {
     if (s.updatedAt && s.updatedAt < serverAt) return;
     serverAt = s.updatedAt || serverAt;
   }
+  if (!local && s.error && s.error !== lastError) toast(s.error, true);
+  if (!local) lastError = s.error;
   state = s;
   tickBase = { pos: s.position || 0, at: performance.now() };
   const c = s.current;
@@ -324,8 +327,8 @@ function render(s, local = false) {
     cover.hidden = true; $('coverPh').hidden = false; cover.dataset.src = '';
   }
   $('title').textContent = c ? c.title : t('nothing');
-  $('artist').textContent = c ? (s.loading ? t('loadingTrack') : (c.artist || '')) : t('nothingSub');
-  $('requester').textContent = c ? [c.requester ? t('requestedBy', { n: c.requester }) : '', c.autoplay ? t('autoplayTag') : ''].filter(Boolean).join(' · ') : '';
+  $('artist').textContent = c ? (c.artist || '') : t('nothingSub');
+  $('requester').textContent = c ? [s.loading ? t('loadingTrack') : '', c.requester ? t('requestedBy', { n: c.requester }) : '', c.autoplay ? t('autoplayTag') : ''].filter(Boolean).join(' · ') : '';
   document.title = c ? `${c.title} · Msik` : 'Msik';
 
   $('btnPlay').innerHTML = svg(c && s.loading ? 'load' : (!c || s.paused ? 'play' : 'pause'));
