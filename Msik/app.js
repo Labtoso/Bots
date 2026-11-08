@@ -246,12 +246,20 @@ function el(tag, cls, text) {
   if (text !== undefined) e.textContent = text;
   return e;
 }
+const isYt43 = (src) => /i\.ytimg\.com\/vi\/[^/]+\/(?:hq|mq|sd)?default\.jpg/.test(src || '');
 function thumb(src) {
   if (!src) { const d = el('div', 'thumb-ph'); return d; }
   const img = el('img');
   img.src = src; img.alt = ''; img.loading = 'lazy'; img.referrerPolicy = 'no-referrer';
-  img.onerror = () => img.replaceWith(el('div', 'thumb-ph'));
-  return img;
+  if (!isYt43(src)) {
+    img.onerror = () => img.replaceWith(el('div', 'thumb-ph'));
+    return img;
+  }
+  img.className = 'yt43';
+  const box = el('span', 'thumb-box');
+  box.append(img);
+  img.onerror = () => box.replaceWith(el('div', 'thumb-ph'));
+  return box;
 }
 function iconBtn(icon, title, onClick) {
   const b = el('button', 'icon-btn sm');
@@ -277,6 +285,7 @@ function render(s) {
     if (cover.dataset.src !== c.thumbnail) {
       cover.dataset.src = c.thumbnail;
       cover.src = c.thumbnail;
+      cover.classList.toggle('yt43', isYt43(c.thumbnail));
     }
     cover.hidden = false; $('coverPh').hidden = true;
   } else {
