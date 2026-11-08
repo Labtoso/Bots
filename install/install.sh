@@ -16,13 +16,15 @@ set -euo pipefail
 REPO="https://github.com/Labtoso/Bots.git"
 BRANCH="Msik"
 DIR="/opt/msik"
-TOKEN=""; DOMAIN=""; NAME="$(hostname -s 2>/dev/null || echo VPS)"; SERVICE=1; ASK=1; AUTOUPDATE=1
+TOKEN=""; DOMAIN=""; SP_ID=""; SP_SECRET=""; NAME="$(hostname -s 2>/dev/null || echo VPS)"; SERVICE=1; ASK=1; AUTOUPDATE=1
 
 while [ $# -gt 0 ]; do
   case "$1" in
     --token) TOKEN="$2"; shift 2 ;;
     --domain) DOMAIN="$2"; shift 2 ;;
     --name) NAME="$2"; shift 2 ;;
+    --spotify-id) SP_ID="$2"; shift 2 ;;
+    --spotify-secret) SP_SECRET="$2"; shift 2 ;;
     --dir) DIR="$2"; shift 2 ;;
     --no-service) SERVICE=0; shift ;;
     --no-auto-update) AUTOUPDATE=0; shift ;;
@@ -70,6 +72,14 @@ if [ -z "$DOMAIN" ] && [ ! -f "$DIR/.env" ] && [ "$ASK" = 1 ]; then
   DOMAIN="$(ask "Domain (optional)")"
 fi
 
+if [ -z "$SP_ID" ] && [ ! -f "$DIR/.env" ] && [ "$ASK" = 1 ]; then
+  echo
+  echo "Spotify search (optional): Client ID and secret of a free app on https://developer.spotify.com/dashboard"
+  echo "Press Enter to skip, you can add them to $DIR/.env later."
+  SP_ID="$(ask "Spotify Client ID (optional)")"
+  [ -n "$SP_ID" ] && SP_SECRET="$(ask "Spotify Client secret")"
+fi
+
 # ---------- packages ----------
 need=""
 for b in git curl ffmpeg; do command -v "$b" >/dev/null || need="$need $b"; done
@@ -114,6 +124,8 @@ setenv() { # setenv KEY VALUE
   if grep -q "^$1=" .env; then sed -i "s|^$1=.*|$1=$2|" .env; else echo "$1=$2" >> .env; fi
 }
 [ -n "$TOKEN" ] && setenv DISCORD_TOKEN "$TOKEN"
+[ -n "$SP_ID" ] && setenv SPOTIFY_CLIENT_ID "$SP_ID"
+[ -n "$SP_SECRET" ] && setenv SPOTIFY_CLIENT_SECRET "$SP_SECRET"
 grep -q '^BACKEND_NAME=.\+' .env || setenv BACKEND_NAME "$NAME"
 if ! grep -q '^SESSION_SECRET=.\+' .env; then
   setenv SESSION_SECRET "$(head -c 32 /dev/urandom | od -An -tx1 | tr -d ' \n')"
