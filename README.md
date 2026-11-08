@@ -16,39 +16,43 @@ GitHub Pages liefert nur statische Dateien aus und kann keinen Bot ausführen. D
 
 Weil Pages über HTTPS läuft, braucht auch die API HTTPS. Das erledigt der Bot selbst: Er startet beim Hochfahren einen kostenlosen **Cloudflare Quick Tunnel** (ohne Konto) und baut dessen Adresse in jeden `/web`-Link ein. Nach einem Neustart ändert sich die Adresse, dann einfach `/web` neu ausführen.
 
-## Einrichten
+## Installieren
 
-1. https://discord.com/developers/applications → **New Application** → Name z. B. „Msik“.
-2. **Bot** → **Reset Token** → Token kopieren.
-3. **OAuth2 → URL Generator**: Scopes `bot` und `applications.commands`, Rechte `Connect`, `Speak`, `View Channels`. Link öffnen und den Bot auf deinen Server holen.
-4. Starten:
-   - **Windows:** `start.bat` doppelklicken. Beim ersten Mal öffnet sich `.env`, dort `DISCORD_TOKEN=` eintragen, speichern, nochmal starten. Node.js wird bei Bedarf per winget installiert, yt-dlp und cloudflared lädt der Bot selbst nach `bin/`.
-   - **Linux:** `./start.sh`
-   - **Docker:** `.env` anlegen (Vorlage `.env.example`), dann `docker compose up -d --build`.
-5. In Discord in einen Sprachkanal gehen und `/web` eingeben.
+**Windows** (ohne Admin-Rechte): PowerShell öffnen und einfügen
 
-## Auf einem VPS (empfohlen für Dauerbetrieb)
+```
+irm https://bot.labtoso.de/install.ps1 | iex
+```
 
-Du brauchst einen Linux-VPS (Debian/Ubuntu, 1 GB RAM reicht) und eine Subdomain für die API, z. B. `api.labtoso.de` mit einem **A-Record auf die IP des VPS**. Ports 80 und 443 müssen offen sein. Das HTTPS-Zertifikat holt Caddy automatisch.
+oder [`Install.bat`](https://bot.labtoso.de/Install.bat) herunterladen und doppelklicken. Der Installer öffnet das Discord Developer Portal, fragt nach dem Bot-Token, prüft ihn, öffnet den Einladungslink für deinen Server, legt Verknüpfungen im Startmenü, auf dem Desktop und im Autostart an und startet den Bot. Node.js bringt er selbst mit. Installiert wird nach `%LOCALAPPDATA%\Msik`.
 
-**Mit Docker:**
+**Linux / VPS** (Debian, Ubuntu, Fedora):
+
+```
+curl -fsSL https://bot.labtoso.de/install.sh | sudo bash
+```
+
+Fragt nach Token und optional einer Domain für die API. Mit Domain richtet er Caddy mit HTTPS ein (A-Record der Domain auf den Server, Ports 80/443 offen), ohne Domain nutzt er den Cloudflare-Tunnel. Der Bot läuft danach als Dienst `msik` und startet mit dem Server. Logs: `journalctl -u msik -f`.
+
+**Token vorher holen:** https://discord.com/developers/applications → **New Application** → **Bot** → **Reset Token**.
+
+**Updaten:** einfach den Installer nochmal ausführen, die Einstellungen bleiben.
+**Entfernen:** Windows `Uninstall.bat` im Installationsordner, Linux `curl -fsSL https://bot.labtoso.de/uninstall.sh | sudo bash`.
+
+Danach in Discord in einen Sprachkanal gehen und `/web` eingeben. Unter Einstellungen → Backend im Dashboard kannst du zwischen mehreren Installationen wechseln (z. B. PC und VPS).
+
+### Docker
+
 ```
 git clone -b Msik https://github.com/Labtoso/Bots.git msik && cd msik
-cp .env.example .env        # DISCORD_TOKEN, BACKEND_NAME=VPS und SESSION_SECRET eintragen
-API_DOMAIN=api.labtoso.de docker compose -f deploy/docker-compose.vps.yml up -d --build
+cp .env.example .env        # DISCORD_TOKEN, BACKEND_NAME und SESSION_SECRET eintragen
+docker compose up -d --build                                                      # mit Tunnel
+API_DOMAIN=api.example.com docker compose -f deploy/docker-compose.vps.yml up -d --build   # mit eigener Domain + HTTPS
 ```
-
-**Ohne Docker (systemd):**
-```
-curl -fsSL https://raw.githubusercontent.com/Labtoso/Bots/Msik/deploy/install-vps.sh | sudo bash -s -- --token <BOT_TOKEN> --domain api.labtoso.de --name VPS
-```
-Das Skript installiert Node.js, ffmpeg und Caddy, legt den Dienst `msik` an und startet ihn. Logs: `journalctl -u msik -f`, Update: Skript nochmal ausführen. Ohne `--domain` nutzt es den Cloudflare-Tunnel.
-
-Danach im Dashboard unter **Einstellungen → Backend** die Adresse `https://api.labtoso.de` hinzufügen und in Discord `/web` ausführen.
 
 ## Mehrere Backends
 
-Das Dashboard merkt sich jedes Backend, über dessen `/web`-Link du es geöffnet hast. In den Einstellungen kannst du zwischen ihnen wechseln (z. B. VPS und PC), weitere Adressen hinzufügen oder entfernen. Feste Einträge für alle stehen in `Msik/backends.json` im Branch `gh-pages`. Der Name in der Liste kommt aus `BACKEND_NAME`.
+Das Dashboard merkt sich jedes Backend, über dessen `/web`-Link du es geöffnet hast. In den Einstellungen kannst du zwischen ihnen wechseln, weitere Adressen hinzufügen oder entfernen. Feste Einträge für alle stehen in `Msik/backends.json` im Branch `gh-pages`. Der Name in der Liste kommt aus `BACKEND_NAME`.
 
 ## Feste Adresse (optional)
 
