@@ -564,7 +564,13 @@ const GUIDE = {
       ${CMD('irm https://bot.labtoso.de/install.ps1 | iex')}
       <p><b>Linux / VPS:</b></p>
       ${CMD('curl -fsSL https://bot.labtoso.de/install.sh | sudo bash')}
-      <p>Der Installer fragt nach dem Token, installiert alles, öffnet den Einladungslink für deinen Server und startet den Bot. Er startet danach automatisch mit. Zum Updaten einfach nochmal ausführen.</p>`],
+      <p>Der Installer fragt nach dem Token, installiert alles, öffnet den Einladungslink für deinen Server und startet den Bot. Er startet danach automatisch mit. Mit Domain bekommt die API HTTPS über Caddy, ohne Domain nutzt er einen kostenlosen Tunnel.</p>`],
+    ['Updates und Entfernen', `<ol>
+      <li><b>VPS / Linux:</b> Der Bot aktualisiert sich selbst. Alle 15 Minuten schaut er nach einer neuen Version, holt sie und startet neu. Läuft gerade Musik, wartet er damit, höchstens 6 Stunden.</li>
+      <li>Updates ansehen: <code>journalctl -u msik-update</code>. Sofort prüfen: <code>sudo systemctl start msik-update</code>.</li>
+      <li><b>Windows:</b> Zum Updaten den Installer einfach nochmal ausführen, Token und Einstellungen bleiben.</li>
+      <li><b>Entfernen:</b> Unter Windows <code>Uninstall.bat</code> im Ordner <code>%LOCALAPPDATA%\\Msik</code> starten. Unter Linux:</li></ol>
+      ${CMD('curl -fsSL https://bot.labtoso.de/uninstall.sh | sudo bash')}`],
     ['Dashboard öffnen', `<ol>
       <li>Geh in Discord in einen Sprachkanal.</li>
       <li>Schreib <code>/web</code> und klick auf <b>Dashboard öffnen</b>.</li>
@@ -594,7 +600,13 @@ const GUIDE = {
       ${CMD('irm https://bot.labtoso.de/install.ps1 | iex')}
       <p><b>Linux / VPS:</b></p>
       ${CMD('curl -fsSL https://bot.labtoso.de/install.sh | sudo bash')}
-      <p>The installer asks for the token, installs everything, opens the invite link for your server and starts the bot. It starts automatically from then on. Run it again to update.</p>`],
+      <p>The installer asks for the token, installs everything, opens the invite link for your server and starts the bot. It starts automatically from then on. With a domain the API gets HTTPS through Caddy, without one it uses a free tunnel.</p>`],
+    ['Updates and removal', `<ol>
+      <li><b>VPS / Linux:</b> the bot updates itself. Every 15 minutes it checks for a new version, pulls it and restarts. If music is playing it waits, at most 6 hours.</li>
+      <li>See updates: <code>journalctl -u msik-update</code>. Check right now: <code>sudo systemctl start msik-update</code>.</li>
+      <li><b>Windows:</b> to update, just run the installer again. Token and settings are kept.</li>
+      <li><b>Remove:</b> on Windows run <code>Uninstall.bat</code> in <code>%LOCALAPPDATA%\\Msik</code>. On Linux:</li></ol>
+      ${CMD('curl -fsSL https://bot.labtoso.de/uninstall.sh | sudo bash')}`],
     ['Open the dashboard', `<ol>
       <li>Join a voice channel in Discord.</li>
       <li>Type <code>/web</code> and click <b>Open dashboard</b>.</li>
