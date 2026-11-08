@@ -116,16 +116,13 @@ Unter Einstellungen → Backend im Dashboard kannst du zwischen mehreren Install
 
 In den Einstellungen des Dashboards schaltest du bei **Suche über** zwischen YouTube und Spotify um. Spotify liefert nur Titel und Cover, abgespielt wird über YouTube. Spotify-Links (Track, Album, Playlist) gehen immer, auch ohne Einrichtung.
 
-Für die Spotify-Suche braucht der Bot einmal kostenlose Schlüssel:
+Die Client ID der Msik-App ist schon eingebaut. Für die Spotify-Suche fehlt nur noch das **Client secret**: Der Installer fragt bei der Erstinstallation danach, sonst in `.env` eintragen und den Bot neu starten:
 
-1. https://developer.spotify.com/dashboard öffnen und mit dem Spotify-Konto anmelden.
-2. **Create app**, Name frei wählbar, Redirect URI `https://bot.labtoso.de/Msik/`, Haken bei **Web API**, speichern.
-3. In der App unter **Settings** die **Client ID** und das **Client secret** kopieren.
-4. In `.env` eintragen und den Bot neu starten:
-   ```
-   SPOTIFY_CLIENT_ID=...
-   SPOTIFY_CLIENT_SECRET=...
-   ```
+```
+SPOTIFY_CLIENT_SECRET=...
+```
+
+Wer eine eigene Spotify-App nutzen will (https://developer.spotify.com/dashboard, **Create app**, Haken bei **Web API**), trägt zusätzlich `SPOTIFY_CLIENT_ID=...` ein.
    Windows: `%LOCALAPPDATA%\Msik\.env`, Linux: `/opt/msik/.env`, dann `sudo systemctl restart msik`.
 
 ## Docker

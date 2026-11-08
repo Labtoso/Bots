@@ -3,7 +3,7 @@ import { config } from './config.js';
 
 /*
  * Spotify search through the official Web API (Client Credentials flow).
- * Needs SPOTIFY_CLIENT_ID and SPOTIFY_CLIENT_SECRET from a free app on developer.spotify.com.
+ * The Client ID is built in (config.js), SPOTIFY_CLIENT_SECRET comes from .env.
  * Spotify only supplies titles and covers; playback looks the song up on YouTube.
  */
 

@@ -72,12 +72,11 @@ if [ -z "$DOMAIN" ] && [ ! -f "$DIR/.env" ] && [ "$ASK" = 1 ]; then
   DOMAIN="$(ask "Domain (optional)")"
 fi
 
-if [ -z "$SP_ID" ] && [ ! -f "$DIR/.env" ] && [ "$ASK" = 1 ]; then
+if [ -z "$SP_SECRET" ] && [ ! -f "$DIR/.env" ] && [ "$ASK" = 1 ]; then
   echo
-  echo "Spotify search (optional): Client ID and secret of a free app on https://developer.spotify.com/dashboard"
-  echo "Press Enter to skip, you can add them to $DIR/.env later."
-  SP_ID="$(ask "Spotify Client ID (optional)")"
-  [ -n "$SP_ID" ] && SP_SECRET="$(ask "Spotify Client secret")"
+  echo "Spotify search (optional): the Client ID is built in, only the Client secret is needed."
+  echo "Press Enter to skip, you can add SPOTIFY_CLIENT_SECRET to $DIR/.env later."
+  SP_SECRET="$(ask "Spotify Client secret (optional)")"
 fi
 
 # ---------- packages ----------

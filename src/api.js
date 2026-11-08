@@ -50,8 +50,8 @@ export function createApi(bot) {
 
   const errors = {
     NOT_IN_VOICE: [409, 'Geh zuerst in einen Sprachkanal oder wähl im Dashboard einen Kanal aus.'],
-    SPOTIFY_NOT_SET: [400, 'Spotify-Suche ist auf diesem Bot nicht eingerichtet (SPOTIFY_CLIENT_ID und SPOTIFY_CLIENT_SECRET in .env). Stell in den Einstellungen auf YouTube.'],
-    SPOTIFY_BAD_KEYS: [400, 'Spotify-Schlüssel ungültig. SPOTIFY_CLIENT_ID und SPOTIFY_CLIENT_SECRET in .env prüfen.'],
+    SPOTIFY_NOT_SET: [400, 'Spotify-Suche ist auf diesem Bot nicht eingerichtet (SPOTIFY_CLIENT_SECRET in .env). Stell in den Einstellungen auf YouTube.'],
+    SPOTIFY_BAD_KEYS: [400, 'Spotify-Schlüssel ungültig. SPOTIFY_CLIENT_SECRET in .env prüfen.'],
     NO_CHANNEL: [400, 'Kein Kanal gewählt.'],
     CHANNEL_GONE: [404, 'Diesen Sprachkanal gibt es nicht mehr.'],
     NO_VOICE_PERMS: [403, 'Der Bot darf in diesem Kanal nicht verbinden oder sprechen.'],
