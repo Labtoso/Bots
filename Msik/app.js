@@ -14,6 +14,7 @@ const I = {
   search: '<circle cx="11" cy="11" r="7"/><path d="m20 20-3.5-3.5"/>',
   load: '<path d="M21 12a9 9 0 1 1-6.2-8.56"/>',
   x: '<path d="M18 6 6 18"/><path d="m6 6 12 12"/>',
+  link: '<path d="M10 13a5 5 0 0 0 7.54.54l3-3a5 5 0 0 0-7.07-7.07l-1.72 1.71"/><path d="M14 11a5 5 0 0 0-7.54-.54l-3 3a5 5 0 0 0 7.07 7.07l1.71-1.71"/>',
   plus: '<path d="M12 5v14"/><path d="M5 12h14"/>',
   up: '<path d="m6 15 6-6 6 6"/>',
   playSm: '<path d="M8 5.5v13l11-6.5-11-6.5Z"/>',
@@ -45,6 +46,17 @@ const T = {
     channelJoined: 'Bot ist jetzt in „{c}“', channelAutoSaved: 'Bot geht ab jetzt in deinen Sprachkanal', inChannel: 'Gerade in',
     playlists: 'Playlists', plCount: '{n} Titel', addPlaylist: 'Ganze Playlist hinzufügen', showPlaylist: 'Titel anzeigen',
     loadingPlaylist: 'Playlist wird geladen …', loadingTrack: 'Wird geladen …',
+    shareLink: 'Link kopieren', shareCopied: 'Link kopiert. Wer ihn öffnet, kann mitsteuern (gilt {h} Stunden).',
+    activity: 'Aktivität', activityEmpty: 'Noch nichts passiert',
+    nameTitle: 'Wie heißt du?', nameText: 'Damit die anderen sehen, wer was gemacht hat.', nameOk: 'Los',
+    a_add: 'hat „{d}“ hinzugefügt', a_addMany: 'hat {d} Titel hinzugefügt', a_addNext: 'spielt „{d}“ als Nächstes',
+    a_skip: 'hat übersprungen', a_previous: 'ist zurückgesprungen', a_pause: 'hat pausiert', a_resume: 'spielt weiter',
+    a_stop: 'hat gestoppt', a_leave: 'hat den Bot getrennt', a_volume: 'hat die Lautstärke auf {d} gestellt',
+    a_filter: 'hat den Effekt „{d}“ gewählt', a_loop: 'hat Wiederholen auf „{d}“ gestellt', a_autoplay: 'hat Autoplay {d}',
+    a_shuffle: 'hat gemischt', a_clear: 'hat die Warteschlange geleert', a_move: 'hat „{d}“ verschoben',
+    a_jump: 'spielt jetzt „{d}“', a_remove: 'hat „{d}“ entfernt', a_seek: 'ist zu {d} gesprungen',
+    a_channel: 'hat den Kanal auf „{d}“ gestellt', a_channelAuto: 'hat den Kanal auf Automatisch gestellt',
+    on: 'an', off: 'aus', guest: 'Gast',
     searchSource: 'Suche über', searchSourceHint: 'Gespielt wird immer über YouTube, Spotify liefert nur Titel und Cover.',
     searchPhSpotify: 'Auf Spotify suchen oder Link einfügen',
   },
@@ -69,6 +81,17 @@ const T = {
     channelJoined: 'Bot is now in "{c}"', channelAutoSaved: 'Bot now joins your voice channel', inChannel: 'Currently in',
     playlists: 'Playlists', plCount: '{n} tracks', addPlaylist: 'Add the whole playlist', showPlaylist: 'Show tracks',
     loadingPlaylist: 'Loading playlist …', loadingTrack: 'Loading …',
+    shareLink: 'Copy link', shareCopied: 'Link copied. Anyone who opens it can control the bot (valid {h} hours).',
+    activity: 'Activity', activityEmpty: 'Nothing has happened yet',
+    nameTitle: 'What is your name?', nameText: 'So the others can see who did what.', nameOk: 'Go',
+    a_add: 'added "{d}"', a_addMany: 'added {d} tracks', a_addNext: 'plays "{d}" next',
+    a_skip: 'skipped', a_previous: 'went back', a_pause: 'paused', a_resume: 'resumed',
+    a_stop: 'stopped', a_leave: 'disconnected the bot', a_volume: 'set the volume to {d}',
+    a_filter: 'chose the effect "{d}"', a_loop: 'set repeat to "{d}"', a_autoplay: 'turned autoplay {d}',
+    a_shuffle: 'shuffled', a_clear: 'cleared the queue', a_move: 'moved "{d}"',
+    a_jump: 'now plays "{d}"', a_remove: 'removed "{d}"', a_seek: 'jumped to {d}',
+    a_channel: 'set the channel to "{d}"', a_channelAuto: 'set the channel to automatic',
+    on: 'on', off: 'off', guest: 'guest',
     searchSource: 'Search with', searchSourceHint: 'Playback always comes from YouTube, Spotify only supplies titles and covers.',
     searchPhSpotify: 'Search Spotify or paste a link',
   },
@@ -194,10 +217,11 @@ function restart() {
 }
 
 /* ---------- API ---------- */
+const nameHeader = () => (store.get('guestName', '') ? { 'X-Msik-Name': store.get('guestName', '') } : {});
 async function api(path, { method = 'GET', body } = {}) {
   const res = await fetch(session.api + path, {
     method,
-    headers: { Authorization: `Bearer ${session.token}`, ...(body ? { 'Content-Type': 'application/json' } : {}) },
+    headers: { Authorization: `Bearer ${session.token}`, ...nameHeader(), ...(body ? { 'Content-Type': 'application/json' } : {}) },
     body: body ? JSON.stringify(body) : undefined,
   });
   const data = await res.json().catch(() => ({}));
@@ -317,6 +341,7 @@ function render(s) {
 
   renderQueue(s);
   renderHistory(s);
+  renderActivity(s);
   updateProgress();
 }
 
@@ -388,6 +413,40 @@ function renderHistory(s) {
   updateEmpty();
 }
 
+const LOOP_NAMES = { off: 'loopOff', track: 'loopTrack', queue: 'loopQueue' };
+function activityText(a) {
+  let d = a.detail;
+  let key = `a_${a.action}`;
+  if (a.action === 'add' && /^\d+$/.test(String(d))) key = 'a_addMany';
+  if (a.action === 'channel' && !d) key = 'a_channelAuto';
+  if (a.action === 'autoplay') d = t(d ? 'on' : 'off');
+  if (a.action === 'seek') d = fmt(d);
+  if (a.action === 'loop') d = t(LOOP_NAMES[d] || 'loopOff').replace(/^.*: /, '');
+  if (a.action === 'filter') d = d === 'none' ? t('filterNone') : (document.querySelector(`#filter option[value="${d}"]`)?.textContent || d);
+  return t(key, { d: d ?? '' });
+}
+function ago(ts) {
+  const s = Math.max(0, Math.round((Date.now() - ts) / 1000));
+  if (s < 60) return lang === 'de' ? 'gerade' : 'now';
+  if (s < 3600) return `${Math.floor(s / 60)} min`;
+  return new Date(ts).toLocaleTimeString(lang === 'de' ? 'de-DE' : 'en-GB', { hour: '2-digit', minute: '2-digit' });
+}
+function renderActivity(s) {
+  const list = $('activityList');
+  list.replaceChildren();
+  for (const a of s.activity || []) {
+    const li = el('li', 'act');
+    const av = el('span', 'av');
+    if (a.avatar) { const img = el('img'); img.src = a.avatar; img.alt = ''; img.referrerPolicy = 'no-referrer'; av.append(img); } else av.textContent = (a.name || '?').slice(0, 1).toUpperCase();
+    const tx = el('span', 'tx');
+    tx.append(el('b', '', a.name + (a.guest ? ` (${t('guest')})` : '')), document.createTextNode(` ${activityText(a)}`));
+    tx.title = tx.textContent;
+    li.append(av, tx, el('span', 'when', ago(a.at)));
+    list.append(li);
+  }
+  $('activityEmpty').hidden = !!(s.activity || []).length;
+}
+
 let tab = 'queue';
 function updateEmpty() {
   const n = tab === 'queue' ? (state?.queue.length || 0) : (state?.history.length || 0);
@@ -454,7 +513,7 @@ async function doSearch(q) {
   setBusy(true);
   try {
     const res = await fetch(`${session.api}/api/search?q=${encodeURIComponent(q)}&source=${src === 'spotify' ? 'spotify' : 'youtube'}`, {
-      headers: { Authorization: `Bearer ${session.token}` }, signal: searchCtl.signal,
+      headers: { Authorization: `Bearer ${session.token}`, ...nameHeader() }, signal: searchCtl.signal,
     });
     const r = await res.json().catch(() => ({}));
     if (res.status === 401) { showGate('expired'); return; }
@@ -652,7 +711,9 @@ async function start() {
     $('server').hidden = false;
     if (s.user.avatar) { $('userAvatar').src = s.user.avatar; $('userAvatar').hidden = false; }
     $('userAvatar').title = s.user.name;
-    sessInfo = { name: s.user.name, exp: s.expires };
+    sessInfo = { name: s.user.name, exp: s.expires, guest: !!s.user.guest };
+    $('shareLink').hidden = false;
+    if (s.user.guest && !store.get('guestName', '')) askName();
     renderSessionInfo();
     render(s.state);
     connect();
@@ -660,6 +721,23 @@ async function start() {
   } catch (e) {
     if (e.message !== 'expired') showGate('offline');
   }
+}
+
+/* ---------- sharing ---------- */
+async function shareLink() {
+  try {
+    const r = await api('/api/share', { method: 'POST', body: {} });
+    const link = `${location.origin}${location.pathname}#api=${encodeURIComponent(session.api)}&t=${encodeURIComponent(r.token)}`;
+    try { await navigator.clipboard.writeText(link); } catch {
+      const ta = el('textarea'); ta.value = link; document.body.append(ta); ta.select(); document.execCommand('copy'); ta.remove();
+    }
+    toast(t('shareCopied', { h: Math.round((r.expires - Date.now()) / 3600000) }));
+  } catch (e) { toast(e.message, true); }
+}
+function askName() {
+  $('nameBox').hidden = false; $('nameBg').hidden = false;
+  $('nameInput').value = '';
+  setTimeout(() => $('nameInput').focus(), 50);
 }
 
 /* ---------- i18n + settings ---------- */
@@ -941,6 +1019,15 @@ $('addBackend').addEventListener('submit', (e) => {
   selectBackend(v);
 });
 $('gateRetry').onclick = () => start();
+$('shareIcon').innerHTML = svg('link');
+$('shareLink').onclick = shareLink;
+$('nameForm').addEventListener('submit', (e) => {
+  e.preventDefault();
+  const n = $('nameInput').value.trim().slice(0, 32);
+  if (!n) return;
+  store.set('guestName', n);
+  $('nameBox').hidden = true; $('nameBg').hidden = true;
+});
 
 $('btnPlay').onclick = () => control('toggle');
 $('btnNext').onclick = () => control('skip');
@@ -1015,3 +1102,4 @@ loadPresetBackends().then(() => {
     openHelp(0);
   } else if (!backends.length && !store.get('helpSeen', false)) openHelp(0);
 });
+setInterval(() => { if (state) renderActivity(state); }, 30000);

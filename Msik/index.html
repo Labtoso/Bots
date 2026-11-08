@@ -17,6 +17,7 @@
   <button class="icon-btn" id="openSettings" data-i18n-title="settings"></button>
   <div class="brand"><svg class="logo" viewBox="0 0 64 64" width="30" height="30" aria-hidden="true"><rect width="64" height="64" rx="16"/><path d="M26 44a6 6 0 1 1-4-5.66V20l22-5v22a6 6 0 1 1-4-5.66V22.2l-14 3.2Z"/></svg><span>Msik</span></div>
   <div class="top-right">
+    <button class="btn sm share-btn" id="shareLink" hidden><span id="shareIcon"></span><span data-i18n="shareLink"></span></button>
     <button class="icon-btn" id="openHelp" data-i18n-title="help"></button>
     <div class="server" id="server" hidden>
       <img id="serverIcon" alt="" width="28" height="28">
@@ -75,6 +76,11 @@
       </label>
       <button class="btn ghost sm" id="btnStop" data-i18n="stop"></button>
       <button class="btn ghost sm" id="btnLeave" data-i18n="leave"></button>
+    </div>
+    <div class="activity-box">
+      <div class="activity-head"><span data-i18n="activity"></span></div>
+      <ul class="list activity" id="activityList"></ul>
+      <p class="muted small" id="activityEmpty" data-i18n="activityEmpty"></p>
     </div>
   </section>
 
@@ -164,6 +170,15 @@
   <footer class="drawer-foot muted small">© LabtosoStudios</footer>
 </aside>
 
+<div class="modal-bg" id="nameBg" hidden></div>
+<section class="modal name-modal" id="nameBox" role="dialog" aria-modal="true" aria-labelledby="nameTitle" hidden>
+  <h2 id="nameTitle" data-i18n="nameTitle"></h2>
+  <p class="muted" data-i18n="nameText"></p>
+  <form id="nameForm" class="name-form" autocomplete="off">
+    <input id="nameInput" maxlength="32" required>
+    <button class="btn primary" data-i18n="nameOk"></button>
+  </form>
+</section>
 <div class="modal-bg" id="helpBg" hidden></div>
 <section class="modal" id="help" role="dialog" aria-modal="true" aria-labelledby="helpTitle" hidden>
   <div class="modal-head">
