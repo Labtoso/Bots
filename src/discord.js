@@ -126,6 +126,10 @@ export function createDiscordBot() {
     activeCount: () => [...players.values()].filter((p) => p.current && !p.paused).length,
     getName: () => client.user?.username || null,
     setPublicUrl: (u) => { publicUrl = u; },
-    start: () => client.login(config.token),
+    start: () => client.login(config.token).catch((err) => {
+      if (err.code === 'TokenInvalid') throw new Error('Token ungültig. Im Developer Portal unter Bot einen neuen Token holen (Reset Token) und in .env eintragen.');
+      if (/disallowed intents/i.test(err.message)) throw new Error('Intents nicht erlaubt. Der Bot braucht keine Privileged Intents.');
+      throw err;
+    }),
   };
 }

@@ -16,34 +16,90 @@ GitHub Pages liefert nur statische Dateien aus und kann keinen Bot ausführen. D
 
 Weil Pages über HTTPS läuft, braucht auch die API HTTPS. Das erledigt der Bot selbst: Er startet beim Hochfahren einen kostenlosen **Cloudflare Quick Tunnel** (ohne Konto) und baut dessen Adresse in jeden `/web`-Link ein. Nach einem Neustart ändert sich die Adresse, dann einfach `/web` neu ausführen.
 
-## Installieren
+## Bot online bringen, Schritt für Schritt
 
-**Windows** (ohne Admin-Rechte): PowerShell öffnen und einfügen
+Du brauchst etwa 5 Minuten. Am Ende ist der Bot auf deinem Server online, und `/web` öffnet das Dashboard.
+
+### 1. Discord-Anwendung anlegen
+
+1. Öffne https://discord.com/developers/applications und melde dich mit deinem Discord-Konto an.
+2. Klick oben rechts auf **New Application**, gib einen Namen ein (z. B. `Msik`), hak die Bedingungen ab und klick **Create**.
+3. Optional: Unter **General Information** ein Bild als App-Icon hochladen. So sieht der Bot später in Discord aus.
+
+### 2. Token kopieren
+
+1. Links auf **Bot** klicken.
+2. Bei **Token** auf **Reset Token** klicken, bestätigen und den Token mit **Copy** kopieren.
+3. Der Token ist das Passwort des Bots. Gib ihn nie weiter und lade ihn nirgends hoch. Wenn er doch mal irgendwo auftaucht, einfach nochmal **Reset Token**, dann ist der alte ungültig.
+4. Die drei **Privileged Gateway Intents** (Presence, Server Members, Message Content) brauchst du **nicht**, lass sie aus.
+
+### 3. Installieren
+
+**Windows** (ohne Admin-Rechte, Node.js ist dabei). PowerShell öffnen (Start → „PowerShell“) und einfügen:
 
 ```
 irm https://bot.labtoso.de/install.ps1 | iex
 ```
 
-oder [`Install.bat`](https://bot.labtoso.de/Install.bat) herunterladen und doppelklicken. Der Installer öffnet das Discord Developer Portal, fragt nach dem Bot-Token, prüft ihn, öffnet den Einladungslink für deinen Server, legt Verknüpfungen im Startmenü, auf dem Desktop und im Autostart an und startet den Bot. Node.js bringt er selbst mit. Installiert wird nach `%LOCALAPPDATA%\Msik`.
+oder [`Install.bat`](https://bot.labtoso.de/Install.bat) herunterladen und doppelklicken. Der Installer fragt nach dem Token (mit Rechtsklick einfügen), prüft ihn, installiert alles nach `%LOCALAPPDATA%\Msik`, legt Verknüpfungen im Startmenü, auf dem Desktop und im Autostart an und startet den Bot in einem kleinen Fenster „Msik“. Solange dieses Fenster offen ist, ist der Bot online.
 
-**Linux / VPS** (Debian, Ubuntu, Fedora):
+**Linux / VPS** (Debian, Ubuntu, Fedora), per SSH auf dem Server:
 
 ```
 curl -fsSL https://bot.labtoso.de/install.sh | sudo bash
 ```
 
-Fragt nach Token und optional einer Domain für die API. Mit Domain richtet er Caddy mit HTTPS ein (A-Record der Domain auf den Server, Ports 80/443 offen), ohne Domain nutzt er den Cloudflare-Tunnel. Der Bot läuft danach als Dienst `msik` und startet mit dem Server. Logs: `journalctl -u msik -f`.
+Er fragt nach dem Token und nach einer Domain. Die Domain ist optional:
+
+- **Mit Domain** (z. B. `api.example.com`): Lege vorher beim Domain-Anbieter einen **A-Record** auf die IP des Servers an, und Ports 80 und 443 müssen offen sein. Der Installer richtet dann Caddy mit HTTPS ein, und die Adresse bleibt immer gleich.
+- **Ohne Domain** (einfach Enter): Der Bot nutzt einen kostenlosen Cloudflare-Tunnel. Das geht sofort, aber die Adresse ändert sich bei jedem Neustart. Danach einfach `/web` neu ausführen.
+
+Der Bot läuft danach als Dienst `msik`, startet mit dem Server und holt sich alle 15 Minuten selbst Updates (siehe unten).
+
+### 4. Bot auf deinen Server einladen
+
+- **Windows:** Der Installer öffnet den Einladungslink automatisch im Browser.
+- **Linux:** Der Link steht am Ende der Installation und im Log: `journalctl -u msik | grep Einladen`.
+- **Von Hand:** Im Developer Portal unter **OAuth2 → URL Generator** die Scopes `bot` und `applications.commands` anhaken, bei den Rechten **View Channels**, **Connect** und **Speak**. Unten den Link kopieren und öffnen.
+
+Im Browser wählst du den Server aus und klickst **Autorisieren**. Dafür brauchst du auf dem Server das Recht „Server verwalten“.
+
+### 5. Prüfen, ob der Bot online ist
+
+- In Discord steht der Bot rechts in der Mitgliederliste mit **grünem Punkt** und dem Status **„Spielt /web“**.
+- **Windows:** Im Fenster „Msik“ stehen `Eingeloggt als …` und `/web registriert`.
+- **Linux:** `systemctl status msik` zeigt `active (running)`, live mitlesen mit `journalctl -u msik -f`.
+
+### 6. Dashboard öffnen
+
+1. Geh in Discord in einen Sprachkanal.
+2. Tipp `/web` und wähl den Befehl von deinem Bot aus. Beim allerersten Start kann es ein paar Minuten dauern, bis Discord den Befehl anzeigt. Notfalls Discord mit Strg+R neu laden.
+3. Klick auf **Dashboard öffnen**. Der Link gilt 12 Stunden und nur für dich.
+4. Oben rechts im Dashboard zeigt ein **grüner Punkt**, dass die Verbindung zum Bot steht. Das Backend steht ab jetzt unter Einstellungen → Backend.
+5. Oben einen Song suchen und auf **+** klicken. Der Bot kommt in deinen Sprachkanal und spielt.
+
+### Probleme lösen
+
+| Problem | Lösung |
+|---|---|
+| Bot bleibt offline | Läuft das Fenster „Msik“ bzw. der Dienst? Steht im Log `Token ungültig`, ist der Token falsch: neuen holen (Reset Token) und den Installer nochmal ausführen. |
+| `/web` taucht nicht auf | Bot mit dem Scope `applications.commands` neu einladen (Schritt 4), Discord mit Strg+R neu laden, ein paar Minuten warten. |
+| Dashboard zeigt „Bot nicht erreichbar“ | Der Bot ist offline oder wurde neu gestartet (beim Tunnel ändert sich dann die Adresse). Einfach `/web` nochmal ausführen. |
+| „Geh zuerst in einen Sprachkanal“ | Du musst selbst in einem Sprachkanal sein, wenn du den ersten Song hinzufügst. |
+| Kein Ton | Der Bot braucht im Kanal die Rechte **Verbinden** und **Sprechen**. Lautstärke im Dashboard prüfen. |
+| Domain klappt nicht (VPS) | A-Record zeigt auf die Server-IP? Ports 80/443 offen? `journalctl -u caddy` zeigt Zertifikatsfehler. |
+
+## Updates und Entfernen
 
 **Automatische Updates (VPS):** Ein systemd-Timer schaut alle 15 Minuten, ob es auf dem Branch `Msik` etwas Neues gibt, holt es, installiert bei Bedarf neue Abhängigkeiten und startet den Bot neu. Läuft gerade Musik, wartet er damit (höchstens 6 Stunden). yt-dlp hält er dabei auch aktuell. Verlauf: `journalctl -u msik-update`, sofort prüfen: `sudo systemctl start msik-update`, abschalten: Installer mit `--no-auto-update` ausführen.
 
-**Token vorher holen:** https://discord.com/developers/applications → **New Application** → **Bot** → **Reset Token**.
+**Windows:** Zum Updaten den Installer nochmal ausführen. Token und Einstellungen bleiben.
 
-**Updaten:** Auf dem VPS automatisch, unter Windows den Installer nochmal ausführen. Die Einstellungen bleiben.
-**Entfernen:** Windows `Uninstall.bat` im Installationsordner, Linux `curl -fsSL https://bot.labtoso.de/uninstall.sh | sudo bash`.
+**Entfernen:** Windows `Uninstall.bat` im Ordner `%LOCALAPPDATA%\Msik`, Linux `curl -fsSL https://bot.labtoso.de/uninstall.sh | sudo bash`.
 
-Danach in Discord in einen Sprachkanal gehen und `/web` eingeben. Unter Einstellungen → Backend im Dashboard kannst du zwischen mehreren Installationen wechseln (z. B. PC und VPS).
+Unter Einstellungen → Backend im Dashboard kannst du zwischen mehreren Installationen wechseln (z. B. PC und VPS).
 
-### Docker
+## Docker
 
 ```
 git clone -b Msik https://github.com/Labtoso/Bots.git msik && cd msik
