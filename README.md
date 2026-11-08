@@ -28,6 +28,6 @@ curl -fsSL https://bot.labtoso.de/install.sh | sudo bash
 
 Der Installer fragt nach dem Token, installiert alles, öffnet bzw. zeigt den Einladungslink und startet den Bot mit dem System. Auf dem VPS aktualisiert sich der Bot danach alle 15 Minuten selbst und wartet dabei, bis keine Musik mehr läuft. Unter Windows zum Updaten den Installer nochmal ausführen.
 
-Danach in Discord in einen Sprachkanal gehen und `/web` eingeben.
+Danach in Discord in einen Sprachkanal gehen und `/web` eingeben. Der Link verbindet das Dashboard automatisch mit deinem Bot (grüner Punkt oben rechts = verbunden). Genaueres unter [Backend verbinden](https://github.com/Labtoso/Bots/tree/Msik#7-backend-verbinden).
 
 **Ausführlich, mit Einladen, Online-Check und Problemlösungen:** [Bot online bringen, Schritt für Schritt](../../tree/Msik#bot-online-bringen-schritt-f%C3%BCr-schritt) und die [Anleitung im Dashboard](https://bot.labtoso.de/Msik/#guide).
