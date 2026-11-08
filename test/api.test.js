@@ -252,6 +252,24 @@ test('saved playlists: create, add, remove, play', async () => {
   assert.equal((await call(`/api/playlists/${pid}`)).status, 404);
 });
 
+test('server settings, admin lock and revoking shared links', async () => {
+  let r = await call('/api/settings', 'POST', { npEnabled: true, npChannelId: 'text-1', webChannelId: 'text-2' });
+  assert.equal(r.status, 200);
+  r = await call('/api/channels');
+  assert.equal(r.data.npEnabled, true);
+  assert.equal(r.data.npChannelId, 'text-1');
+  assert.equal(r.data.webChannelId, 'text-2');
+  assert.equal(r.data.text.length, 2);
+  assert.equal(r.data.selected, null, 'voice choice untouched');
+  assert.equal((await call('/api/session')).data.user.admin, false);
+  assert.equal((await call('/api/admin/status')).status, 403);
+  assert.equal((await call('/api/admin/action', 'POST', { action: 'restart' })).status, 403);
+  const guest = (await call('/api/share', 'POST', {})).data.token;
+  const gcall = (path, method = 'GET', body) => fetch(API + path, { method, headers: { Authorization: `Bearer ${guest}`, 'Content-Type': 'application/json' }, body: body ? JSON.stringify(body) : undefined });
+  assert.equal((await gcall('/api/settings', 'POST', { webChannelId: null })).status, 403);
+  assert.equal((await gcall('/api/state')).status, 200);
+});
+
 test('stop clears everything', async () => {
   const s = (await call('/api/control', 'POST', { action: 'stop' })).data;
   assert.equal(s.current, null);

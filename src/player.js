@@ -218,6 +218,7 @@ export class GuildPlayer extends EventEmitter {
       this.loading = false;
       this.audio.play(resource);
       this.failures = 0;
+      if (seek === 0 && !track.retried) this.emit('trackStart', track);
       setTimeout(() => { if (id === this.playId) delete track.retried; }, 30_000);
       this.#prefetchNext();
     } catch (err) {

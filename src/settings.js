@@ -21,7 +21,7 @@ function save() {
 }
 
 export const settings = {
-  get(guildId) { return { channelId: null, ...(data[guildId] || {}) }; },
+  get(guildId) { return { channelId: null, npEnabled: false, npChannelId: null, webChannelId: null, guestEpoch: 0, ...(data[guildId] || {}) }; },
   set(guildId, patch) {
     data[guildId] = { ...settings.get(guildId), ...patch };
     save();

@@ -1,5 +1,9 @@
 import http from 'node:http';
-import { config } from './config.js';
+import fs from 'node:fs';
+import path from 'node:path';
+import { spawnSync } from 'node:child_process';
+import { ROOT, config } from './config.js';
+import { bins } from './binaries.js';
 import { createToken, verifyToken } from './auth.js';
 import { log } from './log.js';
 import { resolve, searchAll } from './resolve.js';
@@ -76,6 +80,10 @@ export function createApi(bot) {
     const session = verifyToken(token);
     if (!session) return send(res, 401, { error: 'Sitzung abgelaufen. Hol dir mit /web einen neuen Link.' });
     const guildId = session.g;
+    if (session.s && (session.e || 0) !== settings.get(guildId).guestEpoch) {
+      return send(res, 401, { error: 'Dieser geteilte Link wurde zurückgezogen. Hol dir einen neuen.' });
+    }
+    const isAdmin = !session.s && String(session.u) === String(config.ownerId);
     // people who opened a shared link name themselves in the dashboard
     const guestName = String(req.headers['x-msik-name'] || '').replace(/[\u0000-\u001f<>]/g, '').trim().slice(0, 32);
     const who = session.s
@@ -99,7 +107,7 @@ export function createApi(bot) {
 
     if (p === '/api/session' && req.method === 'GET') {
       return send(res, 200, {
-        user: { id: session.u, name: who.name, avatar: who.avatar, guest: !!session.s },
+        user: { id: session.u, name: who.name, avatar: who.avatar, guest: !!session.s, admin: isAdmin },
         guild: await bot.getGuildInfo(guildId),
         expires: session.exp,
         state: player.state(),
@@ -110,13 +118,62 @@ export function createApi(bot) {
 
     if (p === '/api/share' && req.method === 'POST') {
       // a link others can open without /web; it is bound to this server and expires like any link
-      const token = createToken({ userId: 'guest', guildId, userName: '', guest: true });
+      const token = createToken({ userId: 'guest', guildId, userName: '', guest: true, epoch: settings.get(guildId).guestEpoch });
       return send(res, 200, { token, expires: verifyToken(token).exp });
     }
 
     if (p === '/api/channels' && req.method === 'GET') {
-      const [channels, member] = await Promise.all([bot.getVoiceChannels(guildId), bot.getMember(guildId, session.u)]);
-      return send(res, 200, { channels, selected: settings.get(guildId).channelId, mine: member.voiceChannelId });
+      const [channels, text, member] = await Promise.all([
+        bot.getVoiceChannels(guildId), bot.getTextChannels(guildId), bot.getMember(guildId, session.u),
+      ]);
+      const st = settings.get(guildId);
+      return send(res, 200, {
+        channels, text, selected: st.channelId, mine: member.voiceChannelId,
+        npEnabled: st.npEnabled, npChannelId: st.npChannelId, webChannelId: st.webChannelId,
+      });
+    }
+
+    /* ---------- admin (bot owner only, checked here on the server) ---------- */
+    if (p.startsWith('/api/admin/')) {
+      if (!isAdmin) return send(res, 403, { error: 'Nur für den Bot-Admin.' });
+      if (p === '/api/admin/status' && req.method === 'GET') {
+        const ver = spawnSync(bins.ytdlp, ['--version'], { encoding: 'utf8', timeout: 15_000, windowsHide: true }).stdout?.trim() || null;
+        let commit = null;
+        try { commit = fs.readFileSync(path.join(ROOT, '.git', 'HEAD'), 'utf8').trim(); if (commit.startsWith('ref:')) commit = fs.readFileSync(path.join(ROOT, '.git', commit.slice(5).trim()), 'utf8').trim(); } catch { /* zip install */ }
+        return send(res, 200, {
+          ...bot.getStats(), uptime: Math.round(process.uptime()), memoryMb: Math.round(process.memoryUsage().rss / 1048576),
+          node: process.version, ytdlp: ver, platform: `${process.platform} ${process.arch}`, commit: commit ? commit.slice(0, 7) : null,
+          spotify: spotifyReady(),
+        });
+      }
+      if (p === '/api/admin/logs' && req.method === 'GET') {
+        let text = '';
+        try { text = fs.readFileSync(path.join(ROOT, 'logs', 'msik.log'), 'utf8'); } catch { text = ''; }
+        const lines = text.split(/\r?\n/).filter(Boolean).slice(-300)
+          .map((l) => l.replace(/(SECRET|TOKEN)=\S+/gi, '$1=***'));
+        return send(res, 200, { lines });
+      }
+      if (p === '/api/admin/action' && req.method === 'POST') {
+        const body0 = await readBody(req);
+        const a = body0.action;
+        if (a === 'stopAll') { bot.stopAll(); return send(res, 200, { ok: true }); }
+        if (a === 'revokeGuests') {
+          settings.set(guildId, { guestEpoch: settings.get(guildId).guestEpoch + 1 });
+          return send(res, 200, { ok: true });
+        }
+        if (a === 'ytdlp') {
+          const r = spawnSync(bins.ytdlp, ['-U'], { encoding: 'utf8', timeout: 120_000, windowsHide: true });
+          return send(res, 200, { ok: r.status === 0, output: `${r.stdout || ''}${r.stderr || ''}`.trim().split(/\r?\n/).slice(-5).join('\n') });
+        }
+        if (a === 'restart') {
+          send(res, 200, { ok: true });
+          log.info('Neustart über das Dashboard');
+          setTimeout(() => process.exit(0), 300); // start.bat / Msik.cmd / systemd start it again
+          return undefined;
+        }
+        return send(res, 400, { error: 'Unbekannte Aktion' });
+      }
+      return send(res, 404, { error: 'Nicht gefunden' });
     }
 
     if (p === '/api/search' && req.method === 'GET') {
@@ -208,10 +265,22 @@ export function createApi(bot) {
     }
 
     if (p === '/api/settings' && req.method === 'POST') {
-      const channelId = typeof body.channelId === 'string' && /^[\w-]{1,32}$/.test(body.channelId) ? body.channelId : null;
-      const saved = settings.set(guildId, { channelId });
-      if (channelId && body.join) await player.moveTo(channelId);
-      player.logActivity(who, 'channel', channelId ? player.channel?.name || channelId : null);
+      const idOrNull = (v) => (typeof v === 'string' && /^[\w-]{1,32}$/.test(v) ? v : null);
+      const patch = {};
+      if ('channelId' in body) patch.channelId = idOrNull(body.channelId);
+      // server-wide options: not for people on a shared link
+      if (!session.s) {
+        if ('npEnabled' in body) patch.npEnabled = !!body.npEnabled;
+        if ('npChannelId' in body) patch.npChannelId = idOrNull(body.npChannelId);
+        if ('webChannelId' in body) patch.webChannelId = idOrNull(body.webChannelId);
+      } else if (['npEnabled', 'npChannelId', 'webChannelId'].some((k) => k in body)) {
+        return send(res, 403, { error: 'Das darf nur, wer /web selbst benutzt hat.' });
+      }
+      const saved = settings.set(guildId, patch);
+      if ('channelId' in patch) {
+        if (patch.channelId && body.join) await player.moveTo(patch.channelId);
+        player.logActivity(who, 'channel', patch.channelId ? player.channel?.name || patch.channelId : null);
+      }
       return send(res, 200, { settings: saved, state: player.state() });
     }
 

@@ -37,6 +37,8 @@ export const config = {
   // Spotify search switch: the Client ID of the Msik app is built in, only the secret goes into .env
   spotifyId: env.SPOTIFY_CLIENT_ID || '2944ab8e06ac4993a6d880f44d105870',
   spotifySecret: env.SPOTIFY_CLIENT_SECRET || '',
+  // Discord user ID with admin rights in the dashboard (bot owner)
+  ownerId: env.OWNER_ID || '1073620742081617930',
   mock: env.MOCK === '1',
   binDir: path.join(ROOT, 'bin'),
 };

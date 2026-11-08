@@ -24,10 +24,13 @@ export function createMockBot() {
     getName: () => 'Msik Test',
     getGuildInfo: async (id) => ({ id, name: 'Testserver', icon: null }),
     getVoiceChannels: async () => CHANNELS,
+    getTextChannels: async () => [{ id: 'text-1', name: 'musik-log', category: 'Text', canPost: true }, { id: 'text-2', name: 'allgemein', category: 'Text', canPost: false }],
+    getStats: () => ({ user: 'Msik Test#0000', guilds: [...players.entries()].map(([id, p]) => ({ id, name: 'Testserver', members: 3, playing: p.current?.title || null, channel: p.channel?.name || null, queue: p.queue.length })) }),
+    stopAll: () => { for (const p of players.values()) p.leave(); },
     getMember: async (gid, uid) => ({ id: uid, voiceChannelId: 'voice-1' }),
     setPublicUrl: (u) => { publicUrl = u; },
     start: async () => {
-      const token = createToken({ userId: '1', guildId: 'test-guild', userName: 'Tester' });
+      const token = createToken({ userId: process.env.MOCK_USER || '1', guildId: 'test-guild', userName: 'Tester' });
       const link = `${config.dashboardUrl}#api=${encodeURIComponent(publicUrl)}&t=${encodeURIComponent(token)}`;
       log.info(`Testmodus. Dashboard-Link:\n${link}`);
       if (process.send) process.send({ token, link });
