@@ -754,6 +754,7 @@ const GUIDE = {
     ['Musik steuern', `<ol>
       <li>Oben einfach lostippen: Die Treffer erscheinen beim Tippen, ohne Enter. Links (YouTube, Spotify, SoundCloud) einfügen geht genauso.</li>
       <li><b>Playlists:</b> Unter den Treffern stehen passende Playlists. <b>+</b> fügt die ganze Playlist hinzu, ein Klick zeigt erst die Titel. Einen Playlist-Link kannst du auch direkt einfügen.</li>
+      <li><b>YouTube oder Spotify:</b> Unter Zahnrad → <b>Suche über</b> wählst du, wo gesucht wird. Gespielt wird immer über YouTube. Für die Spotify-Suche braucht der Bot einmal Spotify-Schlüssel (siehe README).</li>
       <li><b>Sprachkanal:</b> Unten im Player wählst du, wohin der Bot geht. „Automatisch“ heißt: in deinen Kanal. Wählst du einen Kanal, geht er sofort dorthin und merkt ihn sich für den Server.</li>
       <li><b>+</b> hängt den Titel hinten an, der <b>Pfeil nach oben</b> spielt ihn als Nächstes. Bei Playlists gibt es <b>Alle hinzufügen</b>.</li>
       <li>Die Warteschlange sortierst du per Ziehen. Doppelklick spielt sofort.</li>
@@ -817,6 +818,7 @@ const GUIDE = {
     ['Control the music', `<ol>
       <li>Just start typing at the top: results appear as you type, no Enter needed. Pasting links (YouTube, Spotify, SoundCloud) works the same way.</li>
       <li><b>Playlists:</b> matching playlists appear below the results. <b>+</b> adds the whole playlist, a click shows its tracks first. You can also paste a playlist link.</li>
+      <li><b>YouTube or Spotify:</b> under gear → <b>Search with</b> you pick where to search. Playback always comes from YouTube. Spotify search needs Spotify keys on the bot once (see README).</li>
       <li><b>Voice channel:</b> at the bottom of the player you pick where the bot goes. "Automatic" means your channel. Pick a channel and it moves there at once and remembers it for the server.</li>
       <li><b>+</b> adds it to the end, the <b>up arrow</b> plays it next. Playlists get <b>Add all</b>.</li>
       <li>Drag to reorder the queue. Double-click plays right away.</li>
