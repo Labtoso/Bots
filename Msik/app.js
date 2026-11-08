@@ -64,7 +64,7 @@ const T = {
     on: 'an', off: 'aus', guest: 'Gast',
     serverSettings: 'Server', npPost: 'Laufenden Song posten', npChannel: 'Textkanal', webChannel: '/web erlaubt in',
     everywhere: 'Überall', npNoPerm: 'Der Bot darf in diesem Kanal nicht schreiben (Nachrichten senden, Links einbetten).', saved: 'Gespeichert',
-    own: 'Nur für dich', ownHidden: 'Unsichtbar (nicht in der Aktivität)', ownPeople: 'Gerade im Panel', ownBlocked: 'Gesperrt', ownBlock: 'Sperren', ownUnblock: 'Entsperren', ownBlockPh: 'Discord-Name oder ID', ownNobody: 'Niemand', ownYou: 'du', ownGuest: 'Gast', ownBlockedOk: '{n} ist gesperrt', ownHiddenOn: 'Du bist jetzt unsichtbar', ownHiddenOff: 'Du bist wieder sichtbar', ownLogs: 'Logs', ownYtdlp: 'yt-dlp aktualisieren', ownRevoke: 'Geteilte Links zurückziehen',
+    own: 'Nur für dich', ownHidden: 'Unsichtbar (nicht in der Aktivität)', ownServers: 'Server & Panels', ownOpen: 'Öffnen', ownViewers: '{n} im Panel', ownPeople: 'Gerade im Panel', ownBlocked: 'Gesperrt', ownBlock: 'Sperren', ownUnblock: 'Entsperren', ownBlockPh: 'Discord-Name oder ID', ownNobody: 'Niemand', ownYou: 'du', ownGuest: 'Gast', ownBlockedOk: '{n} ist gesperrt', ownHiddenOn: 'Du bist jetzt unsichtbar', ownHiddenOff: 'Du bist wieder sichtbar', ownLogs: 'Logs', ownYtdlp: 'yt-dlp aktualisieren', ownRevoke: 'Geteilte Links zurückziehen',
     ownStop: 'Überall stoppen', ownRestart: 'Bot neu starten', ownRestartAsk: 'Bot wirklich neu starten? Die Musik stoppt kurz, der Tunnel bekommt eine neue Adresse (dann /web).',
     ownRevoked: 'Alle geteilten Links gelten nicht mehr', ownStopped: 'Auf allen Servern gestoppt', ownRestarting: 'Bot startet neu …',
     upFor: 'läuft seit {t}', servers: 'Server', mem: 'Speicher', none: 'nichts',
@@ -113,7 +113,7 @@ const T = {
     on: 'on', off: 'off', guest: 'guest',
     serverSettings: 'Server', npPost: 'Post the current song', npChannel: 'Text channel', webChannel: '/web allowed in',
     everywhere: 'Everywhere', npNoPerm: 'The bot may not write in this channel (Send Messages, Embed Links).', saved: 'Saved',
-    own: 'Only you', ownHidden: 'Invisible (not in the activity)', ownPeople: 'In the panel now', ownBlocked: 'Blocked', ownBlock: 'Block', ownUnblock: 'Unblock', ownBlockPh: 'Discord name or ID', ownNobody: 'Nobody', ownYou: 'you', ownGuest: 'guest', ownBlockedOk: '{n} is blocked', ownHiddenOn: 'You are invisible now', ownHiddenOff: 'You are visible again', ownLogs: 'Logs', ownYtdlp: 'Update yt-dlp', ownRevoke: 'Revoke shared links',
+    own: 'Only you', ownHidden: 'Invisible (not in the activity)', ownServers: 'Servers & panels', ownOpen: 'Open', ownViewers: '{n} watching', ownPeople: 'In the panel now', ownBlocked: 'Blocked', ownBlock: 'Block', ownUnblock: 'Unblock', ownBlockPh: 'Discord name or ID', ownNobody: 'Nobody', ownYou: 'you', ownGuest: 'guest', ownBlockedOk: '{n} is blocked', ownHiddenOn: 'You are invisible now', ownHiddenOff: 'You are visible again', ownLogs: 'Logs', ownYtdlp: 'Update yt-dlp', ownRevoke: 'Revoke shared links',
     ownStop: 'Stop everywhere', ownRestart: 'Restart bot', ownRestartAsk: 'Really restart the bot? Music stops briefly and the tunnel gets a new address (then /web).',
     ownRevoked: 'All shared links are revoked', ownStopped: 'Stopped on all servers', ownRestarting: 'Bot is restarting …',
     upFor: 'up for {t}', servers: 'Servers', mem: 'Memory', none: 'nothing',
@@ -937,11 +937,29 @@ async function loadOwn() {
     box.append(ul);
   } catch (e) { $('ownStats').textContent = e.message; }
 }
+async function openPanel(gid) {
+  try {
+    const r = await api('/api/ctl/open', { method: 'POST', body: { guildId: gid } });
+    openDrawer(false);
+    location.hash = `api=${encodeURIComponent(session.api)}&t=${encodeURIComponent(r.token)}`;
+  } catch (e) { toast(e.message, true); }
+}
 async function loadPeople() {
   if (!sessInfo?.ctl) return;
   let r;
   try { r = await api('/api/ctl/people'); } catch { return; }
   $('ownHidden').checked = !!r.hidden;
+  const sv = $('ownServers'); sv.replaceChildren();
+  for (const g of (r.guilds || [])) {
+    const li = el('li');
+    const nm = el('span', 'nm', g.name || g.id);
+    const bits = [g.playing ? `▶ ${g.playing}` : t('none'), t('ownViewers', { n: g.viewers })].filter(Boolean).join(' · ');
+    nm.append(el('small', '', bits));
+    li.append(el('span', 'ava'), nm);
+    const b = el('button', 'btn ghost sm', t('ownOpen')); b.onclick = () => openPanel(g.id);
+    li.append(b); sv.append(li);
+  }
+  if (!(r.guilds || []).length) sv.append(el('li', 'empty-row', t('ownNobody')));
   const ul = $('ownPeople'); ul.replaceChildren();
   for (const v of r.people) {
     const li = el('li');
