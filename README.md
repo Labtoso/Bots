@@ -78,13 +78,26 @@ Im Browser wählst du den Server aus und klickst **Autorisieren**. Dafür brauch
 4. Oben rechts im Dashboard zeigt ein **grüner Punkt**, dass die Verbindung zum Bot steht. Das Backend steht ab jetzt unter Einstellungen → Backend.
 5. Oben einen Song suchen und auf **+** klicken. Der Bot kommt in deinen Sprachkanal und spielt.
 
+### 7. Backend verbinden
+
+**Das passiert automatisch.** Im `/web`-Link steckt die Adresse deines Backends (also deines laufenden Bots) und dein Zugang. Das Dashboard verbindet sich damit von selbst und merkt sich das Backend. Du musst nichts eintragen.
+
+- **Woran sehe ich, dass es verbunden ist?** Oben rechts neben deinem Server ist ein **grüner Punkt**. Rot heißt: keine Verbindung.
+- **Wo steht es?** Zahnrad → **Backend**. Dort steht dein Backend mit grünem Punkt. Hast du mehrere (z. B. PC und VPS), klickst du hier zum Wechseln.
+- **Von Hand hinzufügen** brauchst du nur für ein weiteres Backend. Die Adresse ist:
+  - VPS mit Domain: `https://api.deinedomain.de`
+  - Mit Tunnel (PC oder VPS ohne Domain): die `https://….trycloudflare.com`-Adresse, die der Bot als `Öffentliche API-Adresse` ausgibt. Windows: im Fenster „Msik“. Linux: `journalctl -u msik | grep API`.
+  
+  Danach einmal `/web` von diesem Bot ausführen, denn erst der Link gibt dir den Zugang.
+- **Kein grüner Punkt?** Der Bot ist offline oder wurde neu gestartet (beim Tunnel ändert sich dann die Adresse). Einfach `/web` nochmal ausführen.
+
 ### Probleme lösen
 
 | Problem | Lösung |
 |---|---|
 | Bot bleibt offline | Läuft das Fenster „Msik“ bzw. der Dienst? Steht im Log `Token ungültig`, ist der Token falsch: neuen holen (Reset Token) und den Installer nochmal ausführen. |
 | `/web` taucht nicht auf | Bot mit dem Scope `applications.commands` neu einladen (Schritt 4), Discord mit Strg+R neu laden, ein paar Minuten warten. |
-| Dashboard zeigt „Bot nicht erreichbar“ | Der Bot ist offline oder wurde neu gestartet (beim Tunnel ändert sich dann die Adresse). Einfach `/web` nochmal ausführen. |
+| Dashboard zeigt „Bot nicht erreichbar“ oder roten Punkt | Der Bot ist offline oder wurde neu gestartet (beim Tunnel ändert sich dann die Adresse). Einfach `/web` nochmal ausführen. |
 | „Geh zuerst in einen Sprachkanal“ | Du musst selbst in einem Sprachkanal sein, wenn du den ersten Song hinzufügst. |
 | Kein Ton | Der Bot braucht im Kanal die Rechte **Verbinden** und **Sprechen**. Lautstärke im Dashboard prüfen. |
 | Domain klappt nicht (VPS) | A-Record zeigt auf die Server-IP? Ports 80/443 offen? `journalctl -u caddy` zeigt Zertifikatsfehler. |
