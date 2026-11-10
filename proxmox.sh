@@ -43,7 +43,7 @@ num()    { [[ "$1" =~ ^[0-9]+$ ]] || die "$2 must be a number (got \"$1\")."; }
 
 # ---------- Notes in the Proxmox UI ----------
 # Installs a small helper on the host that writes the current backend address into the container's
-# Notes (Proxmox UI: container -> Summary). A timer refreshes it every minute, because the free
+# Notes (Proxmox UI: container -> Summary). A timer refreshes it every 2 minutes, because the free
 # Cloudflare tunnel gets a new address on every restart.
 install_notes() {
   cat > /usr/local/bin/msik-notes <<'NOTES'
@@ -78,7 +78,7 @@ ${url:-wird noch ermittelt, Bot startet gerade ...}
 
 Logs: \`journalctl -u msik -f\` (Konsole des Containers) · Update: Proxmox-Script nochmal ausführen
 
-_Die Adresse aktualisiert sich hier jede Minute von selbst (msik-notes.timer auf dem Host)._"
+_Die Adresse aktualisiert sich hier alle 2 Minuten von selbst (msik-notes.timer auf dem Host)._"
   sum=$(printf '%s' "$desc" | md5sum | cut -d' ' -f1)
   [ "$(cat "$state/$id" 2>/dev/null)" = "$sum" ] && continue
   pct set "$id" --description "$desc" && echo "$sum" > "$state/$id"
@@ -96,11 +96,11 @@ StandardOutput=null
 UNIT
   cat > /etc/systemd/system/msik-notes.timer <<'UNIT'
 [Unit]
-Description=Refresh the Msik container notes every minute
+Description=Refresh the Msik container notes every 2 minutes
 
 [Timer]
 OnBootSec=1min
-OnUnitActiveSec=1min
+OnUnitActiveSec=2min
 
 [Install]
 WantedBy=timers.target
@@ -147,10 +147,11 @@ if [ "${#existing[@]}" -gt 0 ]; then
     fi
     clear 2>/dev/null || true
     [ "$(pct status "$CT" | awk '{print $2}')" = running ] || { info "Starting container $CT"; pct start "$CT"; sleep 5; }
-    # older containers were made with 1 CPU / 1 GB: give them more, so songs start faster
+    # older containers were made with fewer cores / 1 GB: give them up to 4 cores and 2 GB
     cur_cores=$(pct config "$CT" | awk '/^cores:/ {print $2}'); cur_mem=$(pct config "$CT" | awk '/^memory:/ {print $2}')
     more=()
-    [ -n "$cur_cores" ] && [ "$cur_cores" -lt 2 ] && more+=(--cores 2)
+    want=$(( $(nproc 2>/dev/null || echo 4) < 4 ? $(nproc 2>/dev/null || echo 4) : 4 ))
+    [ -n "$cur_cores" ] && [ "$cur_cores" -lt "$want" ] && more+=(--cores "$want")
     [ -n "$cur_mem" ] && [ "$cur_mem" -lt 2048 ] && more+=(--memory 2048)
     if [ "${#more[@]}" -gt 0 ]; then
       pct set "$CT" "${more[@]}"
@@ -169,7 +170,8 @@ fi
 
 # ---------- defaults ----------
 CTID=$(pvesh get /cluster/nextid)
-HN="msik"; CORES=2; RAM=2048; DISK=6; BRIDGE="vmbr0"; NET="dhcp"; GATE=""; VLAN=""; PW=""
+HOST_CORES=$(nproc 2>/dev/null || echo 4); WANT_CORES=$(( HOST_CORES < 4 ? HOST_CORES : 4 ))
+HN="msik"; CORES=$WANT_CORES; RAM=2048; DISK=6; BRIDGE="vmbr0"; NET="dhcp"; GATE=""; VLAN=""; PW=""
 UNPRIV=1; AUTOUPDATE=1; DOMAIN=""; SP_ID=""; SP_SECRET=""; DNS=""
 
 pick_storage() { # pick_storage CONTENT LABEL -> storage name
@@ -187,7 +189,7 @@ pick_storage() { # pick_storage CONTENT LABEL -> storage name
 }
 
 MODE=$(whiptail --backtitle "$TITLE" --title "Msik on Proxmox" --menu \
-  "Creates a Debian 12 LXC container and installs the Msik music bot in it.\n\nDefaults: ID $CTID, 2 CPU, 2 GB RAM, 6 GB disk, $BRIDGE with DHCP." 16 70 2 \
+  "Creates a Debian 12 LXC container and installs the Msik music bot in it.\n\nDefaults: ID $CTID, $CORES CPU, 2 GB RAM, 6 GB disk, $BRIDGE with DHCP." 16 70 2 \
   "simple" "Use the defaults (recommended)" \
   "advanced" "Choose ID, resources, network and more" 3>&1 1>&2 2>&3) || cancel
 
