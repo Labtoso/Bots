@@ -62,7 +62,7 @@ Der Bot läuft danach als Dienst `msik`, startet mit dem Server und holt sich al
 bash -c "$(curl -fsSL https://bot.labtoso.de/proxmox.sh)"
 ```
 
-Das Script legt einen Debian-12-Container an (Standard: 1 CPU, 1 GB RAM, 4 GB Disk, `vmbr0` mit DHCP, startet mit dem Host) und führt darin den Linux-Installer aus. Mit **Erweitert** wählst du Container-ID, Hostname, Ressourcen, Storage, statische IP, VLAN, Root-Passwort, Domain, Spotify-Secret und Auto-Updates. Danach nach dem Token fragen lassen, fertig. Logs: `pct exec <ID> -- journalctl -u msik -f`. Nochmal ausführen bietet an, den vorhandenen Container zu aktualisieren.
+Das Script legt einen Debian-12-Container an (Standard: 1 CPU, 1 GB RAM, 4 GB Disk, `vmbr0` mit DHCP, startet mit dem Host) und führt darin den Linux-Installer aus. Mit **Erweitert** wählst du Container-ID, Hostname, Ressourcen, Storage, statische IP, VLAN, Root-Passwort, Domain, Spotify-Secret und Auto-Updates. Danach nach dem Token fragen lassen, fertig. Logs: `pct exec <ID> -- journalctl -u msik -f`. Die Backend-Adresse zum Kopieren zeigt das Script am Ende an, und sie steht in Proxmox beim Container unter **Übersicht → Notizen** (ein kleiner Timer `msik-notes.timer` auf dem Host hält sie aktuell, auch wenn sich die Tunnel-Adresse nach einem Neustart ändert). Nochmal ausführen bietet an, den vorhandenen Container zu aktualisieren.
 
 ### 4. Bot auf deinen Server einladen
 

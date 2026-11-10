@@ -31,6 +31,94 @@ secret() { whiptail --backtitle "$TITLE" --title "$1" --passwordbox "$2" 12 70 3
 yesno()  { whiptail --backtitle "$TITLE" --title "$1" --yesno "$2" 11 70; }
 num()    { [[ "$1" =~ ^[0-9]+$ ]] || die "$2 must be a number (got \"$1\")."; }
 
+# ---------- Notes in the Proxmox UI ----------
+# Installs a small helper on the host that writes the current backend address into the container's
+# Notes (Proxmox UI: container -> Summary). A timer refreshes it every minute, because the free
+# Cloudflare tunnel gets a new address on every restart.
+install_notes() {
+  cat > /usr/local/bin/msik-notes <<'NOTES'
+#!/usr/bin/env bash
+# Writes the Msik backend address into the Notes of Msik containers (Proxmox UI: container -> Summary).
+#   msik-notes          all running containers tagged "msik"
+#   msik-notes 105      only container 105
+# Prints "<ID> <backend address>" for every container it looked at.
+set -uo pipefail
+state=/run/msik-notes; mkdir -p "$state"
+ids="$*"; [ -n "$ids" ] || ids=$(pct list 2>/dev/null | awk 'NR>1 && $2=="running" {print $1}')
+for id in $ids; do
+  pct config "$id" 2>/dev/null | grep -q '^tags:.*msik' || continue
+  [ "$(pct status "$id" 2>/dev/null | awk '{print $2}')" = running ] || continue
+  url=$(pct exec "$id" -- sh -c 'u=$(grep -m1 "^PUBLIC_URL=" /opt/msik/.env 2>/dev/null | cut -d= -f2-); [ -n "$u" ] && echo "$u" || journalctl -u msik -b --no-pager -o cat 2>/dev/null | grep -a "API-Adresse" | grep -o "https://[^ ]*" | tail -1' 2>/dev/null)
+  invite=$(pct exec "$id" -- sh -c 'journalctl -u msik --no-pager -o cat 2>/dev/null | grep -o "https://discord.com/oauth2/[^ ]*" | tail -1' 2>/dev/null)
+  ip=$(pct exec "$id" -- hostname -I 2>/dev/null | awk '{print $1}')
+  echo "$id ${url:-}"
+  if [ -n "$invite" ]; then inv="[Einladungslink]($invite)"; else inv="steht nach dem Start im Log"; fi
+  desc="## 🎵 Msik Musikbot
+
+**Backend-Adresse** (zum Kopieren, im Dashboard unter Einstellungen → Backend einfügen):
+
+\`\`\`
+${url:-wird noch ermittelt, Bot startet gerade ...}
+\`\`\`
+
+- Dashboard: [bot.labtoso.de/Msik](https://bot.labtoso.de/Msik/)
+- Bot einladen: $inv
+- Danach in Discord in einen Sprachkanal gehen und \`/web\` eingeben (der Link verbindet das Backend automatisch).
+- Container-IP: ${ip:-?}
+
+Logs: \`journalctl -u msik -f\` (Konsole des Containers) · Update: Proxmox-Script nochmal ausführen
+
+_Die Adresse aktualisiert sich hier jede Minute von selbst (msik-notes.timer auf dem Host)._"
+  sum=$(printf '%s' "$desc" | md5sum | cut -d' ' -f1)
+  [ "$(cat "$state/$id" 2>/dev/null)" = "$sum" ] && continue
+  pct set "$id" --description "$desc" && echo "$sum" > "$state/$id"
+done
+NOTES
+  chmod 755 /usr/local/bin/msik-notes
+  cat > /etc/systemd/system/msik-notes.service <<'UNIT'
+[Unit]
+Description=Write the Msik backend address into the container notes
+
+[Service]
+Type=oneshot
+ExecStart=/usr/local/bin/msik-notes
+StandardOutput=null
+UNIT
+  cat > /etc/systemd/system/msik-notes.timer <<'UNIT'
+[Unit]
+Description=Refresh the Msik container notes every minute
+
+[Timer]
+OnBootSec=1min
+OnUnitActiveSec=1min
+
+[Install]
+WantedBy=timers.target
+UNIT
+  systemctl daemon-reload
+  systemctl enable -q --now msik-notes.timer
+}
+
+show_backend() { # show_backend CTID -> waits for the address, writes the Notes and prints it
+  local id="$1" url="" i
+  info "Waiting for the backend address"
+  for i in $(seq 1 30); do
+    url=$(/usr/local/bin/msik-notes "$id" | awk '{print $2}')
+    [ -n "$url" ] && break
+    sleep 3
+  done
+  rm -f "/run/msik-notes/$id"; /usr/local/bin/msik-notes "$id" >/dev/null
+  echo
+  if [ -n "$url" ]; then
+    printf "  ${c_b}Backend address (copy this into the dashboard, Settings -> Backend):${c_off}\n\n"
+    printf "    ${c_ok}${c_b}%s${c_off}\n\n" "$url"
+  else
+    echo "  The backend address is not there yet. It shows up in a minute in the container's Notes."
+    echo
+  fi
+  echo "  It is also in the Proxmox UI: container $id -> Summary -> Notes (always up to date)."
+}
+
 # ---------- update an existing container ----------
 existing=()
 while read -r id _ name; do
@@ -52,6 +140,9 @@ if [ "${#existing[@]}" -gt 0 ]; then
     info "Updating Msik in container $CT"
     pct exec "$CT" -- bash -c "curl -fsSL $INSTALLER | bash -s -- --yes"
     say "Container $CT is up to date."
+    install_notes
+    show_backend "$CT"
+    echo
     exit 0
   fi
 fi
@@ -139,7 +230,7 @@ opts=(
   --hostname "$HN" --cores "$CORES" --memory "$RAM" --swap 512
   --rootfs "$ROOTFS:$DISK" --net0 "$net" --ostype debian
   --unprivileged "$UNPRIV" --features nesting=1 --onboot 1 --tags msik
-  --description "Msik music bot. Logs: journalctl -u msik -f · Update: run the Proxmox script again · https://bot.labtoso.de"
+  --description "Msik music bot, installing ..."
 )
 [ -n "$DNS" ] && opts+=(--nameserver "$DNS")
 [ -n "$PW" ] && opts+=(--password "$PW")
@@ -180,17 +271,21 @@ pct exec "$CTID" -- bash -c '
   curl -fsSL '"$INSTALLER"' | bash -s -- "$@"
 '
 
+install_notes
 IP=$(pct exec "$CTID" -- hostname -I 2>/dev/null | awk '{print $1}')
-INVITE=$(pct exec "$CTID" -- bash -c "journalctl -u msik --no-pager -o cat 2>/dev/null | grep -o 'https://discord.com/[^ ]*' | tail -1" || true)
+INVITE=$(pct exec "$CTID" -- bash -c "journalctl -u msik --no-pager -o cat 2>/dev/null | grep -o 'https://discord.com/oauth2/[^ ]*' | tail -1" || true)
 
 echo
-printf " ${c_ok}${c_b}Msik is running in container %s${c_off}\n\n" "$CTID"
+printf " ${c_ok}${c_b}Msik is running in container %s${c_off}\n" "$CTID"
+show_backend "$CTID"
+echo
 [ -n "$IP" ] && echo "  Container IP: $IP"
 [ -n "$INVITE" ] && echo "  Invite link:  $INVITE"
-echo "  Then join a voice channel in Discord and type /web."
+echo "  Then join a voice channel in Discord and type /web (the link connects the backend by itself)."
 echo
 echo "  Logs:    pct exec $CTID -- journalctl -u msik -f"
 echo "  Shell:   pct enter $CTID"
 echo "  Update:  run this script again (or it updates itself every 15 minutes)"
 echo "  Remove:  pct stop $CTID && pct destroy $CTID"
+echo "           (notes helper on the host: systemctl disable --now msik-notes.timer)"
 echo
