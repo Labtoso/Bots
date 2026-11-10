@@ -56,6 +56,14 @@ Er fragt nach dem Token und nach einer Domain. Die Domain ist optional:
 
 Der Bot läuft danach als Dienst `msik`, startet mit dem Server und holt sich alle 15 Minuten selbst Updates (siehe unten).
 
+**Proxmox VE** (eigener LXC-Container), in der Shell des Proxmox-Hosts (Node → Shell):
+
+```
+bash -c "$(curl -fsSL https://bot.labtoso.de/proxmox.sh)"
+```
+
+Das Script legt einen Debian-12-Container an (Standard: 1 CPU, 1 GB RAM, 4 GB Disk, `vmbr0` mit DHCP, startet mit dem Host) und führt darin den Linux-Installer aus. Mit **Erweitert** wählst du Container-ID, Hostname, Ressourcen, Storage, statische IP, VLAN, Root-Passwort, Domain, Spotify-Secret und Auto-Updates. Danach nach dem Token fragen lassen, fertig. Logs: `pct exec <ID> -- journalctl -u msik -f`. Nochmal ausführen bietet an, den vorhandenen Container zu aktualisieren.
+
 ### 4. Bot auf deinen Server einladen
 
 - **Windows:** Der Installer öffnet den Einladungslink automatisch im Browser.
