@@ -105,8 +105,8 @@ fi
 # ---------- code ----------
 say "Getting Msik"
 if [ -d "$DIR/.git" ]; then
-  git -C "$DIR" fetch -q --depth 1 origin "$BRANCH"
-  git -C "$DIR" reset -q --hard FETCH_HEAD
+  git -c safe.directory="$DIR" -C "$DIR" fetch -q --depth 1 origin "$BRANCH"
+  git -c safe.directory="$DIR" -C "$DIR" reset -q --hard FETCH_HEAD
 else
   mkdir -p "$DIR"
   git clone -q --depth 1 --branch "$BRANCH" "$REPO" "$DIR.tmp"
