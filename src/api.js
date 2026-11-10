@@ -6,7 +6,7 @@ import { ROOT, config } from './config.js';
 import { bins } from './binaries.js';
 import { createToken, verifyToken } from './auth.js';
 import { log } from './log.js';
-import { resolve, searchAll } from './resolve.js';
+import { prefetchStream, resolve, searchAll } from './resolve.js';
 import { settings } from './settings.js';
 import { playlists } from './playlists.js';
 import { spotifyReady, spotifySearch } from './spotify.js';
@@ -62,6 +62,8 @@ export function createApi(bot) {
     CHANNEL_GONE: [404, 'Diesen Sprachkanal gibt es nicht mehr.'],
     NO_VOICE_PERMS: [403, 'Der Bot darf in diesem Kanal nicht verbinden oder sprechen.'],
   };
+
+  const searchPrefetch = new Map();
 
   async function handle(req, res) {
     cors(req, res);
@@ -241,7 +243,20 @@ export function createApi(bot) {
       const r = spotify ? await spotifySearch(q) : await searchAll(q, 8);
       // Spotify hits play through YouTube: look up the first matches now, so + starts sooner
       if (spotify) r.tracks.slice(0, 4).forEach((t) => searchAll(t.query, 1).catch(() => {}));
+      // get the stream links of the top hits ready once the typing stops, so play starts at once
+      clearTimeout(searchPrefetch.get(guildId));
+      searchPrefetch.set(guildId, setTimeout(() => {
+        searchPrefetch.delete(guildId);
+        r.tracks.slice(0, 3).reverse().forEach((t) => prefetchStream(t));
+      }, 700));
       return send(res, 200, { results: r.tracks, playlists: r.playlists });
+    }
+
+    // the dashboard hints at a song the pointer is on: look up its stream right away
+    if (p === '/api/prefetch' && req.method === 'POST') {
+      const t = sanitizeTrack(body.track);
+      if (t) prefetchStream(t, { urgent: true });
+      return send(res, 200, { ok: true });
     }
 
     if (p === '/api/playlists' && req.method === 'GET') return send(res, 200, { playlists: playlists.list(guildId) });

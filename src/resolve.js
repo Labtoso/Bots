@@ -6,9 +6,10 @@ import { ytSearch } from './youtube.js';
 
 const uid = () => crypto.randomBytes(6).toString('hex');
 
-export function runYtdlp(args, { timeout = 45_000 } = {}) {
+export function runYtdlp(args, { timeout = 45_000, signal } = {}) {
   return new Promise((resolve, reject) => {
     const p = spawn(bins.ytdlp, ['--no-warnings', '--ignore-config', ...args], { windowsHide: true });
+    signal?.addEventListener('abort', () => { p.kill(); }, { once: true });
     let out = '';
     let err = '';
     const timer = setTimeout(() => { p.kill(); reject(new Error('yt-dlp Zeitüberschreitung')); }, timeout);
@@ -163,6 +164,47 @@ function expiresAt(url) {
   return Math.min(hard, Date.now() + 60 * 60_000);
 }
 
+/* YouTube sometimes needs its JavaScript challenge solved. Instead of waiting for the plain lookup
+   to fail first, a second lookup with Node as JS runtime starts after a short head start, and
+   whichever answers first wins (the other one is stopped). Costs a bit more CPU, saves seconds. */
+const HEDGE_MS = 1500;
+function hedgedYoutube(args) {
+  return new Promise((resolve, reject) => {
+    const first = new AbortController();
+    const second = new AbortController();
+    let settled = false;
+    let pending = 0;
+    let secondStarted = false;
+    let lastErr = null;
+    const win = (other, out) => {
+      if (settled) return;
+      settled = true;
+      clearTimeout(timer);
+      other.abort();
+      resolve(out);
+    };
+    const lose = (err) => {
+      lastErr = err;
+      pending--;
+      if (settled) return;
+      if (!secondStarted) startSecond();
+      else if (pending === 0) { settled = true; reject(lastErr); }
+    };
+    const run = (extra, ctrl, other, opts) => {
+      pending++;
+      runYtdlp([...extra, ...args], { ...opts, signal: ctrl.signal }).then((o) => win(other, o), lose);
+    };
+    const startSecond = () => {
+      if (secondStarted || settled) return;
+      secondStarted = true;
+      clearTimeout(timer);
+      run(['--js-runtimes', `node:${process.execPath}`], second, first, {});
+    };
+    const timer = setTimeout(startSecond, HEDGE_MS);
+    run([], first, second, { timeout: 25_000 });
+  });
+}
+
 async function fetchStream(track) {
   let target = track.url;
   if (!target && track.query) {
@@ -174,15 +216,7 @@ async function fetchStream(track) {
     if (!track.thumbnail) track.thumbnail = hit.thumbnail;
   }
   const args = ['-j', '--no-playlist', '-f', 'bestaudio/best', target];
-  let out;
-  try {
-    out = await runYtdlp(args, { timeout: 25_000 });
-  } catch (err) {
-    // YouTube sometimes needs its JavaScript challenge solved; Node is already here, so use it for the retry
-    if (!/youtu/.test(target)) throw err;
-    log.warn('Stream erneut mit JS-Laufzeit:', err.message);
-    out = await runYtdlp(['--js-runtimes', `node:${process.execPath}`, ...args]);
-  }
+  const out = /youtu/.test(target) ? await hedgedYoutube(args) : await runYtdlp(args, { timeout: 25_000 });
   const info = JSON.parse(out);
   return {
     url: info.url, headers: info.http_headers || {}, isLive: !!info.is_live,
@@ -213,6 +247,27 @@ export function forgetStream(track) {
 }
 
 /** Resolves the stream in the background, errors are ignored here. */
-export function prefetchStream(track) {
-  if (track && (track.url || track.query)) streamInfo(track).catch(() => {});
+/* Background lookups (search results, next in queue) run at most a few at a time,
+   newest first, so typing fast does not start dozens of yt-dlp processes. */
+const PREFETCH_MAX = 3;
+let prefetchRunning = 0;
+const prefetchWaiting = [];
+function pumpPrefetch() {
+  while (prefetchRunning < PREFETCH_MAX && prefetchWaiting.length) {
+    const track = prefetchWaiting.pop();
+    const hit = streams.get(streamKey(track));
+    if (hit && hit.until > Date.now()) continue;
+    prefetchRunning++;
+    streamInfo(track).catch(() => {}).finally(() => { prefetchRunning--; pumpPrefetch(); });
+  }
+}
+export function prefetchStream(track, { urgent = false } = {}) {
+  if (!track || !(track.url || track.query)) return;
+  const hit = streams.get(streamKey(track));
+  if (hit && hit.until > Date.now()) return;
+  if (urgent) { streamInfo(track).catch(() => {}); return; }
+  if (prefetchWaiting.some((t) => streamKey(t) === streamKey(track))) return;
+  prefetchWaiting.push(track);
+  if (prefetchWaiting.length > 12) prefetchWaiting.shift();
+  pumpPrefetch();
 }

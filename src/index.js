@@ -1,3 +1,4 @@
+import { createRequire } from 'node:module';
 import { config } from './config.js';
 import { log } from './log.js';
 import { ensureBinaries } from './binaries.js';
@@ -7,6 +8,12 @@ import { startTunnel } from './tunnel.js';
 async function main() {
   const useTunnel = !config.publicUrl && config.tunnel !== 'off';
   await ensureBinaries({ tunnel: useTunnel });
+  try {
+    createRequire(import.meta.url)('@discordjs/opus');
+    log.info('Opus: nativ (schnell)');
+  } catch {
+    log.warn('Opus: opusscript (langsam, braucht viel CPU). Installer nochmal ausführen, dann wird der schnelle Encoder gebaut.');
+  }
 
   const bot = config.mock ? (await import('./mock.js')).createMockBot() : (await import('./discord.js')).createDiscordBot();
   const api = createApi(bot);
