@@ -80,9 +80,13 @@ if [ -z "$SP_SECRET" ] && [ ! -f "$DIR/.env" ] && [ "$ASK" = 1 ]; then
 fi
 
 # ---------- packages ----------
+# python3 makes yt-dlp start faster (no self-unpacking binary), make/g++ let the fast native
+# Opus encoder build when there is no ready-made one for this system
 need=""
-for b in git curl ffmpeg; do command -v "$b" >/dev/null || need="$need $b"; done
+for b in git curl ffmpeg python3 make; do command -v "$b" >/dev/null || need="$need $b"; done
+command -v g++ >/dev/null || need="$need g++"
 if [ -n "$need" ]; then
+  if ! command -v apt-get >/dev/null; then need="${need/g++/gcc-c++}"; fi
   say "Installing:$need"
   if command -v apt-get >/dev/null; then
     apt-get update -qq && DEBIAN_FRONTEND=noninteractive apt-get install -y -qq ca-certificates $need >/dev/null

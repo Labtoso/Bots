@@ -337,6 +337,47 @@ let lastVol = store.get('lastVol', 60);
 let serverAt = 0;
 let serverRev = 0;
 let lastError = null;
+
+const hinted = new Map();
+function hintTrack(tr) {
+  const key = tr.url || tr.query;
+  if (!key || Date.now() - (hinted.get(key) || 0) < 10 * 60_000) return;
+  hinted.set(key, Date.now());
+  api('/api/prefetch', { method: 'POST', body: { track: tr } }).catch(() => {});
+}
+
+// The loading spinner shows for at most 2 s. If the bot is still "loading" after that (or a live
+// update got lost), the button falls back to play/pause and the state is fetched again.
+const LOADING_MAX = 2000;
+let loadingKey = null;
+let loadingSince = 0;
+let loadingTimer = null;
+function showLoading(s = state) {
+  return !!(s?.current && s.loading) && performance.now() - loadingSince < LOADING_MAX;
+}
+function renderPlayButton(s = state) {
+  if (!s) return;
+  const c = s.current;
+  const busy = showLoading(s);
+  $('requester').textContent = c ? [busy ? t('loadingTrack') : '', c.requester ? t('requestedBy', { n: c.requester }) : '', c.autoplay ? t('autoplayTag') : ''].filter(Boolean).join(' · ') : '';
+  $('btnPlay').innerHTML = svg(busy ? 'load' : (!c || s.paused ? 'play' : 'pause'));
+  $('btnPlay').classList.toggle('loading', busy);
+}
+function trackLoading(s) {
+  const key = s.current && s.loading ? `${s.current.id || s.current.url || s.current.title}` : null;
+  if (key !== loadingKey) { loadingKey = key; loadingSince = performance.now(); }
+  clearTimeout(loadingTimer);
+  if (key) {
+    loadingTimer = setTimeout(() => {
+      renderPlayButton();
+      if (!resyncing && !seeking) {
+        resyncing = true;
+        api('/api/state').then((st) => render(st)).catch(() => {}).finally(() => { resyncing = false; });
+      }
+    }, Math.max(0, LOADING_MAX - (performance.now() - loadingSince)) + 50);
+  }
+}
+
 function render(s, local = false) {
   if (!local) {
     if (s.updatedAt && s.updatedAt < serverAt) return;
@@ -363,11 +404,10 @@ function render(s, local = false) {
   }
   $('title').textContent = c ? c.title : t('nothing');
   $('artist').textContent = c ? (c.artist || '') : t('nothingSub');
-  $('requester').textContent = c ? [s.loading ? t('loadingTrack') : '', c.requester ? t('requestedBy', { n: c.requester }) : '', c.autoplay ? t('autoplayTag') : ''].filter(Boolean).join(' · ') : '';
   document.title = c ? `${c.title} · Msik` : 'Msik';
 
-  $('btnPlay').innerHTML = svg(c && s.loading ? 'load' : (!c || s.paused ? 'play' : 'pause'));
-  $('btnPlay').classList.toggle('loading', !!(c && s.loading));
+  trackLoading(s);
+  renderPlayButton(s);
   for (const id of ['btnPlay', 'btnNext', 'btnStop']) $(id).disabled = !c;
   $('seek').disabled = !c || !c.duration;
   $('dur').textContent = c?.duration ? fmt(c.duration) : (c ? '--:--' : '0:00');
@@ -402,7 +442,7 @@ function updateProgress() {
   if (!state) return;
   const c = state.current;
   let pos = tickBase.pos;
-  if (c && !state.paused && !state.loading) pos += (performance.now() - tickBase.at) / 1000;
+  if (c && !state.paused && !showLoading()) pos += (performance.now() - tickBase.at) / 1000;
   if (c?.duration) pos = Math.min(pos, c.duration);
   if (!seeking) {
     const pct = c?.duration ? (pos / c.duration) * 100 : 0;
@@ -607,6 +647,9 @@ function showResults(r, q) {
     );
     li.append(tx, el('span', 'd', tr.duration ? fmt(tr.duration) : ''), acts);
     li.addEventListener('dblclick', () => addTracks([tr]));
+    // pointer on a song (or finger down on a phone): the bot starts looking up its stream already
+    li.addEventListener('pointerenter', () => hintTrack(tr));
+    li.addEventListener('pointerdown', () => hintTrack(tr));
     list.append(li);
   }
   const plList = $('playlistList');
