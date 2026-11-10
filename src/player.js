@@ -124,12 +124,17 @@ export class GuildPlayer extends EventEmitter {
     if (this.joining) { await this.joining; return; }
     const target = channelId || member?.voiceChannelId;
     if (!target) throw new Error('NOT_IN_VOICE');
+    const gen = this.voiceGen = (this.voiceGen || 0) + 1;
     this.joining = this.connectFn(target, this.audio);
+    let channel;
     try {
-      this.channel = await this.joining;
+      channel = await this.joining;
     } finally {
       this.joining = null;
     }
+    // "Trennen" was pressed while joining: leave right away instead of staying in the channel
+    if (gen !== this.voiceGen) { this.disconnectFn?.(); return; }
+    this.channel = channel;
     this.changed();
   }
 
@@ -376,6 +381,9 @@ export class GuildPlayer extends EventEmitter {
   }
 
   leave() {
+    this.voiceGen = (this.voiceGen || 0) + 1;
+    this.playId++;
+    this.loading = false;
     this.stop();
     this.channel = null;
     this.disconnectFn?.();

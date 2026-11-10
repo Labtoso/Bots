@@ -17,6 +17,16 @@ export function createDiscordBot() {
   const players = new Map();
   let publicUrl = '';
 
+  /** Leaves voice in a guild, also when this process has no connection object (e.g. after a restart). */
+  function leaveVoice(guildId) {
+    const conn = getVoiceConnection(guildId);
+    if (conn && conn.state.status !== VoiceConnectionStatus.Destroyed) { conn.destroy(); return; }
+    const guild = client.guilds.cache.get(guildId);
+    if (guild?.members.me?.voice.channelId) {
+      guild.shard.send({ op: 4, d: { guild_id: guildId, channel_id: null, self_mute: false, self_deaf: false } });
+    }
+  }
+
   function getPlayer(guildId) {
     if (!players.has(guildId)) {
       const player = new GuildPlayer(guildId, {
@@ -29,7 +39,14 @@ export function createDiscordBot() {
           const conn = joinVoiceChannel({
             channelId, guildId, adapterCreator: guild.voiceAdapterCreator, selfDeaf: true,
           });
-          await entersState(conn, VoiceConnectionStatus.Ready, 20_000);
+          try {
+            await entersState(conn, VoiceConnectionStatus.Ready, 20_000);
+          } catch {
+            // never got a working voice connection: leave again instead of sitting silent in the channel
+            if (conn.state.status !== VoiceConnectionStatus.Destroyed) conn.destroy();
+            log.warn(`Sprachverbindung kam nicht zustande (Status: ${conn.state.status}). UDP nach außen blockiert?`);
+            throw new Error('keine Verbindung zum Sprachkanal (UDP nach außen blockiert?)');
+          }
           conn.subscribe(audio);
           if (conn.msikHooked) return { id: channel.id, name: channel.name };
           conn.msikHooked = true;
@@ -40,14 +57,14 @@ export function createDiscordBot() {
                 entersState(conn, VoiceConnectionStatus.Connecting, 5_000),
               ]);
             } catch {
-              conn.destroy();
               player.channel = null;
               player.stop();
+              if (conn.state.status !== VoiceConnectionStatus.Destroyed) conn.destroy();
             }
           });
           return { id: channel.id, name: channel.name };
         },
-        disconnect: () => getVoiceConnection(guildId)?.destroy(),
+        disconnect: () => leaveVoice(guildId),
       });
       player.on('trackStart', (track) => postNowPlaying(guildId, track).catch((e) => log.warn('Jetzt läuft posten:', e.message)));
       players.set(guildId, player);
@@ -141,6 +158,13 @@ export function createDiscordBot() {
     // Connect, Speak, View Channels
     log.info(`Einladen: https://discord.com/oauth2/authorize?client_id=${c.user.id}&scope=bot+applications.commands&permissions=3165184`);
     c.user.setActivity('/web');
+    // still sitting in a voice channel from before a restart: leave, nothing is playing there
+    for (const g of c.guilds.cache.values()) {
+      if (g.members.me?.voice.channelId && !getVoiceConnection(g.id)) {
+        log.info(`Verlasse alten Sprachkanal auf ${g.name}`);
+        leaveVoice(g.id);
+      }
+    }
   });
 
   client.on(Events.InteractionCreate, async (i) => {
