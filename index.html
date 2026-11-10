@@ -45,7 +45,7 @@
     <h2>Msik installieren</h2>
     <p>Hol dir zuerst im <a href="https://discord.com/developers/applications" style="color:var(--accent)">Discord Developer Portal</a> einen Bot-Token (New Application → Bot → Reset Token). Der Installer fragt danach, richtet alles ein, öffnet den Einladungslink und startet den Bot. Jeden Schritt genau erklärt findest du in der <a href="Msik/#guide" style="color:var(--accent)">Anleitung</a>.</p>
     <div class="tabs" role="tablist">
-      <button class="on" data-os="win">Windows</button><button data-os="linux">Linux / VPS</button>
+      <button class="on" data-os="win">Windows</button><button data-os="linux">Linux / VPS</button><button data-os="proxmox">Proxmox</button>
     </div>
     <div data-pane="win">
       <p><a class="btn primary" href="Install.bat" download>Install.bat herunterladen</a></p>
@@ -56,6 +56,10 @@
     <div data-pane="linux" hidden>
       <div class="cmd"><code>curl -fsSL https://bot.labtoso.de/install.sh | sudo bash</code><button class="btn" data-copy>Kopieren</button></div>
       <p class="muted">Debian, Ubuntu oder Fedora. Mit eigener Domain gibt es HTTPS über Caddy, sonst einen Cloudflare-Tunnel. Läuft als Dienst <code>msik</code> und aktualisiert sich alle 15 Minuten selbst, ohne laufende Musik zu unterbrechen.</p>
+    </div>
+    <div data-pane="proxmox" hidden>
+      <div class="cmd"><code>bash -c "$(curl -fsSL https://bot.labtoso.de/proxmox.sh)"</code><button class="btn" data-copy>Kopieren</button></div>
+      <p class="muted">In der Shell deines Proxmox-Hosts (Node → Shell) einfügen. Legt einen Debian-LXC-Container an und installiert Msik darin. „Standard“ nimmt sinnvolle Werte (1 CPU, 1 GB RAM, 4 GB, DHCP), „Erweitert“ lässt dich ID, Ressourcen, Netzwerk, Domain und Spotify einstellen. Nochmal ausführen aktualisiert den Container.</p>
     </div>
     <p class="muted">Unter Windows zum Updaten den Installer nochmal ausführen. Danach in Discord in einen Sprachkanal gehen und <code>/web</code> eingeben.</p>
   </section>
