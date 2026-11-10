@@ -26,6 +26,12 @@ oder [`Install.bat`](https://bot.labtoso.de/Install.bat) herunterladen und doppe
 curl -fsSL https://bot.labtoso.de/install.sh | sudo bash
 ```
 
+**Proxmox VE** (eigener LXC-Container), in der Shell des Proxmox-Hosts:
+
+```
+bash -c "$(curl -fsSL https://bot.labtoso.de/proxmox.sh)"
+```
+
 Der Installer fragt nach dem Token, installiert alles, öffnet bzw. zeigt den Einladungslink und startet den Bot mit dem System. Auf dem VPS aktualisiert sich der Bot danach alle 15 Minuten selbst und wartet dabei, bis keine Musik mehr läuft. Unter Windows zum Updaten den Installer nochmal ausführen.
 
 Danach in Discord in einen Sprachkanal gehen und `/web` eingeben. Der Link verbindet das Dashboard automatisch mit deinem Bot (grüner Punkt oben rechts = verbunden). Genaueres unter [Backend verbinden](https://github.com/Labtoso/Bots/tree/Msik#7-backend-verbinden).
