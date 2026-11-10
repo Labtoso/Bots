@@ -29,11 +29,13 @@ cancel() { clear 2>/dev/null || true; echo "Cancelled, nothing was changed."; ex
 input()  { whiptail --backtitle "$TITLE" --title "$1" --inputbox "$2" 11 70 "${3:-}" 3>&1 1>&2 2>&3 || cancel; }
 secret() { whiptail --backtitle "$TITLE" --title "$1" --passwordbox "$2" 12 70 3>&1 1>&2 2>&3 || cancel; }
 yesno()  { whiptail --backtitle "$TITLE" --title "$1" --yesno "$2" 11 70; }
-spotify() { # asks for the Spotify Client secret; Enter, Esc or Skip skips it
-  local v
-  v=$(whiptail --backtitle "$TITLE" --title "Spotify (optional)" --cancel-button "Skip" --passwordbox \
-    "Spotify Client secret for the Spotify search (the Client ID is built in).\n\nGet it at developer.spotify.com/dashboard -> your app -> Settings.\nLeave it empty and press Enter to skip, you can add it later." 13 74 3>&1 1>&2 2>&3) || v=""
-  echo "${v//[[:space:]]/}"
+spotify() { # asks for the Spotify Client ID, then the Client secret; Enter, Esc or Skip skips each
+  SP_ID=$(whiptail --backtitle "$TITLE" --title "Spotify (optional) 1/2" --cancel-button "Skip" --inputbox \
+    "Spotify Client ID for the Spotify search.\n\nGet it at developer.spotify.com/dashboard -> your app -> Settings.\nLeave it empty and press Enter to use the built-in one." 13 74 3>&1 1>&2 2>&3) || SP_ID=""
+  SP_ID="${SP_ID//[[:space:]]/}"
+  SP_SECRET=$(whiptail --backtitle "$TITLE" --title "Spotify (optional) 2/2" --cancel-button "Skip" --passwordbox \
+    "Spotify Client secret (same page, \"View client secret\").\n\nLeave it empty and press Enter to skip, you can add it later." 12 74 3>&1 1>&2 2>&3) || SP_SECRET=""
+  SP_SECRET="${SP_SECRET//[[:space:]]/}"
 }
 num()    { [[ "$1" =~ ^[0-9]+$ ]] || die "$2 must be a number (got \"$1\")."; }
 
@@ -142,16 +144,19 @@ if [ "${#existing[@]}" -gt 0 ]; then
       CT=$(whiptail --backtitle "$TITLE" --title "Update" --menu "Which container?" 15 60 6 "${existing[@]}" 3>&1 1>&2 2>&3) || cancel
     fi
     [ "$(pct status "$CT" | awk '{print $2}')" = running ] || { info "Starting container $CT"; pct start "$CT"; sleep 5; }
-    SP_SECRET=""
-    pct exec "$CT" -- grep -q '^SPOTIFY_CLIENT_SECRET=.' /opt/msik/.env 2>/dev/null || SP_SECRET=$(spotify)
+    SP_ID=""; SP_SECRET=""
+    pct exec "$CT" -- grep -q '^SPOTIFY_CLIENT_SECRET=.' /opt/msik/.env 2>/dev/null || spotify
     clear 2>/dev/null || true
     info "Updating Msik in container $CT"
-    if [ -n "$SP_SECRET" ]; then
+    if [ -n "$SP_SECRET$SP_ID" ]; then
       # The secret goes in via a root-only file, so it never shows up in the host's process list.
-      tmp=$(mktemp); chmod 600 "$tmp"; printf 'SP_SECRET=%q\n' "$SP_SECRET" > "$tmp"
+      tmp=$(mktemp); chmod 600 "$tmp"; printf 'SP_ID=%q\nSP_SECRET=%q\n' "$SP_ID" "$SP_SECRET" > "$tmp"
       pct push "$CT" "$tmp" /root/.msik-setup --perms 600; rm -f "$tmp"; unset SP_SECRET
-      pct exec "$CT" -- bash -c '. /root/.msik-setup; rm -f /root/.msik-setup; curl -fsSL '"$INSTALLER"' | bash -s -- --yes --spotify-secret "$SP_SECRET"'
-      say "Spotify search turned on"
+      pct exec "$CT" -- bash -c '. /root/.msik-setup; rm -f /root/.msik-setup; set -- --yes
+        [ -n "$SP_ID" ] && set -- "$@" --spotify-id "$SP_ID"
+        [ -n "$SP_SECRET" ] && set -- "$@" --spotify-secret "$SP_SECRET"
+        curl -fsSL '"$INSTALLER"' | bash -s -- "$@"'
+      say "Spotify settings saved"
     else
       pct exec "$CT" -- bash -c "curl -fsSL $INSTALLER | bash -s -- --yes"
     fi
@@ -166,7 +171,7 @@ fi
 # ---------- defaults ----------
 CTID=$(pvesh get /cluster/nextid)
 HN="msik"; CORES=1; RAM=1024; DISK=4; BRIDGE="vmbr0"; NET="dhcp"; GATE=""; VLAN=""; PW=""
-UNPRIV=1; AUTOUPDATE=1; DOMAIN=""; SP_SECRET=""; DNS=""
+UNPRIV=1; AUTOUPDATE=1; DOMAIN=""; SP_ID=""; SP_SECRET=""; DNS=""
 
 pick_storage() { # pick_storage CONTENT LABEL -> storage name
   local content="$1" label="$2" list=() n
@@ -214,7 +219,7 @@ while [ -z "$TOKEN" ]; do
   TOKEN=$(secret "Discord bot token" "Paste your bot token (right click or Ctrl+Shift+V).\n\nGet one at discord.com/developers/applications:\nNew Application -> Bot -> Reset Token -> Copy.")
   TOKEN="${TOKEN//[[:space:]]/}"
 done
-SP_SECRET=$(spotify)
+spotify
 
 ROOTFS=$(pick_storage rootdir "container disk")
 TMPL_STORE=$(pick_storage vztmpl "Debian template")
@@ -269,7 +274,7 @@ say "Debian up to date"
 # ---------- install Msik inside ----------
 # The token goes in via a root-only file, so it never shows up in the host's process list.
 tmp=$(mktemp); chmod 600 "$tmp"
-printf 'TOKEN=%q\nSP_SECRET=%q\nDOMAIN=%q\n' "$TOKEN" "$SP_SECRET" "$DOMAIN" > "$tmp"
+printf 'TOKEN=%q\nSP_ID=%q\nSP_SECRET=%q\nDOMAIN=%q\n' "$TOKEN" "$SP_ID" "$SP_SECRET" "$DOMAIN" > "$tmp"
 pct push "$CTID" "$tmp" /root/.msik-setup --perms 600
 rm -f "$tmp"; unset TOKEN SP_SECRET
 
@@ -281,6 +286,7 @@ pct exec "$CTID" -- bash -c '
   . /root/.msik-setup; rm -f /root/.msik-setup
   set -- '"$args"' --token "$TOKEN"
   [ -n "$DOMAIN" ] && set -- "$@" --domain "$DOMAIN"
+  [ -n "$SP_ID" ] && set -- "$@" --spotify-id "$SP_ID"
   [ -n "$SP_SECRET" ] && set -- "$@" --spotify-secret "$SP_SECRET"
   curl -fsSL '"$INSTALLER"' | bash -s -- "$@"
 '
