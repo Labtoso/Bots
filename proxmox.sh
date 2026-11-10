@@ -147,14 +147,14 @@ if [ "${#existing[@]}" -gt 0 ]; then
     fi
     clear 2>/dev/null || true
     [ "$(pct status "$CT" | awk '{print $2}')" = running ] || { info "Starting container $CT"; pct start "$CT"; sleep 5; }
-    # older containers were made with fewer cores: give them up to 4 (RAM stays as it is)
+    # the bot gets exactly 2 cores, enough for it and the rest of the server stays free (RAM stays as it is)
     cur_cores=$(pct config "$CT" | awk '/^cores:/ {print $2}')
     more=()
-    want=$(( $(nproc 2>/dev/null || echo 4) < 4 ? $(nproc 2>/dev/null || echo 4) : 4 ))
-    [ -n "$cur_cores" ] && [ "$cur_cores" -lt "$want" ] && more+=(--cores "$want")
+    want=$(( $(nproc 2>/dev/null || echo 2) < 2 ? $(nproc 2>/dev/null || echo 2) : 2 ))
+    [ "${cur_cores:-0}" != "$want" ] && more+=(--cores "$want")
     if [ "${#more[@]}" -gt 0 ]; then
       pct set "$CT" "${more[@]}"
-      say "Container $CT now has more power for the bot (${more[*]})"
+      say "Container $CT now uses $want CPU cores"
     fi
     # an update keeps everything from the existing install (token, Spotify, domain, name, auto updates)
     info "Updating Msik in container $CT"
@@ -169,7 +169,7 @@ fi
 
 # ---------- defaults ----------
 CTID=$(pvesh get /cluster/nextid)
-HOST_CORES=$(nproc 2>/dev/null || echo 4); WANT_CORES=$(( HOST_CORES < 4 ? HOST_CORES : 4 ))
+HOST_CORES=$(nproc 2>/dev/null || echo 2); WANT_CORES=$(( HOST_CORES < 2 ? HOST_CORES : 2 ))
 HN="msik"; CORES=$WANT_CORES; RAM=1024; DISK=6; BRIDGE="vmbr0"; NET="dhcp"; GATE=""; VLAN=""; PW=""
 UNPRIV=1; AUTOUPDATE=1; DOMAIN=""; SP_ID=""; SP_SECRET=""; DNS=""
 
