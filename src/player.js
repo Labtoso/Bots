@@ -176,7 +176,10 @@ export class GuildPlayer extends EventEmitter {
 
   #prefetchNext() {
     if (this.loop === 'track') return;
-    prefetchStream(this.queue[0]);
+    // next song right away, the two after it (and the last one for "back") in the background
+    prefetchStream(this.queue[0], { urgent: true });
+    for (const t of this.queue.slice(1, 3)) prefetchStream(t);
+    if (this.history.length) prefetchStream(this.history[this.history.length - 1]);
   }
 
   async #play(track, seek = 0) {
@@ -194,6 +197,8 @@ export class GuildPlayer extends EventEmitter {
       const args = ['-hide_banner', '-loglevel', 'error'];
       if (/^https?:/.test(info.url)) {
         args.push('-reconnect', '1', '-reconnect_streamed', '1', '-reconnect_delay_max', '5');
+        // start sending sound as soon as possible instead of analysing the stream first
+        args.push('-fflags', '+nobuffer', '-probesize', '256k', '-analyzeduration', '0');
         const headers = Object.entries(info.headers).map(([k, v]) => `${k}: ${v}\r\n`).join('');
         if (headers) args.push('-headers', headers);
       }

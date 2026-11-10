@@ -161,7 +161,7 @@ const streamKey = (t) => t.url || `q:${t.query}`;
 function expiresAt(url) {
   const m = String(url).match(/[?&/]expire[=/](\d{9,})/);
   const hard = m ? Number(m[1]) * 1000 - 5 * 60_000 : Infinity;
-  return Math.min(hard, Date.now() + 60 * 60_000);
+  return Math.min(hard, Date.now() + 5 * 60 * 60_000);
 }
 
 /* YouTube sometimes needs its JavaScript challenge solved. Instead of waiting for the plain lookup
