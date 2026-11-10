@@ -147,12 +147,11 @@ if [ "${#existing[@]}" -gt 0 ]; then
     fi
     clear 2>/dev/null || true
     [ "$(pct status "$CT" | awk '{print $2}')" = running ] || { info "Starting container $CT"; pct start "$CT"; sleep 5; }
-    # older containers were made with fewer cores / 1 GB: give them up to 4 cores and 2 GB
-    cur_cores=$(pct config "$CT" | awk '/^cores:/ {print $2}'); cur_mem=$(pct config "$CT" | awk '/^memory:/ {print $2}')
+    # older containers were made with fewer cores: give them up to 4 (RAM stays as it is)
+    cur_cores=$(pct config "$CT" | awk '/^cores:/ {print $2}')
     more=()
     want=$(( $(nproc 2>/dev/null || echo 4) < 4 ? $(nproc 2>/dev/null || echo 4) : 4 ))
     [ -n "$cur_cores" ] && [ "$cur_cores" -lt "$want" ] && more+=(--cores "$want")
-    [ -n "$cur_mem" ] && [ "$cur_mem" -lt 2048 ] && more+=(--memory 2048)
     if [ "${#more[@]}" -gt 0 ]; then
       pct set "$CT" "${more[@]}"
       say "Container $CT now has more power for the bot (${more[*]})"
@@ -171,7 +170,7 @@ fi
 # ---------- defaults ----------
 CTID=$(pvesh get /cluster/nextid)
 HOST_CORES=$(nproc 2>/dev/null || echo 4); WANT_CORES=$(( HOST_CORES < 4 ? HOST_CORES : 4 ))
-HN="msik"; CORES=$WANT_CORES; RAM=2048; DISK=6; BRIDGE="vmbr0"; NET="dhcp"; GATE=""; VLAN=""; PW=""
+HN="msik"; CORES=$WANT_CORES; RAM=1024; DISK=6; BRIDGE="vmbr0"; NET="dhcp"; GATE=""; VLAN=""; PW=""
 UNPRIV=1; AUTOUPDATE=1; DOMAIN=""; SP_ID=""; SP_SECRET=""; DNS=""
 
 pick_storage() { # pick_storage CONTENT LABEL -> storage name
@@ -189,7 +188,7 @@ pick_storage() { # pick_storage CONTENT LABEL -> storage name
 }
 
 MODE=$(whiptail --backtitle "$TITLE" --title "Msik on Proxmox" --menu \
-  "Creates a Debian 12 LXC container and installs the Msik music bot in it.\n\nDefaults: ID $CTID, $CORES CPU, 2 GB RAM, 6 GB disk, $BRIDGE with DHCP." 16 70 2 \
+  "Creates a Debian 12 LXC container and installs the Msik music bot in it.\n\nDefaults: ID $CTID, $CORES CPU, 1 GB RAM, 6 GB disk, $BRIDGE with DHCP." 16 70 2 \
   "simple" "Use the defaults (recommended)" \
   "advanced" "Choose ID, resources, network and more" 3>&1 1>&2 2>&3) || cancel
 
@@ -198,7 +197,7 @@ if [ "$MODE" = advanced ]; then
   if pct status "$CTID" >/dev/null 2>&1 || qm status "$CTID" >/dev/null 2>&1; then die "ID $CTID is already in use."; fi
   HN=$(input "Hostname" "Hostname:" "$HN")
   CORES=$(input "CPU" "CPU cores:" "$CORES"); num "$CORES" "CPU cores"
-  RAM=$(input "RAM" "RAM in MB (2048 recommended, 1024 also works):" "$RAM"); num "$RAM" "RAM"
+  RAM=$(input "RAM" "RAM in MB (1024 is plenty):" "$RAM"); num "$RAM" "RAM"
   DISK=$(input "Disk" "Disk size in GB:" "$DISK"); num "$DISK" "Disk size"
   BRIDGE=$(input "Network" "Bridge:" "$BRIDGE")
   NET=$(input "Network" "IPv4: dhcp, or a static address with prefix (e.g. 192.168.1.50/24):" "$NET")
