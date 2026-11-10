@@ -810,8 +810,23 @@ async function start() {
   pickSession();
   if (!activeApi) return showGate('nobackend');
   if (!session) return showGate('none');
+  // show the last known panel at once and open the live connection right away;
+  // the fresh session data replaces it a moment later
+  const cacheKey = `sessCache:${session.api}`;
+  const cached = store.get(cacheKey, null);
+  if (cached?.token === session.token && cached.s) { try { showSession(cached.s); } catch { /* old format */ } }
+  connect();
   try {
     const s = await api('/api/session');
+    store.set(cacheKey, { token: session.token, s });
+    showSession(s);
+  } catch (e) {
+    if (e.message !== 'expired') showGate('offline');
+  }
+}
+
+function showSession(s) {
+  {
     $('gate').hidden = true;
     $('app').hidden = false;
     $('serverName').textContent = s.guild.name;
@@ -824,10 +839,7 @@ async function start() {
     if (s.user.guest && !store.get('guestName', '')) askName();
     renderSessionInfo();
     render(s.state);
-    connect();
     loadChannels();
-  } catch (e) {
-    if (e.message !== 'expired') showGate('offline');
   }
 }
 
