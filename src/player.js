@@ -20,6 +20,8 @@ export const FILTERS = {
   earrape: 'bass=g=30:f=80,treble=g=12,volume=45dB,acrusher=bits=2:mode=log:aa=0:mix=1,volume=12dB,alimiter=limit=0.99:level=disabled',
   earrapeold: 'bass=g=15:f=90,volume=20dB,acrusher=bits=6:mode=log:aa=1:mix=0.6,alimiter=limit=0.9:level=disabled',
   reverb: 'aecho=0.8:0.9:40|60|90:0.5|0.3|0.2',
+  // extreme highs: strong treble shelf plus presence, the limiter keeps it from clipping
+  treble: 'treble=g=20:f=3500:t=s:w=0.6,equalizer=f=9000:t=q:w=1.2:g=10,volume=-10dB,alimiter=limit=0.95:level=disabled',
 };
 const SPEED = { nightcore: 1.25, vaporwave: 0.8 };
 const LOOPS = ['off', 'track', 'queue'];
@@ -70,7 +72,7 @@ export class GuildPlayer extends EventEmitter {
   get position() {
     if (!this.current || !this.resource) return 0;
     const speed = SPEED[this.filter] || 1;
-    return Math.max(0, this.seekBase + (this.resource.playbackDuration / 1000) * speed);
+    return Math.max(0, this.seekBase + ((this.resource.playbackDuration - (this.playbackOffset || 0)) / 1000) * speed);
   }
 
   changed() {
@@ -204,8 +206,6 @@ export class GuildPlayer extends EventEmitter {
       }
       if (seek > 0 && !info.isLive) args.push('-ss', String(seek));
       args.push('-i', info.url, '-vn');
-      const af = FILTERS[this.filter];
-      if (af) args.push('-af', af);
       args.push('-f', 's16le', '-ar', '48000', '-ac', '2', 'pipe:1');
       const ff = spawn(bins.ffmpeg, args, { windowsHide: true });
       ff.stderr.on('data', (d) => {
@@ -222,10 +222,15 @@ export class GuildPlayer extends EventEmitter {
       ff.on('error', (e) => log.error('ffmpeg start:', e.message));
       ff.stdout.on('error', () => {});
       this.ffmpeg = ff;
-      // ~20 s read-ahead buffer: short network hiccups no longer cause jumps or gaps
+      // ~20 s read-ahead buffer: short network hiccups no longer cause jumps or gaps.
+      // It holds the plain sound; the effect is applied after it, so switching effects is instant.
       const buffer = new PassThrough({ highWaterMark: 4 * 1024 * 1024 });
       ff.stdout.pipe(buffer);
-      const resource = createAudioResource(buffer, {
+      const output = new PassThrough({ highWaterMark: 32 * 1024 });
+      this.chain = { id, buffer, output, fx: null, ended: false };
+      this.#applyEffect();
+      this.playbackOffset = 0;
+      const resource = createAudioResource(output, {
         inputType: StreamType.Raw, inlineVolume: true, metadata: { playId: id },
       });
       resource.volume.setVolume(this.volume / 100);
@@ -259,6 +264,72 @@ export class GuildPlayer extends EventEmitter {
       try { this.ffmpeg.kill('SIGKILL'); } catch { /* ignore */ }
       this.ffmpeg = null;
     }
+    if (this.chain?.fx) { try { this.chain.fx.kill('SIGKILL'); } catch { /* ignore */ } }
+    if (this.chain?.timer) clearInterval(this.chain.timer);
+    this.chain = null;
+  }
+
+  /* Moves the buffered sound to the output, through the current effect if there is one. Only a
+     little (about 0.1 s) is ever inside the effect ffmpeg, so switching effects is instant and
+     loses almost nothing. */
+  #applyEffect() {
+    const c = this.chain;
+    if (!c) return;
+    if (!c.started) {
+      c.started = true;
+      c.inflight = 0;
+      const pump = () => this.#pump(c);
+      c.buffer.on('readable', pump);
+      c.buffer.once('end', () => { c.ended = true; this.#finish(c); });
+      // the audio player reads the output in real time; top it up every 20 ms
+      c.timer = setInterval(pump, 20);
+    }
+    if (c.fx) { const old = c.fx; c.fx = null; old.stdout.removeAllListeners('data'); try { old.kill('SIGKILL'); } catch { /* ignore */ } }
+    c.inflight = 0;
+    const af = FILTERS[this.filter];
+    if (af) {
+      const fx = spawn(bins.ffmpeg, [
+        '-hide_banner', '-loglevel', 'error', '-fflags', '+nobuffer', '-probesize', '32', '-analyzeduration', '0',
+        '-f', 's16le', '-ar', '48000', '-ac', '2', '-i', 'pipe:0',
+        '-af', af, '-f', 's16le', '-ar', '48000', '-ac', '2', '-flush_packets', '1', 'pipe:1',
+      ], { windowsHide: true });
+      const ratio = SPEED[this.filter] || 1; // bytes out x ratio = bytes in
+      fx.on('error', (e) => log.error('ffmpeg Effekt:', e.message));
+      fx.stdin.on('error', () => {});
+      fx.stdout.on('error', () => {});
+      fx.stdout.on('data', (d) => {
+        if (c.fx !== fx || this.chain !== c) return;
+        c.inflight = Math.max(0, c.inflight - d.length * ratio);
+        c.output.write(d);
+        this.#pump(c);
+      });
+      fx.stdout.once('end', () => { if (c.fx === fx && c.ended) c.output.end(); });
+      c.fx = fx;
+    }
+    // switched right at the end of the song: close the new path too, so the song still ends
+    if (c.closing) { c.closing = false; this.#finish(c); }
+    this.#pump(c);
+  }
+
+  #pump(c) {
+    if (this.chain !== c) return;
+    const LIMIT = 32 * 1024; // ~0.17 s of sound inside the effect
+    const OUT_MAX = 48 * 1024; // ~0.25 s ready for the audio player
+    while (c.output.readableLength + c.output.writableLength < OUT_MAX && (!c.fx || c.inflight < LIMIT)) {
+      const n = Math.min(4096, c.buffer.readableLength);
+      const chunk = n ? c.buffer.read(n) : null;
+      if (!chunk) break;
+      if (c.fx) { c.inflight += chunk.length; c.fx.stdin.write(chunk); } else c.output.write(chunk);
+    }
+    if (c.ended) this.#finish(c);
+  }
+
+  #finish(c) {
+    if (this.chain !== c || c.closing) return;
+    if (c.buffer.readableLength) return;
+    c.closing = true;
+    clearInterval(c.timer);
+    if (c.fx) c.fx.stdin.end(); else c.output.end();
   }
 
   async #advance({ finished = false }) {
@@ -334,10 +405,14 @@ export class GuildPlayer extends EventEmitter {
 
   async setFilter(name) {
     if (!(name in FILTERS)) throw new Error('Unbekannter Filter');
-    const pos = this.position;
+    if (this.resource) {
+      // keep the position right when the speed changes (nightcore/vaporwave)
+      this.seekBase = this.position;
+      this.playbackOffset = this.resource.playbackDuration;
+    }
     this.filter = name;
-    if (this.current && !this.loading) await this.seek(pos);
-    else this.changed();
+    this.#applyEffect();
+    this.changed();
   }
 
   setAutoplay(on) { this.autoplay = !!on; this.changed(); }
