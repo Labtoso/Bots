@@ -4,6 +4,7 @@ import { log } from './log.js';
 import { ensureBinaries } from './binaries.js';
 import { createApi } from './api.js';
 import { startTunnel } from './tunnel.js';
+import { warmUp } from './resolve.js';
 
 async function main() {
   const useTunnel = !config.publicUrl && config.tunnel !== 'off';
@@ -19,6 +20,7 @@ async function main() {
   const api = createApi(bot);
   await new Promise((r) => api.listen(config.port, r));
   log.info(`API läuft auf Port ${config.port}`);
+  if (!config.mock) warmUp();
 
   let publicUrl = config.publicUrl || `http://localhost:${config.port}`;
   if (useTunnel) {

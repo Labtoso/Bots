@@ -271,3 +271,27 @@ export function prefetchStream(track, { urgent = false } = {}) {
   if (prefetchWaiting.length > 12) prefetchWaiting.shift();
   pumpPrefetch();
 }
+
+/* The very first YouTube lookup after a start is the slowest: yt-dlp still has to fetch and solve
+   YouTube's player code and the system has nothing in its file cache yet. One lookup right after
+   the start (and again every 20 minutes) does that work before anyone presses play. */
+const WARM_URL = 'https://www.youtube.com/watch?v=jNQXAC9IVRw';
+let warming = false;
+async function warmOnce() {
+  if (warming || !bins.ytdlp) return;
+  warming = true;
+  const t0 = Date.now();
+  const args = ['-j', '--no-playlist', '-f', 'bestaudio/best', WARM_URL];
+  try {
+    await runYtdlp(args, { timeout: 60_000 }).catch(() => {});
+    await runYtdlp(['--js-runtimes', `node:${process.execPath}`, ...args], { timeout: 60_000 }).catch(() => {});
+    log.info(`yt-dlp vorgewärmt (${((Date.now() - t0) / 1000).toFixed(1)} s)`);
+  } finally {
+    warming = false;
+  }
+}
+export function warmUp() {
+  setTimeout(warmOnce, 2_000).unref?.();
+  setInterval(warmOnce, 20 * 60_000).unref?.();
+}
+

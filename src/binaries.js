@@ -58,12 +58,37 @@ async function fastYtdlp() {
       const app = path.join(config.binDir, 'yt-dlp.pyz');
       if (!fs.existsSync(app)) await download('https://github.com/yt-dlp/yt-dlp/releases/latest/download/yt-dlp', app);
       else selfUpdate(app);
-      return app;
+      return unpackedYtdlp(app) || app;
     }
   } catch (e) {
     log.warn('Schnelles yt-dlp nicht verfügbar:', e.message);
   }
   return null;
+}
+
+/* Python cannot cache compiled code inside the yt-dlp zip, so every call compiles it again (about
+   0.4 s or more on small CPUs). Unpacked once and precompiled, each call starts much faster. */
+function unpackedYtdlp(app) {
+  try {
+    const dir = path.join(config.binDir, 'yt-dlp_py');
+    const stamp = path.join(dir, '.from');
+    const want = String(fs.statSync(app).mtimeMs);
+    if (!fs.existsSync(stamp) || fs.readFileSync(stamp, 'utf8') !== want) {
+      fs.rmSync(dir, { recursive: true, force: true });
+      fs.mkdirSync(dir, { recursive: true });
+      const py = 'import sys, zipfile, compileall; zipfile.ZipFile(sys.argv[1]).extractall(sys.argv[2]); compileall.compile_dir(sys.argv[2], quiet=1)';
+      const r = spawnSync('python3', ['-c', py, app, dir], { stdio: 'ignore', timeout: 120_000 });
+      if (r.status !== 0) { fs.rmSync(dir, { recursive: true, force: true }); return null; }
+      fs.writeFileSync(stamp, want);
+    }
+    const run = path.join(config.binDir, 'yt-dlp-fast');
+    const script = `#!/bin/sh\nexec python3 '${dir.replace(/'/g, "'\\''")}' "$@"\n`;
+    if (!fs.existsSync(run) || fs.readFileSync(run, 'utf8') !== script) { fs.writeFileSync(run, script); fs.chmodSync(run, 0o755); }
+    return run;
+  } catch (e) {
+    log.warn('yt-dlp entpacken:', e.message);
+    return null;
+  }
 }
 
 async function singleYtdlp() {

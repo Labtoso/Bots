@@ -79,6 +79,9 @@ export function createDiscordBot() {
 
   async function getMember(guildId, userId) {
     const g = client.guilds.cache.get(guildId) || await client.guilds.fetch(guildId);
+    // the gateway keeps voice states up to date, so this needs no request to Discord
+    const vs = g.voiceStates.cache.get(userId);
+    if (vs) return { id: userId, voiceChannelId: vs.channelId || null };
     const m = await g.members.fetch(userId).catch(() => null);
     return { id: userId, voiceChannelId: m?.voice?.channelId || null };
   }
