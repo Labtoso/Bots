@@ -587,7 +587,7 @@ function liveSearch() {
   const q = $('searchInput').value.trim();
   if (q.length < 2) { searchCtl?.abort(); $('results').hidden = true; setBusy(false); return; }
   // links are pasted in one go, so search them at once; text waits until typing pauses
-  searchTimer = setTimeout(() => doSearch(q), isLink(q) ? 0 : 280);
+  searchTimer = setTimeout(() => doSearch(q), isLink(q) ? 0 : 150);
 }
 
 function setBusy(on) {
