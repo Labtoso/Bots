@@ -1,14 +1,17 @@
 import { spawn } from 'node:child_process';
 import crypto from 'node:crypto';
+import os from 'node:os';
 import { bins } from './binaries.js';
 import { log } from './log.js';
 import { ytSearch } from './youtube.js';
 
 const uid = () => crypto.randomBytes(6).toString('hex');
 
-export function runYtdlp(args, { timeout = 45_000, signal } = {}) {
+export function runYtdlp(args, { timeout = 45_000, signal, low = false } = {}) {
   return new Promise((resolve, reject) => {
     const p = spawn(bins.ytdlp, ['--no-warnings', '--ignore-config', ...args], { windowsHide: true });
+    // background work gets low CPU priority, so it never slows down playback or a click
+    if (low && p.pid) { try { os.setPriority(p.pid, 15); } catch { /* not allowed here */ } }
     signal?.addEventListener('abort', () => { p.kill(); }, { once: true });
     let out = '';
     let err = '';
@@ -205,7 +208,7 @@ function hedgedYoutube(args) {
   });
 }
 
-async function fetchStream(track) {
+async function fetchStream(track, background = false) {
   let target = track.url;
   if (!target && track.query) {
     const [hit] = await search(track.query, 1);
@@ -216,7 +219,17 @@ async function fetchStream(track) {
     if (!track.thumbnail) track.thumbnail = hit.thumbnail;
   }
   const args = ['-j', '--no-playlist', '-f', 'bestaudio/best', target];
-  const out = /youtu/.test(target) ? await hedgedYoutube(args) : await runYtdlp(args, { timeout: 25_000 });
+  let out;
+  if (!/youtu/.test(target)) out = await runYtdlp(args, { timeout: 25_000, low: background });
+  else if (!background) out = await hedgedYoutube(args);
+  else {
+    // in the background one lookup at a time is enough, the JS variant only if the plain one fails
+    try {
+      out = await runYtdlp(args, { timeout: 25_000, low: true });
+    } catch {
+      out = await runYtdlp(['--js-runtimes', `node:${process.execPath}`, ...args], { low: true });
+    }
+  }
   const info = JSON.parse(out);
   return {
     url: info.url, headers: info.http_headers || {}, isLive: !!info.is_live,
@@ -225,11 +238,11 @@ async function fetchStream(track) {
 }
 
 /** Gets a playable stream URL (plus headers) right before playback. */
-export async function streamInfo(track) {
+export async function streamInfo(track, { background = false } = {}) {
   const key = streamKey(track);
   let hit = streams.get(key);
   if (!hit || hit.until < Date.now()) {
-    const promise = fetchStream(track);
+    const promise = fetchStream(track, background);
     hit = { promise, until: Date.now() + 60 * 60_000 };
     streams.set(key, hit);
     promise.then((i) => { hit.until = i.isLive ? 0 : expiresAt(i.url); }, () => streams.delete(key));
@@ -249,7 +262,7 @@ export function forgetStream(track) {
 /** Resolves the stream in the background, errors are ignored here. */
 /* Background lookups (search results, next in queue) run at most a few at a time,
    newest first, so typing fast does not start dozens of yt-dlp processes. */
-const PREFETCH_MAX = 3;
+const PREFETCH_MAX = 2;
 let prefetchRunning = 0;
 const prefetchWaiting = [];
 function pumpPrefetch() {
@@ -258,7 +271,7 @@ function pumpPrefetch() {
     const hit = streams.get(streamKey(track));
     if (hit && hit.until > Date.now()) continue;
     prefetchRunning++;
-    streamInfo(track).catch(() => {}).finally(() => { prefetchRunning--; pumpPrefetch(); });
+    streamInfo(track, { background: true }).catch(() => {}).finally(() => { prefetchRunning--; pumpPrefetch(); });
   }
 }
 export function prefetchStream(track, { urgent = false } = {}) {
@@ -274,7 +287,7 @@ export function prefetchStream(track, { urgent = false } = {}) {
 
 /* The very first YouTube lookup after a start is the slowest: yt-dlp still has to fetch and solve
    YouTube's player code and the system has nothing in its file cache yet. One lookup right after
-   the start (and again every 20 minutes) does that work before anyone presses play. */
+   the start (and again every 30 minutes) does that work before anyone presses play. */
 const WARM_URL = 'https://www.youtube.com/watch?v=jNQXAC9IVRw';
 let warming = false;
 async function warmOnce() {
@@ -283,8 +296,8 @@ async function warmOnce() {
   const t0 = Date.now();
   const args = ['-j', '--no-playlist', '-f', 'bestaudio/best', WARM_URL];
   try {
-    await runYtdlp(args, { timeout: 60_000 }).catch(() => {});
-    await runYtdlp(['--js-runtimes', `node:${process.execPath}`, ...args], { timeout: 60_000 }).catch(() => {});
+    await runYtdlp(args, { timeout: 60_000, low: true }).catch(() => {});
+    await runYtdlp(['--js-runtimes', `node:${process.execPath}`, ...args], { timeout: 60_000, low: true }).catch(() => {});
     log.info(`yt-dlp vorgewärmt (${((Date.now() - t0) / 1000).toFixed(1)} s)`);
   } finally {
     warming = false;
@@ -292,6 +305,6 @@ async function warmOnce() {
 }
 export function warmUp() {
   setTimeout(warmOnce, 2_000).unref?.();
-  setInterval(warmOnce, 20 * 60_000).unref?.();
+  setInterval(warmOnce, 30 * 60_000).unref?.();
 }
 
