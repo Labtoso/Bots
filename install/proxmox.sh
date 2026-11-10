@@ -29,6 +29,12 @@ cancel() { clear 2>/dev/null || true; echo "Cancelled, nothing was changed."; ex
 input()  { whiptail --backtitle "$TITLE" --title "$1" --inputbox "$2" 11 70 "${3:-}" 3>&1 1>&2 2>&3 || cancel; }
 secret() { whiptail --backtitle "$TITLE" --title "$1" --passwordbox "$2" 12 70 3>&1 1>&2 2>&3 || cancel; }
 yesno()  { whiptail --backtitle "$TITLE" --title "$1" --yesno "$2" 11 70; }
+spotify() { # asks for the Spotify Client secret; Enter, Esc or Skip skips it
+  local v
+  v=$(whiptail --backtitle "$TITLE" --title "Spotify (optional)" --cancel-button "Skip" --passwordbox \
+    "Spotify Client secret for the Spotify search (the Client ID is built in).\n\nGet it at developer.spotify.com/dashboard -> your app -> Settings.\nLeave it empty and press Enter to skip, you can add it later." 13 74 3>&1 1>&2 2>&3) || v=""
+  echo "${v//[[:space:]]/}"
+}
 num()    { [[ "$1" =~ ^[0-9]+$ ]] || die "$2 must be a number (got \"$1\")."; }
 
 # ---------- Notes in the Proxmox UI ----------
@@ -135,10 +141,20 @@ if [ "${#existing[@]}" -gt 0 ]; then
     if [ "${#existing[@]}" -eq 2 ]; then CT="${existing[0]}"; else
       CT=$(whiptail --backtitle "$TITLE" --title "Update" --menu "Which container?" 15 60 6 "${existing[@]}" 3>&1 1>&2 2>&3) || cancel
     fi
-    clear 2>/dev/null || true
     [ "$(pct status "$CT" | awk '{print $2}')" = running ] || { info "Starting container $CT"; pct start "$CT"; sleep 5; }
+    SP_SECRET=""
+    pct exec "$CT" -- grep -q '^SPOTIFY_CLIENT_SECRET=.' /opt/msik/.env 2>/dev/null || SP_SECRET=$(spotify)
+    clear 2>/dev/null || true
     info "Updating Msik in container $CT"
-    pct exec "$CT" -- bash -c "curl -fsSL $INSTALLER | bash -s -- --yes"
+    if [ -n "$SP_SECRET" ]; then
+      # The secret goes in via a root-only file, so it never shows up in the host's process list.
+      tmp=$(mktemp); chmod 600 "$tmp"; printf 'SP_SECRET=%q\n' "$SP_SECRET" > "$tmp"
+      pct push "$CT" "$tmp" /root/.msik-setup --perms 600; rm -f "$tmp"; unset SP_SECRET
+      pct exec "$CT" -- bash -c '. /root/.msik-setup; rm -f /root/.msik-setup; curl -fsSL '"$INSTALLER"' | bash -s -- --yes --spotify-secret "$SP_SECRET"'
+      say "Spotify search turned on"
+    else
+      pct exec "$CT" -- bash -c "curl -fsSL $INSTALLER | bash -s -- --yes"
+    fi
     say "Container $CT is up to date."
     install_notes
     show_backend "$CT"
@@ -198,9 +214,7 @@ while [ -z "$TOKEN" ]; do
   TOKEN=$(secret "Discord bot token" "Paste your bot token (right click or Ctrl+Shift+V).\n\nGet one at discord.com/developers/applications:\nNew Application -> Bot -> Reset Token -> Copy.")
   TOKEN="${TOKEN//[[:space:]]/}"
 done
-if [ "$MODE" = advanced ]; then
-  SP_SECRET=$(secret "Spotify (optional)" "Spotify Client secret for the Spotify search.\nThe Client ID is built in. Leave empty to skip.")
-fi
+SP_SECRET=$(spotify)
 
 ROOTFS=$(pick_storage rootdir "container disk")
 TMPL_STORE=$(pick_storage vztmpl "Debian template")
