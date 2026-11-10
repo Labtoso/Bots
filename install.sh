@@ -12,11 +12,13 @@
 #   --no-auto-update  do not install the update timer (default: checks GitHub every 15 minutes)
 #   --yes             do not ask, use defaults (tunnel instead of domain)
 set -euo pipefail
+# a host locale that this system does not have (e.g. via "pct exec") makes apt and perl very noisy
+export LANG=C.UTF-8 LC_ALL=C.UTF-8 LANGUAGE=
 
 REPO="https://github.com/Labtoso/Bots.git"
 BRANCH="Msik"
 DIR="/opt/msik"
-TOKEN=""; DOMAIN=""; SP_ID=""; SP_SECRET=""; NAME="$(hostname -s 2>/dev/null || echo VPS)"; SERVICE=1; ASK=1; AUTOUPDATE=1
+TOKEN=""; DOMAIN=""; SP_ID=""; SP_SECRET=""; NAME="$(hostname -s 2>/dev/null || echo VPS)"; SERVICE=1; ASK=1; AUTOUPDATE=""
 
 while [ $# -gt 0 ]; do
   case "$1" in
@@ -28,6 +30,7 @@ while [ $# -gt 0 ]; do
     --dir) DIR="$2"; shift 2 ;;
     --no-service) SERVICE=0; shift ;;
     --no-auto-update) AUTOUPDATE=0; shift ;;
+    --auto-update) AUTOUPDATE=1; shift ;;
     --yes|-y) ASK=0; shift ;;
     *) echo "Unknown option: $1"; exit 1 ;;
   esac
@@ -89,7 +92,9 @@ if [ -n "$need" ]; then
   if ! command -v apt-get >/dev/null; then need="${need/g++/gcc-c++}"; fi
   say "Installing:$need"
   if command -v apt-get >/dev/null; then
-    apt-get update -qq && DEBIAN_FRONTEND=noninteractive apt-get install -y -qq ca-certificates $need >/dev/null
+    apt-get update -qq >/dev/null 2>&1 || apt-get update -qq
+    DEBIAN_FRONTEND=noninteractive apt-get install -y -qq -o Dpkg::Use-Pty=0 ca-certificates $need >/dev/null 2>&1 \
+      || DEBIAN_FRONTEND=noninteractive apt-get install -y -qq ca-certificates $need
   else
     dnf install -y -q $need
   fi
@@ -130,6 +135,13 @@ setenv() { # setenv KEY VALUE
 [ -n "$SP_ID" ] && setenv SPOTIFY_CLIENT_ID "$SP_ID"
 [ -n "$SP_SECRET" ] && setenv SPOTIFY_CLIENT_SECRET "$SP_SECRET"
 grep -q '^BACKEND_NAME=.\+' .env || setenv BACKEND_NAME "$NAME"
+# auto updates: an explicit option wins, otherwise keep what this install had (default on)
+if [ -z "$AUTOUPDATE" ]; then
+  AUTOUPDATE="$(sed -n 's/^AUTO_UPDATE=//p' .env | tail -1)"
+  [ -n "$AUTOUPDATE" ] || { [ -f /etc/systemd/system/msik.service ] && ! systemctl is-enabled -q msik-update.timer 2>/dev/null && AUTOUPDATE=0; } || true
+  [ -n "$AUTOUPDATE" ] || AUTOUPDATE=1
+fi
+setenv AUTO_UPDATE "$AUTOUPDATE"
 if ! grep -q '^SESSION_SECRET=.\+' .env; then
   setenv SESSION_SECRET "$(head -c 32 /dev/urandom | od -An -tx1 | tr -d ' \n')"
 fi

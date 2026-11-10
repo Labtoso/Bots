@@ -6,6 +6,8 @@
 #
 # Run it again to update an existing Msik container or to create another one.
 set -Eeuo pipefail
+# "pct exec" hands the host's locale to the container, where it usually does not exist (noisy apt/perl)
+export LANG=C.UTF-8 LC_ALL=C.UTF-8 LANGUAGE=
 
 INSTALLER="https://bot.labtoso.de/install.sh"
 TITLE="Msik music bot"
@@ -143,6 +145,7 @@ if [ "${#existing[@]}" -gt 0 ]; then
     if [ "${#existing[@]}" -eq 2 ]; then CT="${existing[0]}"; else
       CT=$(whiptail --backtitle "$TITLE" --title "Update" --menu "Which container?" 15 60 6 "${existing[@]}" 3>&1 1>&2 2>&3) || cancel
     fi
+    clear 2>/dev/null || true
     [ "$(pct status "$CT" | awk '{print $2}')" = running ] || { info "Starting container $CT"; pct start "$CT"; sleep 5; }
     # older containers were made with 1 CPU / 1 GB: give them more, so songs start faster
     cur_cores=$(pct config "$CT" | awk '/^cores:/ {print $2}'); cur_mem=$(pct config "$CT" | awk '/^memory:/ {print $2}')
@@ -153,22 +156,9 @@ if [ "${#existing[@]}" -gt 0 ]; then
       pct set "$CT" "${more[@]}"
       say "Container $CT now has more power for the bot (${more[*]})"
     fi
-    SP_ID=""; SP_SECRET=""
-    pct exec "$CT" -- grep -q '^SPOTIFY_CLIENT_SECRET=.' /opt/msik/.env 2>/dev/null || spotify
-    clear 2>/dev/null || true
+    # an update keeps everything from the existing install (token, Spotify, domain, name, auto updates)
     info "Updating Msik in container $CT"
-    if [ -n "$SP_SECRET$SP_ID" ]; then
-      # The secret goes in via a root-only file, so it never shows up in the host's process list.
-      tmp=$(mktemp); chmod 600 "$tmp"; printf 'SP_ID=%q\nSP_SECRET=%q\n' "$SP_ID" "$SP_SECRET" > "$tmp"
-      pct push "$CT" "$tmp" /root/.msik-setup --perms 600; rm -f "$tmp"; unset SP_SECRET
-      pct exec "$CT" -- bash -c '. /root/.msik-setup; rm -f /root/.msik-setup; set -- --yes
-        [ -n "$SP_ID" ] && set -- "$@" --spotify-id "$SP_ID"
-        [ -n "$SP_SECRET" ] && set -- "$@" --spotify-secret "$SP_SECRET"
-        curl -fsSL '"$INSTALLER"' | bash -s -- "$@"'
-      say "Spotify settings saved"
-    else
-      pct exec "$CT" -- bash -c "curl -fsSL $INSTALLER | bash -s -- --yes"
-    fi
+    pct exec "$CT" -- bash -c "curl -fsSL $INSTALLER | bash -s -- --yes"
     say "Container $CT is up to date."
     install_notes
     show_backend "$CT"
@@ -277,7 +267,7 @@ done
 say "Network ready"
 
 info "Preparing Debian"
-pct exec "$CTID" -- bash -c "export DEBIAN_FRONTEND=noninteractive; apt-get update -qq && apt-get -y -qq upgrade >/dev/null && apt-get install -y -qq curl ca-certificates >/dev/null"
+pct exec "$CTID" -- bash -c "export DEBIAN_FRONTEND=noninteractive; apt-get update -qq >/dev/null && apt-get -y -qq -o Dpkg::Use-Pty=0 upgrade >/dev/null 2>&1 && apt-get install -y -qq -o Dpkg::Use-Pty=0 curl ca-certificates >/dev/null 2>&1"
 say "Debian up to date"
 
 # ---------- install Msik inside ----------
