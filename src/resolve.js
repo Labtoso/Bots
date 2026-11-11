@@ -168,9 +168,9 @@ function expiresAt(url) {
 }
 
 /* YouTube sometimes needs its JavaScript challenge solved. Instead of waiting for the plain lookup
-   to fail first, a second lookup with Node as JS runtime starts after a short head start, and
+   to fail first, a second lookup with Node as JS runtime starts if the first one takes long, and
    whichever answers first wins (the other one is stopped). Costs a bit more CPU, saves seconds. */
-const HEDGE_MS = 1500;
+const HEDGE_MS = 2500;
 function hedgedYoutube(args) {
   return new Promise((resolve, reject) => {
     const first = new AbortController();
@@ -287,7 +287,7 @@ export function prefetchStream(track, { urgent = false } = {}) {
 
 /* The very first YouTube lookup after a start is the slowest: yt-dlp still has to fetch and solve
    YouTube's player code and the system has nothing in its file cache yet. One lookup right after
-   the start (and again every 30 minutes) does that work before anyone presses play. */
+   the start (and again every hour) does that work before anyone presses play. */
 const WARM_URL = 'https://www.youtube.com/watch?v=jNQXAC9IVRw';
 let warming = false;
 async function warmOnce() {
@@ -296,8 +296,9 @@ async function warmOnce() {
   const t0 = Date.now();
   const args = ['-j', '--no-playlist', '-f', 'bestaudio/best', WARM_URL];
   try {
-    await runYtdlp(args, { timeout: 60_000, low: true }).catch(() => {});
-    await runYtdlp(['--js-runtimes', `node:${process.execPath}`, ...args], { timeout: 60_000, low: true }).catch(() => {});
+    await runYtdlp(args, { timeout: 60_000, low: true })
+      .catch(() => runYtdlp(['--js-runtimes', `node:${process.execPath}`, ...args], { timeout: 60_000, low: true }))
+      .catch(() => {});
     log.info(`yt-dlp vorgewärmt (${((Date.now() - t0) / 1000).toFixed(1)} s)`);
   } finally {
     warming = false;
@@ -305,6 +306,6 @@ async function warmOnce() {
 }
 export function warmUp() {
   setTimeout(warmOnce, 2_000).unref?.();
-  setInterval(warmOnce, 30 * 60_000).unref?.();
+  setInterval(warmOnce, 60 * 60_000).unref?.();
 }
 

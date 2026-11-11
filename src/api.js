@@ -247,15 +247,15 @@ export function createApi(bot) {
       clearTimeout(searchPrefetch.get(guildId));
       searchPrefetch.set(guildId, setTimeout(() => {
         searchPrefetch.delete(guildId);
-        r.tracks.slice(0, 3).reverse().forEach((t) => prefetchStream(t));
-      }, 700));
+        r.tracks.slice(0, 2).reverse().forEach((t) => prefetchStream(t));
+      }, 1200));
       return send(res, 200, { results: r.tracks, playlists: r.playlists });
     }
 
     // the dashboard hints at a song the pointer is on: look up its stream right away
     if (p === '/api/prefetch' && req.method === 'POST') {
       const t = sanitizeTrack(body.track);
-      if (t) prefetchStream(t, { urgent: true });
+      if (t) prefetchStream(t);
       return send(res, 200, { ok: true });
     }
 

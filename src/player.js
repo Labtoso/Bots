@@ -178,10 +178,8 @@ export class GuildPlayer extends EventEmitter {
 
   #prefetchNext() {
     if (this.loop === 'track') return;
-    // next song right away, the two after it (and the last one for "back") in the background
-    prefetchStream(this.queue[0], { urgent: true });
-    for (const t of this.queue.slice(1, 3)) prefetchStream(t);
-    if (this.history.length) prefetchStream(this.history[this.history.length - 1]);
+    // the next two songs, quietly in the background (there is a whole song's time for it)
+    for (const t of this.queue.slice(0, 2).reverse()) prefetchStream(t);
   }
 
   async #play(track, seek = 0) {
@@ -196,7 +194,7 @@ export class GuildPlayer extends EventEmitter {
       // stream lookup and voice join run at the same time
       const [info] = await Promise.all([streamInfo(track), this.joining?.catch(() => null)]);
       if (id !== this.playId) return;
-      const args = ['-hide_banner', '-loglevel', 'error'];
+      const args = ['-hide_banner', '-loglevel', 'error', '-threads', '1'];
       if (/^https?:/.test(info.url)) {
         args.push('-reconnect', '1', '-reconnect_streamed', '1', '-reconnect_delay_max', '5');
         // start sending sound as soon as possible instead of analysing the stream first
@@ -281,15 +279,15 @@ export class GuildPlayer extends EventEmitter {
       const pump = () => this.#pump(c);
       c.buffer.on('readable', pump);
       c.buffer.once('end', () => { c.ended = true; this.#finish(c); });
-      // the audio player reads the output in real time; top it up every 20 ms
-      c.timer = setInterval(pump, 20);
+      // the audio player reads the output in real time; top it up every 40 ms
+      c.timer = setInterval(pump, 40);
     }
     if (c.fx) { const old = c.fx; c.fx = null; old.stdout.removeAllListeners('data'); try { old.kill('SIGKILL'); } catch { /* ignore */ } }
     c.inflight = 0;
     const af = FILTERS[this.filter];
     if (af) {
       const fx = spawn(bins.ffmpeg, [
-        '-hide_banner', '-loglevel', 'error', '-fflags', '+nobuffer', '-probesize', '32', '-analyzeduration', '0',
+        '-hide_banner', '-loglevel', 'error', '-threads', '1', '-fflags', '+nobuffer', '-probesize', '32', '-analyzeduration', '0',
         '-f', 's16le', '-ar', '48000', '-ac', '2', '-i', 'pipe:0',
         '-af', af, '-f', 's16le', '-ar', '48000', '-ac', '2', '-flush_packets', '1', 'pipe:1',
       ], { windowsHide: true });
