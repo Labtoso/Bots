@@ -51,6 +51,7 @@ command -v apt-get >/dev/null || command -v dnf >/dev/null || { echo "Needs a De
 echo
 echo "  AIO bot installer"
 echo
+[ -f /opt/msik/.env ] && say "Msik music bot found on this server, AIO is installed next to it (own service, port 8090)."
 
 # ---------- packages ----------
 need=""

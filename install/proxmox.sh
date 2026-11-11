@@ -4,11 +4,14 @@
 #
 #   bash -c "$(curl -fsSL https://bot.labtoso.de/AIO/proxmox.sh)"
 #
-# Run it again to update an existing AIO container (keeps everything) or to create another one.
+# If the Msik music bot already runs in a container, AIO is installed into that container (no new one)
+# and the container is renamed to "Bots". Run it again to update (keeps everything).
+# AIO_NEW=1 bash -c "$(curl ...)" always creates a new container.
 set -Eeuo pipefail
 export LANG=C.UTF-8 LC_ALL=C.UTF-8 LANGUAGE=
 
 INSTALLER="https://bot.labtoso.de/AIO/install.sh"
+NOTES_URL="https://bot.labtoso.de/bot-notes.sh"
 TITLE="AIO Discord bot"
 
 c_ok="\033[32m"; c_err="\033[31m"; c_dim="\033[2m"; c_b="\033[1m"; c_off="\033[0m"
@@ -34,58 +37,26 @@ num()    { [[ "$1" =~ ^[0-9]+$ ]] || die "$2 must be a number (got \"$1\")."; }
 # ---------- Notes in the Proxmox UI ----------
 # A helper on the host writes the current backend address into the container's Notes
 # (container -> Summary). A timer refreshes it every 2 minutes, the free tunnel changes its address on restarts.
+# The helper is shared with the Msik music bot, so a container that runs both shows both addresses.
 install_notes() {
-  cat > /usr/local/bin/aio-notes <<'NOTES'
-#!/usr/bin/env bash
-# Writes the AIO backend address into the Notes of AIO containers (Proxmox UI: container -> Summary).
-#   aio-notes          all running containers tagged "aio"
-#   aio-notes 105      only container 105
-# Prints "<ID> <backend address>" for every container it looked at.
-set -uo pipefail
-state=/run/aio-notes; mkdir -p "$state"
-ids="$*"; [ -n "$ids" ] || ids=$(pct list 2>/dev/null | awk 'NR>1 && $2=="running" {print $1}')
-for id in $ids; do
-  pct config "$id" 2>/dev/null | grep -qE '^tags:.*\baio\b' || continue
-  [ "$(pct status "$id" 2>/dev/null | awk '{print $2}')" = running ] || continue
-  url=$(pct exec "$id" -- sh -c 'u=$(grep -m1 "^PUBLIC_URL=" /opt/aio/.env 2>/dev/null | cut -d= -f2-); [ -n "$u" ] && echo "$u" || journalctl -u aio -b --no-pager -o cat 2>/dev/null | grep -a "API-Adresse" | grep -o "https://[^ ]*" | tail -1' 2>/dev/null)
-  invite=$(pct exec "$id" -- sh -c 'journalctl -u aio --no-pager -o cat 2>/dev/null | grep -o "https://discord.com/oauth2/[^ ]*" | tail -1' 2>/dev/null)
-  ip=$(pct exec "$id" -- hostname -I 2>/dev/null | awk '{print $1}')
-  echo "$id ${url:-}"
-  if [ -n "$invite" ]; then inv="[Einladungslink]($invite)"; else inv="steht nach dem Start im Log"; fi
-  desc="## 🤖 AIO Discord-Bot
-
-**Backend-Adresse** (zum Kopieren, im Panel über das Server-Symbol oben rechts einfügen):
-
-\`\`\`
-${url:-wird noch ermittelt, Bot startet gerade ...}
-\`\`\`
-
-- Panel: [bot.labtoso.de/AIO](https://bot.labtoso.de/AIO/)
-- Bot einladen: $inv
-- Danach auf deinem Discord-Server \`/aio\` eingeben (der Link verbindet das Backend automatisch).
-- Container-IP: ${ip:-?}
-
-Logs: \`journalctl -u aio -f\` (Konsole des Containers) · Update: Proxmox-Script nochmal ausführen (oder automatisch alle 15 Minuten)
-
-_Die Adresse aktualisiert sich hier alle 2 Minuten von selbst (aio-notes.timer auf dem Host)._"
-  sum=$(printf '%s' "$desc" | md5sum | cut -d' ' -f1)
-  [ "$(cat "$state/$id" 2>/dev/null)" = "$sum" ] && continue
-  pct set "$id" --description "$desc" && echo "$sum" > "$state/$id"
-done
-NOTES
-  chmod 755 /usr/local/bin/aio-notes
-  cat > /etc/systemd/system/aio-notes.service <<'UNIT'
+  local tmp; tmp=$(mktemp)
+  curl -fsSL "$NOTES_URL" -o "$tmp" || { rm -f "$tmp"; die "Could not download the notes helper ($NOTES_URL)."; }
+  install -m 755 "$tmp" /usr/local/bin/bot-notes; rm -f "$tmp"
+  for b in msik aio; do printf '#!/bin/sh\nexec /usr/local/bin/bot-notes %s "$@"\n' "$b" > "/usr/local/bin/$b-notes"; chmod 755 "/usr/local/bin/$b-notes"; done
+  systemctl disable -q --now msik-notes.timer aio-notes.timer 2>/dev/null || true
+  rm -f /etc/systemd/system/msik-notes.service /etc/systemd/system/msik-notes.timer /etc/systemd/system/aio-notes.service /etc/systemd/system/aio-notes.timer
+  cat > /etc/systemd/system/bot-notes.service <<'UNIT'
 [Unit]
-Description=Write the AIO backend address into the container notes
+Description=Write the bot backend addresses into the container notes
 
 [Service]
 Type=oneshot
-ExecStart=/usr/local/bin/aio-notes
+ExecStart=/usr/local/bin/bot-notes
 StandardOutput=null
 UNIT
-  cat > /etc/systemd/system/aio-notes.timer <<'UNIT'
+  cat > /etc/systemd/system/bot-notes.timer <<'UNIT'
 [Unit]
-Description=Refresh the AIO container notes every 2 minutes
+Description=Refresh the bot container notes every 2 minutes
 
 [Timer]
 OnBootSec=1min
@@ -95,18 +66,18 @@ OnUnitActiveSec=2min
 WantedBy=timers.target
 UNIT
   systemctl daemon-reload
-  systemctl enable -q --now aio-notes.timer
+  systemctl enable -q --now bot-notes.timer
 }
 
 show_backend() { # waits for the address, writes the Notes and prints it big in this shell
   local id="$1" url="" i
   info "Waiting for the backend address"
   for i in $(seq 1 40); do
-    url=$(/usr/local/bin/aio-notes "$id" | awk '{print $2}')
+    url=$(/usr/local/bin/bot-notes aio "$id" | awk '{print $2}')
     [ -n "$url" ] && break
     sleep 3
   done
-  rm -f "/run/aio-notes/$id"; /usr/local/bin/aio-notes "$id" >/dev/null
+  rm -f "/run/bot-notes/$id"; /usr/local/bin/bot-notes "$id" >/dev/null
   echo
   if [ -n "$url" ]; then
     printf "  ${c_b}Backend-Adresse (im Panel einfügen, /aio bringt sie aber auch automatisch mit):${c_off}\n\n"
@@ -121,34 +92,120 @@ show_backend() { # waits for the address, writes the Notes and prints it big in 
 # exactly 2 cores (or fewer when the host has fewer); RAM stays as it is
 cores_for() { local n; n=$(nproc 2>/dev/null || echo 2); echo $(( n < 2 ? n : 2 )); }
 
-# ---------- update an existing container ----------
-existing=()
+# ---------- find containers that already run a bot ----------
+has_tag() { pct config "$1" 2>/dev/null | sed -n 's/^tags: *//p' | tr ';,' '  ' | grep -qw "$2"; }
+add_tag() { # add_tag CTID TAG (keeps the other tags)
+  local t; t=$(pct config "$1" | sed -n 's/^tags: *//p')
+  has_tag "$1" "$2" || pct set "$1" --tags "${t:+$t;}$2"
+}
+# A container with both bots is called "Bots" (hostname = name in the Proxmox tree)
+name_bots() {
+  [ "$(pct config "$1" | awk '/^hostname:/ {print $2}')" = Bots ] && return 0
+  pct set "$1" --hostname Bots
+  pct exec "$1" -- sh -c 'hostname Bots 2>/dev/null; echo Bots > /etc/hostname; sed -i "s/^\(127\.0\.1\.1[[:space:]]\+\).*/\1Bots/" /etc/hosts' 2>/dev/null || true
+  say "Container $1 is now called \"Bots\""
+}
+ensure_running() { [ "$(pct status "$1" | awk '{print $2}')" = running ] || { info "Starting container $1"; pct start "$1"; sleep 5; }; }
+
+aio_cts=(); msik_cts=()
 while read -r id _ name; do
   [ -n "${id:-}" ] || continue
-  if pct config "$id" 2>/dev/null | grep -qE '^tags:.*\baio\b'; then existing+=("$id" "$name"); fi
+  if has_tag "$id" aio; then aio_cts+=("$id" "$name")
+  elif has_tag "$id" msik; then msik_cts+=("$id" "$name"); fi
 done < <(pct list 2>/dev/null | awk 'NR>1 {print $1, $2, $NF}')
 
-if [ "${#existing[@]}" -gt 0 ]; then
-  choice=$(whiptail --backtitle "$TITLE" --title "AIO found" --menu \
-    "There is already an AIO container on this node. What do you want to do?" 15 70 6 \
-    "update" "Update the bot in an existing container" \
-    "new" "Create another AIO container" 3>&1 1>&2 2>&3) || cancel
-  if [ "$choice" = update ]; then
-    if [ "${#existing[@]}" -eq 2 ]; then CT="${existing[0]}"; else
-      CT=$(whiptail --backtitle "$TITLE" --title "Update" --menu "Which container?" 15 60 6 "${existing[@]}" 3>&1 1>&2 2>&3) || cancel
-    fi
-    clear 2>/dev/null || true
-    [ "$(pct status "$CT" | awk '{print $2}')" = running ] || { info "Starting container $CT"; pct start "$CT"; sleep 5; }
+# AIO_NEW=1 always creates a new container
+if [ "${AIO_NEW:-0}" != 1 ] && [ "${#aio_cts[@]}" -gt 0 ]; then
+  # rerun = update, no questions
+  if [ "${#aio_cts[@]}" -eq 2 ]; then CT="${aio_cts[0]}"; else
+    CT=$(whiptail --backtitle "$TITLE" --title "Update" --menu "AIO runs in several containers. Which one should be updated?" 15 64 6 "${aio_cts[@]}" 3>&1 1>&2 2>&3) || cancel
+  fi
+  clear 2>/dev/null || true
+  printf "\n  ${c_b}%s${c_off}\n\n" "$TITLE"
+  ensure_running "$CT"
+  if has_tag "$CT" msik; then
+    name_bots "$CT" # shared with the music bot: leave its cores and RAM alone
+  else
     want=$(cores_for); cur=$(pct config "$CT" | awk '/^cores:/ {print $2}')
     if [ "${cur:-0}" != "$want" ]; then pct set "$CT" --cores "$want"; say "Container $CT now uses $want CPU cores"; fi
-    info "Updating AIO in container $CT (keeps token, domain and settings)"
-    pct exec "$CT" -- bash -c "curl -fsSL $INSTALLER | bash -s -- --yes"
-    say "Container $CT is up to date."
-    install_notes
-    show_backend "$CT"
-    echo
-    exit 0
   fi
+  info "Updating AIO in container $CT (keeps token, domain and settings)"
+  pct exec "$CT" -- bash -c "curl -fsSL $INSTALLER | bash -s -- --yes"
+  say "Container $CT is up to date."
+  install_notes
+  show_backend "$CT"
+  echo
+  exit 0
+fi
+
+ask_token() { # sets TOKEN and BOTNAME
+  TOKEN=""; BOTNAME=""
+  while [ -z "$BOTNAME" ]; do
+    TOKEN=$(secret "Discord bot token" "Paste your bot token (right click or Ctrl+Shift+V).\n\ndiscord.com/developers/applications: New Application -> Bot -> Reset Token.\nTurn on Server Members Intent + Message Content Intent there too.\nUse a new application, not the one of the music bot.")
+    TOKEN="${TOKEN//[[:space:]]/}"
+    [ -n "$TOKEN" ] || continue
+    BOTNAME=$(curl -fsS --max-time 10 -H "Authorization: Bot $TOKEN" https://discord.com/api/v10/users/@me 2>/dev/null | sed -n 's/.*"username": *"\([^"]*\)".*/\1/p' || true)
+    if [ -z "$BOTNAME" ]; then
+      curl -fsS --max-time 5 -o /dev/null https://discord.com 2>/dev/null || { BOTNAME="?"; break; } # host has no internet check, try anyway
+      whiptail --backtitle "$TITLE" --title "Token" --msgbox "This token does not work. Copy it again with \"Reset Token\"." 9 60
+    fi
+  done
+}
+
+install_aio() { # install_aio CTID NAME ARGS... -> runs the Linux installer inside the container
+  local ct="$1" name="$2" tmp; shift 2
+  # The token goes in via a root-only file, so it never shows up in the host's process list.
+  tmp=$(mktemp); chmod 600 "$tmp"
+  printf 'TOKEN=%q\nDOMAIN=%q\n' "$TOKEN" "${DOMAIN:-}" > "$tmp"
+  pct push "$ct" "$tmp" /root/.aio-setup --perms 600
+  rm -f "$tmp"; unset TOKEN
+  info "Installing AIO (Node.js and the bot) - takes a few minutes"
+  pct exec "$ct" -- bash -c '
+    set -e
+    . /root/.aio-setup; rm -f /root/.aio-setup
+    set -- --yes --name "'"$name"'" '"$*"' --token "$TOKEN"
+    [ -n "$DOMAIN" ] && set -- "$@" --domain "$DOMAIN"
+    curl -fsSL '"$INSTALLER"' | bash -s -- "$@"
+  '
+}
+
+finish() { # finish CTID
+  local ct="$1" ip invite
+  install_notes
+  ip=$(pct exec "$ct" -- hostname -I 2>/dev/null | awk '{print $1}')
+  invite=$(pct exec "$ct" -- bash -c "journalctl -u aio --no-pager -o cat 2>/dev/null | grep -o 'https://discord.com/oauth2/[^ ]*' | tail -1" || true)
+  echo
+  printf " ${c_ok}${c_b}AIO läuft in Container %s${c_off}\n" "$ct"
+  show_backend "$ct"
+  echo
+  [ -n "$ip" ] && echo "  Container IP: $ip"
+  [ -n "$invite" ] && echo "  Invite link:  $invite"
+  echo "  Then type /aio on your Discord server (the link connects the backend by itself)."
+  echo
+  echo "  Logs:    pct exec $ct -- journalctl -u aio -f"
+  echo "  Shell:   pct enter $ct"
+  echo "  Update:  run this script again (or it updates itself every 15 minutes)"
+}
+
+# ---------- the music bot is already here: install AIO next to it ----------
+if [ "${AIO_NEW:-0}" != 1 ] && [ "${#msik_cts[@]}" -gt 0 ]; then
+  if [ "${#msik_cts[@]}" -eq 2 ]; then CT="${msik_cts[0]}"; else
+    CT=$(whiptail --backtitle "$TITLE" --title "Msik found" --menu "The Msik music bot runs in several containers. Install AIO into which one?" 15 64 6 "${msik_cts[@]}" 3>&1 1>&2 2>&3) || cancel
+  fi
+  ask_token
+  clear 2>/dev/null || true
+  printf "\n  ${c_b}%s${c_off}\n\n" "$TITLE"
+  say "Msik found in container $CT, installing AIO there (no new container)"
+  [ "$BOTNAME" != "?" ] && say "Token OK: $BOTNAME"
+  ensure_running "$CT"
+  install_aio "$CT" Bots
+  add_tag "$CT" aio
+  name_bots "$CT"
+  finish "$CT"
+  echo "  Msik keeps running in the same container (port 8080, AIO uses 8090)."
+  echo "  Remove AIO only: pct exec $CT -- bash -c \"curl -fsSL https://bot.labtoso.de/AIO/uninstall.sh | bash\""
+  echo
+  exit 0
 fi
 
 # ---------- defaults ----------
@@ -197,17 +254,7 @@ if [ "$MODE" = advanced ]; then
   yesno "Updates" "Update the bot automatically? (checks GitHub every 15 minutes)" || AUTOUPDATE=0
 fi
 
-TOKEN=""; BOTNAME=""
-while [ -z "$BOTNAME" ]; do
-  TOKEN=$(secret "Discord bot token" "Paste your bot token (right click or Ctrl+Shift+V).\n\ndiscord.com/developers/applications: New Application -> Bot -> Reset Token.\nTurn on Server Members Intent + Message Content Intent there too.")
-  TOKEN="${TOKEN//[[:space:]]/}"
-  [ -n "$TOKEN" ] || continue
-  BOTNAME=$(curl -fsS --max-time 10 -H "Authorization: Bot $TOKEN" https://discord.com/api/v10/users/@me 2>/dev/null | sed -n 's/.*"username": *"\([^"]*\)".*/\1/p' || true)
-  if [ -z "$BOTNAME" ]; then
-    curl -fsS --max-time 5 -o /dev/null https://discord.com 2>/dev/null || { BOTNAME="?"; break; } # host has no internet check, try anyway
-    whiptail --backtitle "$TITLE" --title "Token" --msgbox "This token does not work. Copy it again with \"Reset Token\"." 9 60
-  fi
-done
+ask_token
 
 ROOTFS=$(pick_storage rootdir "container disk")
 TMPL_STORE=$(pick_storage vztmpl "Debian template")
@@ -260,38 +307,10 @@ HOST_TZ=$(cat /etc/timezone 2>/dev/null || timedatectl show -p Timezone --value 
 [ -n "$HOST_TZ" ] && pct exec "$CTID" -- bash -c "ln -sf /usr/share/zoneinfo/$HOST_TZ /etc/localtime && echo $HOST_TZ > /etc/timezone" 2>/dev/null || true
 say "Debian up to date"
 
-# The token goes in via a root-only file, so it never shows up in the host's process list.
-tmp=$(mktemp); chmod 600 "$tmp"
-printf 'TOKEN=%q\nDOMAIN=%q\n' "$TOKEN" "$DOMAIN" > "$tmp"
-pct push "$CTID" "$tmp" /root/.aio-setup --perms 600
-rm -f "$tmp"; unset TOKEN
-
-args="--yes --name $HN"
-[ "$AUTOUPDATE" = 1 ] || args="$args --no-auto-update"
-info "Installing AIO (Node.js and the bot) - takes a few minutes"
-pct exec "$CTID" -- bash -c '
-  set -e
-  . /root/.aio-setup; rm -f /root/.aio-setup
-  set -- '"$args"' --token "$TOKEN"
-  [ -n "$DOMAIN" ] && set -- "$@" --domain "$DOMAIN"
-  curl -fsSL '"$INSTALLER"' | bash -s -- "$@"
-'
-
-install_notes
-IP=$(pct exec "$CTID" -- hostname -I 2>/dev/null | awk '{print $1}')
-INVITE=$(pct exec "$CTID" -- bash -c "journalctl -u aio --no-pager -o cat 2>/dev/null | grep -o 'https://discord.com/oauth2/[^ ]*' | tail -1" || true)
-
-echo
-printf " ${c_ok}${c_b}AIO läuft in Container %s${c_off}\n" "$CTID"
-show_backend "$CTID"
-echo
-[ -n "$IP" ] && echo "  Container IP: $IP"
-[ -n "$INVITE" ] && echo "  Invite link:  $INVITE"
-echo "  Then type /aio on your Discord server (the link connects the backend by itself)."
-echo
-echo "  Logs:    pct exec $CTID -- journalctl -u aio -f"
-echo "  Shell:   pct enter $CTID"
-echo "  Update:  run this script again (or it updates itself every 15 minutes)"
+args=""
+[ "$AUTOUPDATE" = 1 ] || args="--no-auto-update"
+install_aio "$CTID" "$HN" $args
+finish "$CTID"
 echo "  Remove:  pct stop $CTID && pct destroy $CTID"
-echo "           (notes helper on the host: systemctl disable --now aio-notes.timer)"
+echo "           (notes helper on the host: systemctl disable --now bot-notes.timer)"
 echo

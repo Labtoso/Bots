@@ -32,7 +32,7 @@ Turn on **Server Members Intent** and **Message Content Intent** in the Discord 
 | Linux / VPS | `curl -fsSL https://bot.labtoso.de/AIO/install.sh \| sudo bash` |
 | Proxmox VE | `bash -c "$(curl -fsSL https://bot.labtoso.de/AIO/proxmox.sh)"` in the node shell |
 
-The installers ask for the bot token. Running them again updates the bot and keeps all settings. Updates also happen on their own every 15 minutes (Linux: systemd timer, Windows: the bot itself). On Proxmox the backend address is printed in the shell at the end and kept up to date in the container notes.
+The installers ask for the bot token. Running them again updates the bot and keeps all settings. Updates also happen on their own every 15 minutes (Linux: systemd timer, Windows: the bot itself). On Proxmox the backend address is printed in the shell at the end and kept up to date in the container notes. If the Msik music bot already runs in a container, AIO is installed into that container instead of a new one, and the container is renamed to "Bots" (`AIO_NEW=1` forces a new container).
 
 ## Development
 
