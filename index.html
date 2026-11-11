@@ -40,6 +40,10 @@
     <svg viewBox="0 0 64 64" aria-hidden="true"><rect width="64" height="64" rx="16" fill="#3b82f6"/><path d="M26 44a6 6 0 1 1-4-5.66V20l22-5v22a6 6 0 1 1-4-5.66V22.2l-14 3.2Z" fill="#fff"/></svg>
     <div><b>Msik</b><span>Musik-Dashboard</span></div>
   </a>
+  <a class="bot" href="AIO/">
+    <svg viewBox="0 0 64 64" aria-hidden="true"><rect width="64" height="64" rx="16" fill="#7c5cff"/><path d="M20 18h10v10H20zM34 18h10v10H34zM20 36h10v10H20z" fill="#fff"/><path d="M34 36h10v10H34z" fill="#fff" opacity=".55"/></svg>
+    <div><b>AIO</b><span>All-in-One-Bot: Moderation, Minecraft-Status, Embeds, Level, Tickets …</span></div>
+  </a>
 
   <section>
     <h2>Msik installieren</h2>
@@ -63,16 +67,37 @@
     </div>
     <p class="muted">Unter Windows zum Updaten den Installer nochmal ausführen. Danach in Discord in einen Sprachkanal gehen und <code>/web</code> eingeben.</p>
   </section>
+
+  <section>
+    <h2>AIO installieren</h2>
+    <p>Bot-Token im <a href="https://discord.com/developers/applications" style="color:var(--accent)">Developer Portal</a> holen und dort unter Bot <b>Server Members Intent</b> und <b>Message Content Intent</b> einschalten. Danach auf deinem Server <code>/aio</code> eingeben. Alles genau erklärt in der <a href="AIO/#anleitung" style="color:var(--accent)">Anleitung</a>.</p>
+    <div class="tabs" role="tablist" data-group="aio">
+      <button class="on" data-os="win">Windows</button><button data-os="linux">Linux / VPS</button><button data-os="proxmox">Proxmox</button>
+    </div>
+    <div data-pane="win" data-group="aio">
+      <p><a class="btn primary" href="AIO/Install.bat" download="AIO-Install.bat">Install.bat herunterladen</a></p>
+      <div class="cmd"><code>irm https://bot.labtoso.de/AIO/install.ps1 | iex</code><button class="btn" data-copy>Kopieren</button></div>
+    </div>
+    <div data-pane="linux" data-group="aio" hidden>
+      <div class="cmd"><code>curl -fsSL https://bot.labtoso.de/AIO/install.sh | sudo bash</code><button class="btn" data-copy>Kopieren</button></div>
+    </div>
+    <div data-pane="proxmox" data-group="aio" hidden>
+      <div class="cmd"><code>bash -c "$(curl -fsSL https://bot.labtoso.de/AIO/proxmox.sh)"</code><button class="btn" data-copy>Kopieren</button></div>
+      <p class="muted">In der Shell der Proxmox-Node einfügen. Eigener Container (2 Kerne, 512 MB). Die Backend-Adresse steht am Ende direkt in der Shell und in den Notizen des Containers.</p>
+    </div>
+    <p class="muted">Nochmal ausführen = Update, Einstellungen bleiben. Aktualisiert sich außerdem alle 15 Minuten selbst.</p>
+  </section>
 </main>
 <footer>© LabtosoStudios</footer>
 <script>
   const isLinux = /Linux|X11/.test(navigator.userAgent) && !/Android/.test(navigator.userAgent);
-  const show = (os) => {
-    document.querySelectorAll('[data-os]').forEach((b) => b.classList.toggle('on', b.dataset.os === os));
-    document.querySelectorAll('[data-pane]').forEach((p) => { p.hidden = p.dataset.pane !== os; });
+  const show = (os, group) => {
+    const sel = (a) => (group ? `${a}[data-group="${group}"]` : `${a}:not([data-group])`);
+    document.querySelectorAll(`.tabs${group ? `[data-group="${group}"]` : ':not([data-group])'} [data-os]`).forEach((b) => b.classList.toggle('on', b.dataset.os === os));
+    document.querySelectorAll(sel('[data-pane]')).forEach((p) => { p.hidden = p.dataset.pane !== os; });
   };
-  document.querySelectorAll('[data-os]').forEach((b) => b.addEventListener('click', () => show(b.dataset.os)));
-  if (isLinux) show('linux');
+  document.querySelectorAll('[data-os]').forEach((b) => b.addEventListener('click', () => show(b.dataset.os, b.closest('.tabs').dataset.group)));
+  if (isLinux) { show('linux'); show('linux', 'aio'); }
   document.querySelectorAll('[data-copy]').forEach((b) => b.addEventListener('click', async () => {
     try { await navigator.clipboard.writeText(b.previousElementSibling.textContent); b.textContent = 'Kopiert'; } catch {}
     setTimeout(() => { b.textContent = 'Kopieren'; }, 1500);
