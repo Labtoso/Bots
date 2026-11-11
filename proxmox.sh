@@ -97,10 +97,13 @@ while read -r id _ name; do
 done < <(pct list 2>/dev/null | awk 'NR>1 {print $1, $2, $NF}')
 
 if [ "${#existing[@]}" -gt 0 ]; then
+  # MSIK_AUTO_UPDATE=1 (used by the all-bots installer): update without asking
+  if [ "${MSIK_AUTO_UPDATE:-0}" = 1 ]; then choice=update; else
   choice=$(whiptail --backtitle "$TITLE" --title "Msik found" --menu \
     "There is already a Msik container on this node. What do you want to do?" 15 70 6 \
     "update" "Update the bot in an existing container" \
     "new" "Create another Msik container" 3>&1 1>&2 2>&3) || cancel
+  fi
   if [ "$choice" = update ]; then
     if [ "${#existing[@]}" -eq 2 ]; then CT="${existing[0]}"; else
       CT=$(whiptail --backtitle "$TITLE" --title "Update" --menu "Which container?" 15 60 6 "${existing[@]}" 3>&1 1>&2 2>&3) || cancel

@@ -108,9 +108,28 @@
     </div>
     <div data-pane="proxmox" data-group="aio" hidden>
       <div class="cmd"><code>bash -c "$(curl -fsSL https://bot.labtoso.de/AIO/proxmox.sh)"</code><button class="btn" data-copy>Kopieren</button></div>
-      <p class="muted">In der Shell der Proxmox-Node einfügen. Eigener Container (2 Kerne, 512 MB). Die Backend-Adresse steht am Ende direkt in der Shell und in den Notizen des Containers.</p>
+      <p class="muted">In der Shell der Proxmox-Node einfügen. Läuft Msik schon, kommt AIO in denselben Container (heißt dann „Bots“), sonst eigener Container (2 Kerne, 512 MB). Alle Links stehen am Ende in der Shell und in den Notizen des Containers.</p>
     </div>
     <p class="muted">Nochmal ausführen = Update, Einstellungen bleiben. Aktualisiert sich außerdem alle 15 Minuten selbst.</p>
+  </section>
+
+  <section>
+    <h2>Alle Bots auf einmal</h2>
+    <p>Installiert Msik und AIO nacheinander (jeder Bot fragt nach seinem eigenen Token, also zwei Applications im Developer Portal). Nochmal ausführen aktualisiert beide.</p>
+    <div class="tabs" role="tablist" data-group="all">
+      <button class="on" data-os="win">Windows</button><button data-os="linux">Linux / VPS</button><button data-os="proxmox">Proxmox</button>
+    </div>
+    <div data-pane="win" data-group="all">
+      <p><a class="btn primary" href="all/Install.bat" download="Bots-Install.bat">Install.bat herunterladen</a></p>
+      <div class="cmd"><code>irm https://bot.labtoso.de/all/install.ps1 | iex</code><button class="btn" data-copy>Kopieren</button></div>
+    </div>
+    <div data-pane="linux" data-group="all" hidden>
+      <div class="cmd"><code>curl -fsSL https://bot.labtoso.de/all/install.sh | sudo bash</code><button class="btn" data-copy>Kopieren</button></div>
+    </div>
+    <div data-pane="proxmox" data-group="all" hidden>
+      <div class="cmd"><code>bash -c "$(curl -fsSL https://bot.labtoso.de/all/proxmox.sh)"</code><button class="btn" data-copy>Kopieren</button></div>
+      <p class="muted">Beide Bots in einem Container „Bots“. Beim nächsten Mal werden beide ohne Rückfragen aktualisiert.</p>
+    </div>
   </section>
 </main>
 <footer>© LabtosoStudios</footer>
@@ -122,7 +141,7 @@
     document.querySelectorAll(sel('[data-pane]')).forEach((p) => { p.hidden = p.dataset.pane !== os; });
   };
   document.querySelectorAll('[data-os]').forEach((b) => b.addEventListener('click', () => show(b.dataset.os, b.closest('.tabs').dataset.group)));
-  if (isLinux) { show('linux'); show('linux', 'aio'); }
+  if (isLinux) { show('linux'); show('linux', 'aio'); show('linux', 'all'); }
   document.querySelectorAll('[data-copy]').forEach((b) => b.addEventListener('click', async () => {
     try { await navigator.clipboard.writeText(b.previousElementSibling.textContent); b.textContent = 'Kopiert'; } catch {}
     setTimeout(() => { b.textContent = 'Kopieren'; }, 1500);
