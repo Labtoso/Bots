@@ -535,6 +535,7 @@ function renderNav() {
   let group = null;
   for (const p of PAGES) {
     if (p.owner && !S.me?.owner) continue;
+    if (p.rights && !S.me?.rights) continue;
     if (p.group !== group) { group = p.group; if (group) nav.append(h('h4', group)); }
     const mod = p.mods?.[0];
     const on = mod && S.cfg?.[mod] && typeof S.cfg[mod].enabled === 'boolean' ? S.cfg[mod].enabled : null;
@@ -542,7 +543,8 @@ function renderNav() {
   }
 }
 async function go(id) {
-  const p = PAGES.find((x) => x.id === id) || PAGES[0];
+  let p = PAGES.find((x) => x.id === id) || PAGES[0];
+  if ((p.rights && !S.me?.rights) || (p.owner && !S.me?.owner)) p = PAGES[0];
   if (current && current.id !== p.id && dirtyMods().length) {
     if (!confirm('Ungespeicherte Änderungen verwerfen?')) return;
     for (const m of current.mods || []) S.cfg[m] = JSON.parse(S.saved[m]);
@@ -1238,6 +1240,104 @@ page({
     const t = S.cfg.tempvoice;
     root.append(card(null, null, h('div.grid', field('„Erstellen“-Kanal', chan(t, 'hub', { kinds: 'voice' })), field('Kategorie', chan(t, 'category', { kinds: 'category', empty: 'Wie der Erstellen-Kanal' })),
       field('Name', text(t, 'name'), '{user.name} = Name des Mitglieds'), field('Max. Personen', num(t, 'limit', { min: 0, max: 99, suffix: '0 = unbegrenzt' })))));
+  },
+});
+
+page({
+  id: 'rights', title: 'Rechte', icon: 'shield', group: 'Nur für dich', rights: true,
+  desc: 'Lege pro Befehl fest, welche Rollen und welche Mitglieder ihn auf diesem Server benutzen dürfen. Nur du siehst diesen Bereich.',
+  async render(root, end) {
+    const data = await tryApi('/api/rights');
+    const rules = clone(data.rules || {});
+    const users = { ...(data.users || {}) };
+    let saved = JSON.stringify(rules);
+    const PERM = [[8n, 'Administrator'], [4n, 'Mitglieder bannen'], [2n, 'Mitglieder kicken'], [32n, 'Server verwalten'], [16n, 'Kanäle verwalten'],
+      [8192n, 'Nachrichten verwalten'], [1099511627776n, 'Mitglieder im Timeout'], [268435456n, 'Rollen verwalten']];
+    const permLabel = (p) => {
+      if (!p) return 'alle';
+      try { const v = BigInt(p); const hit = PERM.filter(([b]) => (v & b) === b).map(([, l]) => l); return hit.length ? hit.join(', ') : 'Sonderrecht'; } catch { return 'Sonderrecht'; }
+    };
+    const ruleOf = (n) => rules[n] || (rules[n] = { mode: 'default', roles: [], users: [] });
+    const saveBtn = h('button.btn.primary', { type: 'button', disabled: true, onclick: async () => {
+      saveBtn.disabled = true;
+      try {
+        const r = await tryApi('/api/rights', { method: 'PUT', body: { commands: rules } });
+        for (const k of Object.keys(rules)) if (!r.rules[k]) delete rules[k];
+        Object.assign(rules, clone(r.rules));
+        saved = JSON.stringify(r.rules);
+        toast('Rechte gespeichert');
+        draw();
+      } catch { mark(); }
+    } }, 'Speichern');
+    const norm = () => JSON.stringify(Object.fromEntries(Object.entries(rules).filter(([, r]) => r.mode !== 'default' || r.roles.length || r.users.length)));
+    const mark = () => { saveBtn.disabled = norm() === saved; };
+    end.prepend(saveBtn);
+
+    const search = h('input', { type: 'search', placeholder: 'Befehl suchen …', style: 'max-width:280px' });
+    const only = h('label.row', { style: 'gap:6px' }, h('input', { type: 'checkbox' }), 'Nur geänderte');
+    const listEl = h('div');
+    const MODE = [['default', 'Standard (Discord-Rechte)'], ['custom', 'Nur ausgewählte Rollen / Mitglieder'], ['off', 'Gesperrt (niemand)']];
+
+    function userPicker(rule) {
+      const wrap = h('div.chips');
+      const results = h('div.chips', { style: 'margin-top:6px' });
+      const input = h('input', { type: 'search', placeholder: '+ Mitglied (Name oder ID)', style: 'width:220px;padding:3px 10px;border-radius:999px;font-size:12.5px' });
+      let t = null;
+      input.addEventListener('input', () => {
+        clearTimeout(t);
+        const q = input.value.trim();
+        if (!q) { results.replaceChildren(); return; }
+        t = setTimeout(async () => {
+          const found = await api(`/api/members?q=${encodeURIComponent(q)}`).catch(() => []);
+          results.replaceChildren(...(found.length ? found : []).map((m) => h('button.chip', { type: 'button', style: 'padding-right:9px', onclick: () => {
+            users[m.id] = { name: m.name, tag: m.tag, avatar: m.avatar };
+            if (!rule.users.includes(m.id)) rule.users.push(m.id);
+            input.value = ''; results.replaceChildren(); draw2(); mark();
+          } }, m.avatar ? h('img', { src: m.avatar, alt: '', style: 'width:16px;height:16px;border-radius:50%' }) : null, `${m.name} (${m.tag})`)),
+          found.length ? null : h('span.muted.small', 'Niemand gefunden'));
+        }, 250);
+      });
+      const draw2 = () => wrap.replaceChildren(...rule.users.map((id) => h('span.chip',
+        users[id]?.avatar ? h('img', { src: users[id].avatar, alt: '', style: 'width:16px;height:16px;border-radius:50%' }) : null, users[id]?.name || id,
+        h('button', { type: 'button', title: 'Entfernen', onclick: () => { rule.users = rule.users.filter((x) => x !== id); draw2(); mark(); } }, '×'))), input);
+      draw2();
+      return h('div', wrap, results);
+    }
+
+    function row(c) {
+      const rule = ruleOf(c.name);
+      const body = h('div');
+      const drawBody = () => {
+        body.replaceChildren();
+        if (rule.mode !== 'custom') return;
+        const rolesEl = roles(rule, 'roles');
+        rolesEl.addEventListener('change', mark);
+        rolesEl.addEventListener('click', () => setTimeout(mark));
+        body.append(h('div.grid', { style: 'margin-top:10px' }, field('Rollen', rolesEl), field('Mitglieder', userPicker(rule))),
+          h('p.hint', 'Darf benutzen, wer eine der Rollen hat oder als Mitglied eingetragen ist. Du selbst darfst immer.'));
+      };
+      const mode = h('select', { style: 'max-width:300px', onchange: (e) => { rule.mode = e.target.value; drawBody(); mark(); } }, MODE.map(([v, l]) => h('option', { value: v }, l)));
+      mode.value = rule.mode;
+      drawBody();
+      const badge = rule.mode === 'off' ? h('span.badge.off', 'gesperrt') : rule.mode === 'custom' ? h('span.badge.on', 'eigene Regel') : null;
+      return h('div.rt-row', { 'data-cmd': c.name, style: 'padding:12px 0;border-bottom:1px solid var(--line)' },
+        h('div.row', h('div', { style: 'min-width:0;flex:1' }, h('b', `/${c.name}`), ' ', c.custom ? h('span.badge', 'eigener Befehl') : null, ' ', badge,
+          h('div.muted.small', `${c.description || ''}${c.description ? ' · ' : ''}Standard: ${permLabel(c.perm)}`)), mode),
+        body);
+    }
+    function draw() {
+      const q = search.value.trim().toLowerCase().replace(/^\//, '');
+      const changedOnly = only.querySelector('input').checked;
+      const list = data.commands.filter((c) => (!q || c.name.includes(q) || (c.description || '').toLowerCase().includes(q))
+        && (!changedOnly || (rules[c.name] && rules[c.name].mode !== 'default')));
+      listEl.replaceChildren(...(list.length ? list.map(row) : [h('p.muted', 'Kein Befehl gefunden.')]));
+      mark();
+    }
+    search.addEventListener('input', draw);
+    only.querySelector('input').addEventListener('change', draw);
+    root.append(card(`${data.commands.length} Befehle`, 'Standard = so, wie Discord es vorgibt (z. B. /ban nur mit dem Recht „Mitglieder bannen“). Mit einer eigenen Regel zählen nur noch die ausgewählten Rollen und Mitglieder. Gilt auch für /aio und damit fürs Panel.',
+      h('div.row', { style: 'margin-bottom:6px' }, search, only), listEl));
+    draw();
   },
 });
 
