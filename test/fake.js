@@ -11,6 +11,7 @@ export function fakeClient() {
     iconURL: () => null, joinedTimestamp: Date.now() - 864e5,
     channels: { cache: new Collection() }, roles: { cache: new Collection() }, emojis: { cache: new Collection() },
     leave: async () => {},
+    voiceStates: { cache: new Collection() },
   };
   const mkChannel = (id, name, type, parentId = null, pos = 0) => {
     const msgs = new Collection();
@@ -47,11 +48,12 @@ export function fakeClient() {
   const member = (id, name) => ({
     id, displayName: name, user: { id, username: name.toLowerCase(), tag: name.toLowerCase(), bot: false, displayAvatarURL: () => null },
     permissions: yes, roles: { cache: new Collection(), highest: { position: 9, comparePositionTo: () => 1 } }, guild,
+    nickname: null, voice: { channelId: null }, setNickname: async function (n) { this.nickname = n; },
     displayAvatarURL: () => null,
   });
   const members = new Collection([['1', member('1', 'Sebastian')], ['2', member('2', 'Alex')]]);
   guild.members = {
-    cache: members, me: { nickname: null, roles: { highest: { position: 5 } }, setNickname: async (n) => { guild.members.me.nickname = n; } },
+    cache: members, me: { nickname: null, permissions: yes, roles: { highest: { position: 5 } }, setNickname: async (n) => { guild.members.me.nickname = n; } },
     fetch: async (q) => (typeof q === 'string' ? members.get(q) || null : members),
   };
   const client = {

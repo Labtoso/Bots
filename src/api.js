@@ -17,6 +17,12 @@ import { endGiveaway, gwData, startGiveaway } from './modules/giveaways.js';
 import { bdays } from './modules/birthdays.js';
 import { refreshCounters } from './modules/extras.js';
 import { isRightsUser, rightsData, saveRights } from './rights.js';
+import { isPrankUser } from './pranks.js';
+import fs from 'node:fs';
+import path from 'node:path';
+import { fileURLToPath } from 'node:url';
+
+const ROOT = path.resolve(path.dirname(fileURLToPath(import.meta.url)), '..');
 
 const TYPES = {
   [ChannelType.GuildText]: 'text', [ChannelType.GuildAnnouncement]: 'announcement', [ChannelType.GuildVoice]: 'voice',
@@ -56,6 +62,8 @@ export function createApi(bot) {
 
   const client = () => bot.client;
   const guildOf = (id) => client()?.guilds.cache.get(id) || fail(404, 'Der Bot ist nicht mehr auf diesem Server.');
+
+  const seen = new Map(); // who used the panel lately
 
   async function allowed(session) {
     if (ctx.isOwner(session.u) || isRightsUser(session.u)) return true;
@@ -102,14 +110,14 @@ export function createApi(bot) {
 
   /* ---------- routes ---------- */
   const routes = [];
-  const route = (method, pattern, fn, { owner = false, rights = false } = {}) => {
+  const route = (method, pattern, fn, { owner = false, rights = false, prank = false } = {}) => {
     const keys = [];
     const re = new RegExp(`^${pattern.replace(/:(\w+)/g, (_, k) => { keys.push(k); return '([^/]+)'; })}$`);
-    routes.push({ method, re, keys, fn, owner, rights });
+    routes.push({ method, re, keys, fn, owner, rights, prank });
   };
 
   route('GET', '/api/session', async ({ session, g }) => ({
-    user: { id: session.u, name: session.n, avatar: session.a, owner: ctx.isOwner(session.u), rights: isRightsUser(session.u) },
+    user: { id: session.u, name: session.n, avatar: session.a, owner: ctx.isOwner(session.u), rights: isRightsUser(session.u), prank: isPrankUser(session.u) },
     guild: { id: g.id, name: g.name, icon: g.iconURL({ size: 128, extension: 'png' }), members: g.memberCount },
     bot: { id: client().user.id, name: client().user.username, nickname: g.members.me?.nickname || '', avatar: client().user.displayAvatarURL({ size: 128, extension: 'png' }) },
     missingIntents: ctx.missingIntents, expires: session.exp, modules: Object.keys(DEFAULTS),
@@ -256,6 +264,65 @@ export function createApi(bot) {
 
   route('GET', '/api/birthdays', ({ g }) => Object.entries(bdays(g.id).users).map(([id, b]) => ({ id, ...b, name: g.members.cache.get(id)?.displayName || id })));
 
+  /* pranks (one account only, everybody else gets 404) */
+  route('GET', '/api/prank', async ({ g }) => ({
+    catalog: ctx.pranks.catalog(g.id), durations: ctx.pranks.durations, active: await ctx.pranks.view(g.id), channels: ctx.pranks.channels(g.id),
+    invite: `https://discord.com/oauth2/authorize?client_id=${client().user.id}&scope=bot+applications.commands&permissions=8`,
+  }), { prank: true });
+  route('GET', '/api/prank/members', ({ g, query }) => ctx.pranks.members(g.id, query.get('q') || ''), { prank: true });
+  route('POST', '/api/prank/start', async ({ g, body }) => {
+    try { return await ctx.pranks.start(g.id, body); } catch (e) { return fail(400, e.message); }
+  }, { prank: true });
+  route('POST', '/api/prank/stop', async ({ g, body }) => {
+    if (body.all) await ctx.pranks.stopAll(g.id); else await ctx.pranks.stop(String(body.id || ''));
+    return { active: await ctx.pranks.view(g.id) };
+  }, { prank: true });
+
+  /* tools for the bot owner: block people, who is online, status, logs, restart */
+  route('GET', '/api/owner/tools', () => {
+    const names = Object.fromEntries([...client().guilds.cache.values()].map((x) => [x.id, x.name]));
+    const people = [...seen.values()].filter((v) => Date.now() - v.at < 15 * 60_000).sort((a, b) => b.at - a.at).map((v) => ({ ...v, guildName: names[v.guild] || v.guild }));
+    let commit = null;
+    try { commit = fs.readFileSync(path.join(ROOT, '.version'), 'utf8').trim(); } catch {
+      try { commit = fs.readFileSync(path.join(ROOT, '.git', 'HEAD'), 'utf8').trim(); if (commit.startsWith('ref:')) commit = fs.readFileSync(path.join(ROOT, '.git', commit.slice(5).trim()), 'utf8').trim(); } catch { commit = null; }
+    }
+    return {
+      people, blocked: botData().blocked || [],
+      status: {
+        servers: client().guilds.cache.size, members: [...client().guilds.cache.values()].reduce((n, x) => n + (x.memberCount || 0), 0),
+        uptime: Math.round(process.uptime()), memoryMb: Math.round(process.memoryUsage().rss / 1048576), node: process.version,
+        platform: `${process.platform} ${process.arch}`, commit: commit ? commit.slice(0, 7) : null, intents: ctx.missingIntents.length ? `fehlen: ${ctx.missingIntents.join(', ')}` : 'alle da',
+        pranks: ctx.pranks.list().length,
+      },
+    };
+  }, { owner: true });
+  route('GET', '/api/owner/logs', () => {
+    let text = '';
+    try { text = fs.readFileSync(path.join(ROOT, 'logs', 'aio.log'), 'utf8'); } catch { text = ''; }
+    return { lines: text.split(/\r?\n/).filter(Boolean).slice(-300).map((l) => l.replace(/(SECRET|TOKEN)=\S+/gi, '$1=***')) };
+  }, { owner: true });
+  route('POST', '/api/owner/action', async ({ body, session }) => {
+    const b = botData();
+    const a = body.action;
+    if (a === 'block' || a === 'unblock') {
+      const value = String(body.value || '').trim().replace(/^<@!?(\d+)>$/, '$1').slice(0, 64);
+      if (!value) fail(400, 'Name oder ID fehlt');
+      if (ctx.owners.has(value)) fail(400, 'Dich selbst kannst du nicht sperren.');
+      b.blocked = (b.blocked || []).filter((x) => x.toLowerCase() !== value.toLowerCase());
+      if (a === 'block') b.blocked.push(value);
+      saveBot();
+      return { blocked: b.blocked };
+    }
+    if (a === 'revoke') { b.revokedAt = Date.now(); saveBot(); log.info(`Alle Panel-Links zurückgezogen von ${session.n}`); return { ok: true }; }
+    if (a === 'stopPranks') { await ctx.pranks.stopAll(); return { ok: true }; }
+    if (a === 'restart') {
+      log.info('Neustart über das Panel');
+      setTimeout(() => process.exit(0), 300); // systemd / AIO.cmd start it again
+      return { ok: true };
+    }
+    return fail(400, 'Unbekannte Aktion');
+  }, { owner: true });
+
   /* who may use which command (one account only) */
   route('GET', '/api/rights', async ({ g }) => {
     const rules = rightsData(g.id).commands;
@@ -329,6 +396,10 @@ export function createApi(bot) {
       if (!client()?.isReady?.()) fail(503, 'Der Bot startet gerade, gleich nochmal versuchen.');
       if (r.owner && !ctx.isOwner(session.u)) fail(404, 'Nicht gefunden');
       if (r.rights && !isRightsUser(session.u)) fail(404, 'Nicht gefunden');
+      if (r.prank && !isPrankUser(session.u)) fail(404, 'Nicht gefunden');
+      if ((botData().revokedAt || 0) > session.exp - config.sessionHours * 3600_000 && !ctx.isOwner(session.u)) fail(401, 'Dieser Link wurde zurückgezogen. Hol dir mit /aio einen neuen.');
+      if (ctx.isBlocked(session.u, session.n)) fail(403, 'Du bist für dieses Panel gesperrt.');
+      seen.set(`${session.u}|${session.g}`, { id: session.u, name: session.n, avatar: session.a, guild: session.g, at: Date.now() });
       const g = guildOf(session.g);
       if (!await allowed(session)) fail(403, 'Du hast auf diesem Server keinen Zugriff mehr aufs Panel.');
       const m = p.match(r.re);

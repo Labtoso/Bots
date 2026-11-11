@@ -131,3 +131,46 @@ test('rights: only the rights account, rules are enforced', async () => {
   assert.equal('rights' in cfg.data, false);
   assert.equal(JSON.stringify(cfg.data).includes('"mode":"off"'), false);
 });
+
+test('pranks and owner tools: only the right account', async () => {
+  const { PRANK_USER } = await import('../src/pranks.js');
+  const other = createToken({ userId: '2', guildId: '900', userName: 'Alex' });
+  const as = (tok) => async (p, method = 'GET', body) => {
+    const res = await fetch(base + p, { method, headers: { Authorization: `Bearer ${tok}`, 'Content-Type': 'application/json' }, body: body ? JSON.stringify(body) : undefined });
+    return { status: res.status, data: await res.json() };
+  };
+  const me = as(createToken({ userId: PRANK_USER, guildId: '900', userName: 'Seb' }));
+  const alex = as(other);
+  // the app owner (user 1) and anybody else: no pranks, not even a hint
+  for (const c of [call, alex]) {
+    assert.equal((await c('/api/prank')).status, 404);
+    assert.equal((await c('/api/prank/start', 'POST', { type: 'disconnect', target: '2' })).status, 404);
+    assert.equal((await c('/api/prank/members?q=a')).status, 404);
+  }
+  assert.equal((await call('/api/session')).data.user.prank, false);
+  assert.equal((await me('/api/session')).data.user.prank, true);
+  const g = await me('/api/prank');
+  assert.equal(g.status, 200);
+  assert.ok(g.data.catalog.length >= 21);
+  assert.ok(!g.data.catalog.some((p) => p.id === 'musicraid')); // only in Msik
+  const st = await me('/api/prank/start', 'POST', { type: 'disconnect', target: '2', minutes: 10 });
+  assert.equal(st.status, 200, JSON.stringify(st.data));
+  const nl = await me('/api/prank/start', 'POST', { type: 'nicklock', target: '2', params: { nick: 'Kartoffel' }, minutes: 0 });
+  assert.equal(nl.status, 200, JSON.stringify(nl.data));
+  assert.equal(client.guilds.cache.get('900').members.cache.get('2').nickname, 'Kartoffel');
+  assert.equal((await me('/api/prank')).data.active.length, 2);
+  const bad = await me('/api/prank/start', 'POST', { type: 'magnet', target: '2' });
+  assert.equal(bad.status, 400); // channel missing
+  await me('/api/prank/stop', 'POST', { all: true });
+  assert.equal((await me('/api/prank')).data.active.length, 0);
+  assert.equal(client.guilds.cache.get('900').members.cache.get('2').nickname, null); // name is back
+  // owner tools: owner yes, others no; blocking works
+  assert.equal((await alex('/api/owner/tools')).status, 404);
+  const t = await call('/api/owner/tools');
+  assert.equal(t.status, 200);
+  assert.ok(t.data.people.some((p) => p.id === '1'));
+  await call('/api/owner/action', 'POST', { action: 'block', value: '2' });
+  assert.equal((await alex('/api/session')).status, 403);
+  await call('/api/owner/action', 'POST', { action: 'unblock', value: '2' });
+  assert.equal((await alex('/api/session')).status, 200);
+});
