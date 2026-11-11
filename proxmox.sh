@@ -42,61 +42,29 @@ spotify() { # asks for the Spotify Client ID, then the Client secret; Enter, Esc
 num()    { [[ "$1" =~ ^[0-9]+$ ]] || die "$2 must be a number (got \"$1\")."; }
 
 # ---------- Notes in the Proxmox UI ----------
-# Installs a small helper on the host that writes the current backend address into the container's
-# Notes (Proxmox UI: container -> Summary). A timer refreshes it every 2 minutes, because the free
-# Cloudflare tunnel gets a new address on every restart.
+# A helper on the host writes the current backend address into the container's Notes
+# (Proxmox UI: container -> Summary). A timer refreshes it every 2 minutes, because the free
+# Cloudflare tunnel gets a new address on every restart. The helper is shared with the AIO bot,
+# so a container that runs both shows both addresses.
 install_notes() {
-  cat > /usr/local/bin/msik-notes <<'NOTES'
-#!/usr/bin/env bash
-# Writes the Msik backend address into the Notes of Msik containers (Proxmox UI: container -> Summary).
-#   msik-notes          all running containers tagged "msik"
-#   msik-notes 105      only container 105
-# Prints "<ID> <backend address>" for every container it looked at.
-set -uo pipefail
-state=/run/msik-notes; mkdir -p "$state"
-ids="$*"; [ -n "$ids" ] || ids=$(pct list 2>/dev/null | awk 'NR>1 && $2=="running" {print $1}')
-for id in $ids; do
-  pct config "$id" 2>/dev/null | grep -q '^tags:.*msik' || continue
-  [ "$(pct status "$id" 2>/dev/null | awk '{print $2}')" = running ] || continue
-  url=$(pct exec "$id" -- sh -c 'u=$(grep -m1 "^PUBLIC_URL=" /opt/msik/.env 2>/dev/null | cut -d= -f2-); [ -n "$u" ] && echo "$u" || journalctl -u msik -b --no-pager -o cat 2>/dev/null | grep -a "API-Adresse" | grep -o "https://[^ ]*" | tail -1' 2>/dev/null)
-  invite=$(pct exec "$id" -- sh -c 'journalctl -u msik --no-pager -o cat 2>/dev/null | grep -o "https://discord.com/oauth2/[^ ]*" | tail -1' 2>/dev/null)
-  ip=$(pct exec "$id" -- hostname -I 2>/dev/null | awk '{print $1}')
-  echo "$id ${url:-}"
-  if [ -n "$invite" ]; then inv="[Einladungslink]($invite)"; else inv="steht nach dem Start im Log"; fi
-  desc="## 🎵 Msik Musikbot
-
-**Backend-Adresse** (zum Kopieren, im Dashboard unter Einstellungen → Backend einfügen):
-
-\`\`\`
-${url:-wird noch ermittelt, Bot startet gerade ...}
-\`\`\`
-
-- Dashboard: [bot.labtoso.de/Msik](https://bot.labtoso.de/Msik/)
-- Bot einladen: $inv
-- Danach in Discord in einen Sprachkanal gehen und \`/web\` eingeben (der Link verbindet das Backend automatisch).
-- Container-IP: ${ip:-?}
-
-Logs: \`journalctl -u msik -f\` (Konsole des Containers) · Update: Proxmox-Script nochmal ausführen
-
-_Die Adresse aktualisiert sich hier alle 2 Minuten von selbst (msik-notes.timer auf dem Host)._"
-  sum=$(printf '%s' "$desc" | md5sum | cut -d' ' -f1)
-  [ "$(cat "$state/$id" 2>/dev/null)" = "$sum" ] && continue
-  pct set "$id" --description "$desc" && echo "$sum" > "$state/$id"
-done
-NOTES
-  chmod 755 /usr/local/bin/msik-notes
-  cat > /etc/systemd/system/msik-notes.service <<'UNIT'
+  local tmp; tmp=$(mktemp)
+  curl -fsSL https://bot.labtoso.de/bot-notes.sh -o "$tmp" || { rm -f "$tmp"; die "Could not download the notes helper."; }
+  install -m 755 "$tmp" /usr/local/bin/bot-notes; rm -f "$tmp"
+  for b in msik aio; do printf '#!/bin/sh\nexec /usr/local/bin/bot-notes %s "$@"\n' "$b" > "/usr/local/bin/$b-notes"; chmod 755 "/usr/local/bin/$b-notes"; done
+  systemctl disable -q --now msik-notes.timer aio-notes.timer 2>/dev/null || true
+  rm -f /etc/systemd/system/msik-notes.service /etc/systemd/system/msik-notes.timer /etc/systemd/system/aio-notes.service /etc/systemd/system/aio-notes.timer
+  cat > /etc/systemd/system/bot-notes.service <<'UNIT'
 [Unit]
-Description=Write the Msik backend address into the container notes
+Description=Write the bot backend addresses into the container notes
 
 [Service]
 Type=oneshot
-ExecStart=/usr/local/bin/msik-notes
+ExecStart=/usr/local/bin/bot-notes
 StandardOutput=null
 UNIT
-  cat > /etc/systemd/system/msik-notes.timer <<'UNIT'
+  cat > /etc/systemd/system/bot-notes.timer <<'UNIT'
 [Unit]
-Description=Refresh the Msik container notes every 2 minutes
+Description=Refresh the bot container notes every 2 minutes
 
 [Timer]
 OnBootSec=1min
@@ -106,18 +74,18 @@ OnUnitActiveSec=2min
 WantedBy=timers.target
 UNIT
   systemctl daemon-reload
-  systemctl enable -q --now msik-notes.timer
+  systemctl enable -q --now bot-notes.timer
 }
 
 show_backend() { # show_backend CTID -> waits for the address, writes the Notes and prints it
   local id="$1" url="" i
   info "Waiting for the backend address"
   for i in $(seq 1 30); do
-    url=$(/usr/local/bin/msik-notes "$id" | awk '{print $2}')
+    url=$(/usr/local/bin/bot-notes msik "$id" | awk '{print $2}')
     [ -n "$url" ] && break
     sleep 3
   done
-  rm -f "/run/msik-notes/$id"; /usr/local/bin/msik-notes "$id" >/dev/null
+  rm -f "/run/bot-notes/$id"; /usr/local/bin/bot-notes "$id" >/dev/null
   echo
   if [ -n "$url" ]; then
     printf "  ${c_b}Backend address (copy this into the dashboard, Settings -> Backend):${c_off}\n\n"
@@ -307,5 +275,5 @@ echo "  Logs:    pct exec $CTID -- journalctl -u msik -f"
 echo "  Shell:   pct enter $CTID"
 echo "  Update:  run this script again (or it updates itself every 15 minutes)"
 echo "  Remove:  pct stop $CTID && pct destroy $CTID"
-echo "           (notes helper on the host: systemctl disable --now msik-notes.timer)"
+echo "           (notes helper on the host: systemctl disable --now bot-notes.timer)"
 echo

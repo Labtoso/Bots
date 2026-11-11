@@ -23,6 +23,7 @@ function Fail($t) { Write-Host $t -ForegroundColor Red; throw $t }
 Write-Host ''
 Write-Host '  AIO bot installer' -ForegroundColor Cyan
 Write-Host ''
+if (Test-Path (Join-Path $env:LOCALAPPDATA 'Msik\.env')) { Say 'Msik music bot found, AIO is installed next to it (own folder, port 8090).' }
 
 New-Item -ItemType Directory -Force -Path $Dir | Out-Null
 $envFile = Join-Path $Dir '.env'
