@@ -24,6 +24,8 @@ function h(tag, attrs, ...kids) {
   return e;
 }
 const ICONS = {
+  prank: '<circle cx="12" cy="12" r="9"/><path d="M8 14s1.5 2 4 2 4-2 4-2M9 9h.01M15 9h.01"/><path d="M7 4.5 5 2M17 4.5 19 2"/>',
+  tool: '<path d="M14.7 6.3a4 4 0 0 0-5.4 5.4L3 18l3 3 6.3-6.3a4 4 0 0 0 5.4-5.4l-2.6 2.6-2.4-.6-.6-2.4z"/>',
   home: '<path d="M3 11 12 4l9 7"/><path d="M5 10v10h14V10"/>',
   bot: '<rect x="4" y="8" width="16" height="12" rx="3"/><path d="M12 4v4M9 14h.01M15 14h.01"/>',
   embed: '<rect x="3" y="4" width="18" height="16" rx="2"/><path d="M3 4v16"/><path d="M8 9h8M8 13h6"/>',
@@ -536,6 +538,7 @@ function renderNav() {
   for (const p of PAGES) {
     if (p.owner && !S.me?.owner) continue;
     if (p.rights && !S.me?.rights) continue;
+    if (p.prank && !S.me?.prank) continue;
     if (p.group !== group) { group = p.group; if (group) nav.append(h('h4', group)); }
     const mod = p.mods?.[0];
     const on = mod && S.cfg?.[mod] && typeof S.cfg[mod].enabled === 'boolean' ? S.cfg[mod].enabled : null;
@@ -544,7 +547,7 @@ function renderNav() {
 }
 async function go(id) {
   let p = PAGES.find((x) => x.id === id) || PAGES[0];
-  if ((p.rights && !S.me?.rights) || (p.owner && !S.me?.owner)) p = PAGES[0];
+  if ((p.rights && !S.me?.rights) || (p.owner && !S.me?.owner) || (p.prank && !S.me?.prank)) p = PAGES[0];
   if (current && current.id !== p.id && dirtyMods().length) {
     if (!confirm('Ungespeicherte Änderungen verwerfen?')) return;
     for (const m of current.mods || []) S.cfg[m] = JSON.parse(S.saved[m]);
@@ -1240,6 +1243,44 @@ page({
     const t = S.cfg.tempvoice;
     root.append(card(null, null, h('div.grid', field('„Erstellen“-Kanal', chan(t, 'hub', { kinds: 'voice' })), field('Kategorie', chan(t, 'category', { kinds: 'category', empty: 'Wie der Erstellen-Kanal' })),
       field('Name', text(t, 'name'), '{user.name} = Name des Mitglieds'), field('Max. Personen', num(t, 'limit', { min: 0, max: 99, suffix: '0 = unbegrenzt' })))));
+  },
+});
+
+page({
+  id: 'prank', title: 'Prank', icon: 'prank', group: 'Nur für dich', prank: true,
+  desc: 'Harmlose Scherze für diesen Server. Nur du siehst diesen Bereich, alles lässt sich jederzeit stoppen.',
+  render(root) { window.PrankUI.mount(root, { api, toast }); },
+});
+
+page({
+  id: 'tools', title: 'Werkzeuge', icon: 'tool', group: 'Nur für dich', owner: true,
+  desc: 'Personen sperren, wer gerade im Panel ist, Status, Logs und Neustart.',
+  async render(root) {
+    const d = await tryApi('/api/owner/tools');
+    const act = (action, extra = {}) => tryApi('/api/owner/action', { method: 'POST', body: { action, ...extra } });
+    const blockInput = h('input', { placeholder: 'Discord-ID, @Erwähnung oder Name', style: 'flex:1;min-width:200px' });
+    const blockedEl = h('div.chips');
+    const drawBlocked = (list) => blockedEl.replaceChildren(...(list.length ? list.map((b) => h('span.chip', b, h('button', { type: 'button', title: 'Entsperren', onclick: async () => { const r = await act('unblock', { value: b }); drawBlocked(r.blocked); toast('Entsperrt'); } }, '×'))) : [h('span.muted.small', 'Niemand gesperrt.')]));
+    drawBlocked(d.blocked);
+    const s = d.status;
+    const up = s.uptime >= 86400 ? `${Math.floor(s.uptime / 86400)} T ${Math.floor((s.uptime % 86400) / 3600)} h` : `${Math.floor(s.uptime / 3600)} h ${Math.floor((s.uptime % 3600) / 60)} min`;
+    const logPre = h('pre', { style: 'max-height:420px;overflow:auto;background:var(--bg);border:1px solid var(--line);border-radius:8px;padding:10px;font-size:12px;white-space:pre-wrap;margin:10px 0 0', hidden: true });
+    root.append(
+      card('Sperren', 'Gesperrte Personen kommen nicht mehr ins Panel und bekommen bei /aio keinen Link. Gilt für alle Server dieses Bots.',
+        h('form.row', { onsubmit: async (e) => { e.preventDefault(); if (!blockInput.value.trim()) return; const r = await act('block', { value: blockInput.value.trim() }); blockInput.value = ''; drawBlocked(r.blocked); toast('Gesperrt'); } },
+          blockInput, h('button.btn.primary', { type: 'submit' }, 'Sperren')), h('div', { style: 'margin-top:10px' }, blockedEl)),
+      card(`Gerade im Panel (${d.people.length})`, 'Wer in den letzten 15 Minuten im Panel war.',
+        d.people.length ? h('div', d.people.map((p) => h('div.row', { style: 'padding:6px 0;border-bottom:1px solid var(--line)' },
+          h('div.who-cell', h('img', { src: p.avatar || 'icon.svg', alt: '' }), h('span', h('b', p.name), h('div.muted.small', `${p.guildName} · ${ago(p.at)}`))), h('span.spacer'),
+          p.id === S.me.id ? h('span.badge.on', 'du') : h('button.btn.sm.danger', { type: 'button', onclick: async () => { const r = await act('block', { value: p.id }); drawBlocked(r.blocked); toast(`${p.name} gesperrt`); } }, 'Sperren')))) : h('p.muted', 'Niemand.')),
+      card('Status', null, h('div.grid', ...[['Server', s.servers], ['Mitglieder', s.members], ['Läuft seit', up], ['Speicher', `${s.memoryMb} MB`], ['Node.js', s.node], ['System', s.platform], ['Version', s.commit || '-'], ['Intents', s.intents], ['Aktive Pranks', s.pranks]]
+        .map(([k, v]) => h('div', h('div.muted.small', k), h('b', String(v)))))),
+      card('Debug & Aktionen', null, h('div.row',
+        h('button.btn', { type: 'button', onclick: async () => { const r = await tryApi('/api/owner/logs'); logPre.textContent = r.lines.join('\n') || '(leer)'; logPre.hidden = false; logPre.scrollTop = logPre.scrollHeight; } }, 'Logs anzeigen'),
+        h('button.btn', { type: 'button', onclick: async () => { if (!confirm('Alle Panel-Links ungültig machen? Jeder braucht danach einen neuen /aio-Link (du nicht).')) return; await act('revoke'); toast('Alle Links zurückgezogen'); } }, 'Alle Links zurückziehen'),
+        h('button.btn', { type: 'button', onclick: async () => { await act('stopPranks'); toast('Alle Pranks gestoppt'); } }, 'Alle Pranks stoppen'),
+        h('button.btn.danger', { type: 'button', onclick: async () => { if (!confirm('Bot neu starten? Er ist ein paar Sekunden offline.')) return; await act('restart'); toast('Startet neu …'); setTimeout(() => boot(), 8000); } }, 'Bot neu starten')), logPre),
+    );
   },
 });
 
