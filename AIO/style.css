@@ -40,7 +40,18 @@ svg.i { width: 18px; height: 18px; flex: none; fill: none; stroke: currentColor;
 .server img { width: 26px; height: 26px; border-radius: 7px; background: var(--panel-2); }
 .server span { white-space: nowrap; overflow: hidden; text-overflow: ellipsis; max-width: 26vw; }
 .avatar { width: 30px; height: 30px; border-radius: 50%; background: var(--panel-2); }
-.menu-btn { display: none; }
+.top .menu-btn { display: none; }
+body[data-accent="blue"] { --accent: #3b82f6; --accent-soft: rgba(59, 130, 246, .14); }
+body[data-accent="green"] { --accent: #22c55e; --accent-soft: rgba(34, 197, 94, .14); }
+body[data-accent="pink"] { --accent: #ec4899; --accent-soft: rgba(236, 72, 153, .14); }
+#gearBtn[aria-expanded="true"] { background: var(--hover); color: var(--text); }
+.settings-pop { position: fixed; top: 60px; left: 12px; width: 230px; padding: 14px 16px; border-radius: var(--r-card); background: var(--panel);
+  border: 1px solid var(--line); box-shadow: 0 12px 32px rgba(0, 0, 0, .45); z-index: 40; }
+.settings-pop .label { display: block; color: var(--muted); font-size: 12.5px; margin-bottom: 10px; }
+.swatches { display: flex; gap: 12px; }
+.sw { width: 30px; height: 30px; border-radius: 50%; border: 0; background: var(--c); padding: 0; cursor: pointer; outline-offset: 3px; }
+.sw.active { outline: 2px solid var(--text); }
+.gate-nav { display: none; }
 
 .shell { display: grid; grid-template-columns: 236px minmax(0, 1fr); min-height: calc(100vh - 56px); }
 nav.side { border-right: 1px solid var(--line); padding: 12px 8px 40px; position: sticky; top: 56px; height: calc(100vh - 56px); overflow-y: auto; }
@@ -235,10 +246,11 @@ table.tbl tr:last-child td { border-bottom: 0; }
   .composer .preview-wrap { position: static; }
 }
 @media (max-width: 760px) {
-  .menu-btn { display: grid; }
+  .top .menu-btn { display: grid; }
   .shell { grid-template-columns: minmax(0, 1fr); }
   nav.side { position: fixed; left: 0; top: 56px; bottom: 0; width: 260px; background: var(--bg); z-index: 30; transform: translateX(-100%); transition: transform .2s; height: auto; }
   body.nav-open nav.side { transform: none; box-shadow: 0 0 40px rgba(0, 0, 0, .6); }
+  body.gate-mode .gate-nav { display: block; }
   .server span { display: none; }
   .page-head { flex-wrap: wrap; }
   .page-head .end { margin-left: 0; }

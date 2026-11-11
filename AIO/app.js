@@ -176,6 +176,8 @@ const tryApi = async (...a) => { try { return await api(...a); } catch (e) { toa
 const S = { me: null, guild: null, bot: null, cfg: null, saved: {}, info: { channels: [], roles: [], emojis: [] }, page: 'overview', missing: [] };
 
 function showGate(kind) {
+  document.body.classList.add('gate-mode');
+  renderGateNav();
   $('shell').hidden = true;
   $('gate').hidden = false;
   $('server').hidden = true;
@@ -213,6 +215,7 @@ async function boot() {
     $('gateText').textContent = e.message;
     return;
   }
+  document.body.classList.remove('gate-mode');
   $('gate').hidden = true;
   $('shell').hidden = false;
   $('server').hidden = false;
@@ -568,8 +571,37 @@ function rerender() {
   root.append(head);
   Promise.resolve(p.render(root, end)).catch((e) => root.append(h('div.notice', e.message)));
 }
-$('menuBtn').onclick = () => document.body.classList.toggle('nav-open');
-document.addEventListener('click', (e) => { if (document.body.classList.contains('nav-open') && !e.target.closest('#nav') && !e.target.closest('#menuBtn')) document.body.classList.remove('nav-open'); });
+$('menuBtn').onclick = () => { closeSettings(); document.body.classList.toggle('nav-open'); };
+document.addEventListener('click', (e) => { if (document.body.classList.contains('nav-open') && !e.target.closest('nav.side') && !e.target.closest('#menuBtn')) document.body.classList.remove('nav-open'); });
+/** Menu while there is no session (no panel link yet): backends, guide, all bots. */
+function renderGateNav() {
+  const close = () => document.body.classList.remove('nav-open');
+  $('gateNav').replaceChildren(
+    h('button', { onclick: () => { close(); $('backendInput').focus(); $('gate').scrollIntoView({ behavior: 'smooth' }); } }, icon('server'), h('span', 'Backends')),
+    h('button', { onclick: () => { close(); openGuideStandalone(); } }, icon('help'), h('span', 'Anleitung & Installation')),
+    h('button', { onclick: () => { location.href = '../'; } }, icon('home'), h('span', 'Alle Bots')),
+  );
+}
+
+/* ---------- gear: accent colour ---------- */
+const ACCENTS = ['violet', 'blue', 'green', 'pink'];
+function applyAccent(a) {
+  if (!ACCENTS.includes(a)) a = 'violet';
+  if (a === 'violet') delete document.body.dataset.accent; else document.body.dataset.accent = a;
+  document.querySelectorAll('.sw').forEach((b) => b.classList.toggle('active', b.dataset.accent === a));
+}
+function closeSettings() { $('settingsPop').hidden = true; $('gearBtn').setAttribute('aria-expanded', 'false'); }
+$('gearBtn').onclick = (e) => {
+  e.stopPropagation();
+  const open = $('settingsPop').hidden;
+  document.body.classList.remove('nav-open');
+  $('settingsPop').hidden = !open;
+  $('gearBtn').setAttribute('aria-expanded', String(open));
+};
+document.querySelectorAll('.sw').forEach((b) => b.addEventListener('click', () => { store.set('accent', b.dataset.accent); applyAccent(b.dataset.accent); }));
+document.addEventListener('click', (e) => { if (!$('settingsPop').hidden && !e.target.closest('#settingsPop')) closeSettings(); });
+document.addEventListener('keydown', (e) => { if (e.key === 'Escape') { closeSettings(); document.body.classList.remove('nav-open'); } });
+applyAccent(store.get('accent', 'violet'));
 
 const card = (title, hint, ...kids) => h('div.card', title ? h('h3', title) : null, hint ? h('p.hint', hint) : null, ...kids);
 const ACTIONS = [['delete', 'Nur löschen'], ['warn', 'Löschen + verwarnen'], ['timeout', 'Löschen + Timeout'], ['kick', 'Löschen + kicken'], ['ban', 'Löschen + bannen']];
@@ -1252,6 +1284,7 @@ function guide() {
 page({ id: 'anleitung', title: 'Anleitung', icon: 'help', group: 'Hilfe', desc: 'Bot anlegen, installieren und einrichten.', render(root) { root.append(...guide()); } });
 
 function openGuideStandalone() {
+  document.body.classList.remove('gate-mode', 'nav-open');
   $('gate').hidden = true;
   $('shell').hidden = false;
   $('nav').replaceChildren(h('button.on', { onclick: () => { location.hash = ''; boot(); } }, icon('home'), 'Zurück'));
