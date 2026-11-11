@@ -57,3 +57,18 @@ Nochmal ausführen = Update, alle Einstellungen bleiben. Updates laufen außerde
 - Am Ende jedes Laufs (neu, Update, dazuinstalliert) stehen in der Node-Shell für jeden Bot im Container alle Links: Dashboard bzw. Panel, Backend-Adresse, Einladungslink, Befehl und Log-Befehl.
 - Dieselben Links stehen in den Container-Notizen (Container → Übersicht → Notizen) und aktualisieren sich alle 2 Minuten (`bot-notes.timer` auf dem Host).
 - Auf Linux und Windows laufen beide Bots ohnehin nebeneinander (eigene Ordner, Ports 8080 und 8090).
+
+## Alle Bots auf einmal
+
+Installiert Msik und AIO nacheinander, jeder Bot fragt nach seinem eigenen Token. Nochmal ausführen aktualisiert beide (Skripte im Ordner [`all/`](all)).
+
+| System | Befehl |
+|---|---|
+| Windows (PowerShell) | `irm https://bot.labtoso.de/all/install.ps1 \| iex` oder [`Install.bat`](https://bot.labtoso.de/all/Install.bat) |
+| Linux / VPS | `curl -fsSL https://bot.labtoso.de/all/install.sh \| sudo bash` |
+| Proxmox VE (Shell der Node) | `bash -c "$(curl -fsSL https://bot.labtoso.de/all/proxmox.sh)"`: beide Bots in einem Container „Bots“, beim nächsten Mal Update ohne Rückfragen |
+
+## Panels
+
+- **Msik:** Seitenleiste links (Player, Playlists, Einstellungen, Anleitung). Bot-Profil (Name, Bild, Spitzname) nur für den Besitzer.
+- **AIO:** alle Module links in der Leiste, Akzentfarbe über das Zahnrad.
