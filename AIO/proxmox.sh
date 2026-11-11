@@ -69,7 +69,7 @@ UNIT
   systemctl enable -q --now bot-notes.timer
 }
 
-show_backend() { # waits for the address, writes the Notes and prints it big in this shell
+show_backend() { # waits for the address, writes the Notes and prints all links of the container in this shell
   local id="$1" url="" i
   info "Waiting for the backend address"
   for i in $(seq 1 40); do
@@ -78,15 +78,7 @@ show_backend() { # waits for the address, writes the Notes and prints it big in 
     sleep 3
   done
   rm -f "/run/bot-notes/$id"; /usr/local/bin/bot-notes "$id" >/dev/null
-  echo
-  if [ -n "$url" ]; then
-    printf "  ${c_b}Backend-Adresse (im Panel einfügen, /aio bringt sie aber auch automatisch mit):${c_off}\n\n"
-    printf "    ${c_ok}${c_b}%s${c_off}\n\n" "$url"
-  else
-    echo "  The backend address is not there yet. It shows up in a minute in the container's Notes."
-    echo
-  fi
-  echo "  Always up to date in the Proxmox UI: container $id -> Summary -> Notes."
+  /usr/local/bin/bot-notes --print "$id"
 }
 
 # exactly 2 cores (or fewer when the host has fewer); RAM stays as it is
@@ -170,19 +162,12 @@ install_aio() { # install_aio CTID NAME ARGS... -> runs the Linux installer insi
 }
 
 finish() { # finish CTID
-  local ct="$1" ip invite
+  local ct="$1"
   install_notes
-  ip=$(pct exec "$ct" -- hostname -I 2>/dev/null | awk '{print $1}')
-  invite=$(pct exec "$ct" -- bash -c "journalctl -u aio --no-pager -o cat 2>/dev/null | grep -o 'https://discord.com/oauth2/[^ ]*' | tail -1" || true)
   echo
   printf " ${c_ok}${c_b}AIO läuft in Container %s${c_off}\n" "$ct"
   show_backend "$ct"
   echo
-  [ -n "$ip" ] && echo "  Container IP: $ip"
-  [ -n "$invite" ] && echo "  Invite link:  $invite"
-  echo "  Then type /aio on your Discord server (the link connects the backend by itself)."
-  echo
-  echo "  Logs:    pct exec $ct -- journalctl -u aio -f"
   echo "  Shell:   pct enter $ct"
   echo "  Update:  run this script again (or it updates itself every 15 minutes)"
 }

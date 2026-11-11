@@ -77,24 +77,16 @@ UNIT
   systemctl enable -q --now bot-notes.timer
 }
 
-show_backend() { # show_backend CTID -> waits for the address, writes the Notes and prints it
+show_backend() { # waits for the address, writes the Notes and prints all links of the container in this shell
   local id="$1" url="" i
   info "Waiting for the backend address"
-  for i in $(seq 1 30); do
+  for i in $(seq 1 40); do
     url=$(/usr/local/bin/bot-notes msik "$id" | awk '{print $2}')
     [ -n "$url" ] && break
     sleep 3
   done
   rm -f "/run/bot-notes/$id"; /usr/local/bin/bot-notes "$id" >/dev/null
-  echo
-  if [ -n "$url" ]; then
-    printf "  ${c_b}Backend address (copy this into the dashboard, Settings -> Backend):${c_off}\n\n"
-    printf "    ${c_ok}${c_b}%s${c_off}\n\n" "$url"
-  else
-    echo "  The backend address is not there yet. It shows up in a minute in the container's Notes."
-    echo
-  fi
-  echo "  It is also in the Proxmox UI: container $id -> Summary -> Notes (always up to date)."
+  /usr/local/bin/bot-notes --print "$id"
 }
 
 # ---------- update an existing container ----------
@@ -260,18 +252,11 @@ pct exec "$CTID" -- bash -c '
 '
 
 install_notes
-IP=$(pct exec "$CTID" -- hostname -I 2>/dev/null | awk '{print $1}')
-INVITE=$(pct exec "$CTID" -- bash -c "journalctl -u msik --no-pager -o cat 2>/dev/null | grep -o 'https://discord.com/oauth2/[^ ]*' | tail -1" || true)
 
 echo
 printf " ${c_ok}${c_b}Msik is running in container %s${c_off}\n" "$CTID"
 show_backend "$CTID"
 echo
-[ -n "$IP" ] && echo "  Container IP: $IP"
-[ -n "$INVITE" ] && echo "  Invite link:  $INVITE"
-echo "  Then join a voice channel in Discord and type /web (the link connects the backend by itself)."
-echo
-echo "  Logs:    pct exec $CTID -- journalctl -u msik -f"
 echo "  Shell:   pct enter $CTID"
 echo "  Update:  run this script again (or it updates itself every 15 minutes)"
 echo "  Remove:  pct stop $CTID && pct destroy $CTID"
