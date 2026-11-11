@@ -8,12 +8,22 @@ import { createToken } from './auth.js';
 import { GuildPlayer } from './player.js';
 import { log } from './log.js';
 import { settings } from './settings.js';
+import fs from 'node:fs';
+import path from 'node:path';
+import { ROOT } from './config.js';
+import { createPranks, PRANK_PERMISSIONS } from './pranks.js';
+import { resolve } from './resolve.js';
+
+/** Permissions in the invite link: music (Connect, Speak, View, Send, Embed) plus everything the pranks need. */
+export const INVITE_PERMISSIONS = (3165184n | PRANK_PERMISSIONS).toString();
+const prankFile = path.join(ROOT, 'data', 'pranks.json');
 
 const ACCENT = 0x3b82f6;
 
 export function createDiscordBot() {
   if (!config.token) throw new Error('DISCORD_TOKEN fehlt (in .env eintragen).');
-  const client = new Client({ intents: [GatewayIntentBits.Guilds, GatewayIntentBits.GuildVoiceStates] });
+  // GuildMessages (not privileged) only so the message pranks can react; message content is never read
+  const client = new Client({ intents: [GatewayIntentBits.Guilds, GatewayIntentBits.GuildVoiceStates, GatewayIntentBits.GuildMessages] });
   const players = new Map();
   let publicUrl = '';
 
@@ -70,6 +80,35 @@ export function createDiscordBot() {
       players.set(guildId, player);
     }
     return players.get(guildId);
+  }
+
+  const pranks = createPranks({
+    client: () => client, log,
+    load: () => { try { return JSON.parse(fs.readFileSync(prankFile, 'utf8')); } catch { return { list: [] }; } },
+    save: (d) => { try { fs.mkdirSync(path.dirname(prankFile), { recursive: true }); fs.writeFileSync(`${prankFile}.tmp`, JSON.stringify(d)); fs.renameSync(`${prankFile}.tmp`, prankFile); } catch (e) { log.warn('Pranks speichern:', e.message); } },
+    // Musik-Überfall: the bot follows into the channel and plays the song right away
+    music: async (guildId, channelId, query) => {
+      const player = getPlayer(guildId);
+      await player.moveTo(channelId);
+      const r = await resolve(query);
+      if (r.tracks[0]) await player.add([{ ...r.tracks[0], requester: '' }], { now: true });
+    },
+  });
+  pranks.attach(client);
+
+  /** Bot profile (owner only): global name and picture, nickname on one server. */
+  async function getProfile(guildId) {
+    const g = client.guilds.cache.get(guildId);
+    return { id: client.user.id, name: client.user.username, avatar: client.user.displayAvatarURL({ size: 256, extension: 'png' }), nick: g?.members.me?.nickname || '' };
+  }
+  async function setProfile(guildId, { name, avatar, nick }) {
+    if (name && name !== client.user.username) await client.user.setUsername(String(name).slice(0, 32));
+    if (avatar) await client.user.setAvatar(String(avatar));
+    if (typeof nick === 'string') {
+      const g = client.guilds.cache.get(guildId);
+      if (g?.members.me && (g.members.me.nickname || '') !== nick.trim()) await g.members.me.setNickname(nick.trim().slice(0, 32) || null);
+    }
+    return getProfile(guildId);
   }
 
   async function getGuildInfo(guildId) {
@@ -159,8 +198,9 @@ export function createDiscordBot() {
     if (config.guildId) await rest.put(Routes.applicationCommands(c.user.id), { body: [] });
     log.info('/web registriert');
     // Connect, Speak, View Channels
-    log.info(`Einladen: https://discord.com/oauth2/authorize?client_id=${c.user.id}&scope=bot+applications.commands&permissions=3165184`);
+    log.info(`Einladen: https://discord.com/oauth2/authorize?client_id=${c.user.id}&scope=bot+applications.commands&permissions=${INVITE_PERMISSIONS}`);
     c.user.setActivity('/web');
+    pranks.resume();
     // still sitting in a voice channel from before a restart: leave, nothing is playing there
     for (const g of c.guilds.cache.values()) {
       if (g.members.me?.voice.channelId && !getVoiceConnection(g.id)) {
@@ -229,6 +269,8 @@ export function createDiscordBot() {
     stopAll: () => { for (const p of players.values()) p.leave(); },
     activeCount: () => [...players.values()].filter((p) => p.current && !p.paused).length,
     getName: () => client.user?.username || null,
+    pranks, getProfile, setProfile,
+    inviteUrl: () => (client.user ? `https://discord.com/oauth2/authorize?client_id=${client.user.id}&scope=bot+applications.commands&permissions=${INVITE_PERMISSIONS}` : null),
     setPublicUrl: (u) => { publicUrl = u; },
     start: () => client.login(config.token).catch((err) => {
       if (err.code === 'TokenInvalid') throw new Error('Token ungültig. Im Developer Portal unter Bot einen neuen Token holen (Reset Token) und in .env eintragen.');

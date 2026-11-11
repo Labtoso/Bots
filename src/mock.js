@@ -2,6 +2,7 @@ import { GuildPlayer } from './player.js';
 import { createToken } from './auth.js';
 import { config } from './config.js';
 import { log } from './log.js';
+import { createPranks } from './pranks.js';
 
 const CHANNELS = [
   { id: 'voice-1', name: 'Musik', category: 'Sprachkanäle', users: 1, canSpeak: true },
@@ -18,8 +19,14 @@ export function createMockBot() {
     }
     return players.get(gid);
   };
+  let mem = { list: [] };
+  const pranks = createPranks({ client: () => null, log, load: () => mem, save: (d) => { mem = d; }, music: async () => {} });
+  const profile = { id: '1', name: 'Msik Test', avatar: null, nick: '' };
   return {
-    getPlayer,
+    getPlayer, pranks,
+    getProfile: async () => ({ ...profile }),
+    setProfile: async (gid, b) => { if (b.name) profile.name = b.name; if (typeof b.nick === 'string') profile.nick = b.nick; return { ...profile }; },
+    inviteUrl: () => null,
     activeCount: () => [...players.values()].filter((p) => p.current && !p.paused).length,
     getName: () => 'Msik Test',
     getGuildInfo: async (id) => ({ id, name: 'Testserver', icon: null }),

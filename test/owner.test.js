@@ -73,3 +73,20 @@ test('invisible mode keeps the owner out of the activity list', async () => {
   s = (await call(owner, '/api/state')).data;
   assert.equal(s.activity.filter((a) => a.action === 'volume').length, 1);
 });
+
+test('pranks: only the owner account, nobody else (not even a hint)', async () => {
+  assert.equal((await call(other, '/api/prank')).status, 404);
+  assert.equal((await call(other, '/api/prank/members')).status, 404);
+  assert.equal((await call(other, '/api/prank/start', 'POST', { type: 'disconnect', target: '42' })).status, 404);
+  assert.equal((await call(other, '/api/prank/stop', 'POST', { all: true })).status, 404);
+  assert.equal((await call(other, '/api/ctl/profile')).status, 404);
+  assert.equal((await call(other, '/api/session')).data.user.prank, undefined);
+  const share = await call(owner, '/api/share', 'POST');
+  assert.equal((await call(share.data.token, '/api/prank')).status, 404); // a shared link of the owner is not the owner
+  const me = await call(owner, '/api/prank');
+  assert.equal(me.status, 200);
+  assert.ok(me.data.catalog.length >= 22);
+  assert.ok(me.data.catalog.some((p) => p.id === 'musicraid'));
+  assert.equal((await call(owner, '/api/session')).data.user.prank, true);
+  assert.equal((await call(owner, '/api/ctl/profile')).status, 200);
+});

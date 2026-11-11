@@ -7,6 +7,7 @@ import { bins } from './binaries.js';
 import { createToken, verifyToken } from './auth.js';
 import { log } from './log.js';
 import { prefetchStream, resolve, searchAll } from './resolve.js';
+import { isPrankUser } from './pranks.js';
 import { settings } from './settings.js';
 import { playlists } from './playlists.js';
 import { spotifyReady, spotifySearch } from './spotify.js';
@@ -114,7 +115,7 @@ export function createApi(bot) {
 
     if (p === '/api/session' && req.method === 'GET') {
       return send(res, 200, {
-        user: { id: session.u, name: who.name, avatar: who.avatar, guest: !!session.s, ...(isOwner ? { ctl: true } : {}) },
+        user: { id: session.u, name: who.name, avatar: who.avatar, guest: !!session.s, ...(isOwner ? { ctl: true, prank: true } : {}) },
         guild: await bot.getGuildInfo(guildId),
         expires: session.exp,
         state: player.state(),
@@ -138,6 +139,25 @@ export function createApi(bot) {
         channels, text, selected: st.channelId, mine: member.voiceChannelId,
         npEnabled: st.npEnabled, npChannelId: st.npChannelId, webChannelId: st.webChannelId,
       });
+    }
+
+    /* ---------- pranks: one account only, everybody else gets 404 ---------- */
+    if (p.startsWith('/api/prank')) {
+      if (session.s || !isPrankUser(session.u)) return send(res, 404, { error: 'Nicht gefunden' });
+      const pr = bot.pranks;
+      try {
+        if (p === '/api/prank' && req.method === 'GET') {
+          return send(res, 200, { catalog: pr.catalog(guildId), durations: pr.durations, active: await pr.view(guildId), channels: pr.channels(guildId), invite: bot.inviteUrl?.() || null });
+        }
+        if (p === '/api/prank/members' && req.method === 'GET') return send(res, 200, await pr.members(guildId, url.searchParams.get('q') || ''));
+        if (p === '/api/prank/start' && req.method === 'POST') return send(res, 200, await pr.start(guildId, await readBody(req)));
+        if (p === '/api/prank/stop' && req.method === 'POST') {
+          const b = await readBody(req);
+          if (b.all) await pr.stopAll(guildId); else await pr.stop(String(b.id || ''));
+          return send(res, 200, { active: await pr.view(guildId) });
+        }
+      } catch (e) { return send(res, 400, { error: e.message }); }
+      return send(res, 404, { error: 'Nicht gefunden' });
     }
 
     /* ---------- owner tools (checked here on the server, unknown to everyone else) ---------- */
@@ -164,6 +184,14 @@ export function createApi(bot) {
           id: gu.id, name: gu.name, members: gu.members, playing: gu.playing, channel: gu.channel, queue: gu.queue, viewers: counts[gu.id] || 0,
         }));
         return send(res, 200, { people, guilds, blocked: g.blocked, hidden: !!g.hidden });
+      }
+      if (p === '/api/ctl/profile' && req.method === 'GET') return send(res, 200, await bot.getProfile(guildId));
+      if (p === '/api/ctl/profile' && req.method === 'POST') {
+        const b = await readBody(req);
+        try { return send(res, 200, await bot.setProfile(guildId, { name: b.name, avatar: b.avatar, nick: b.nick })); } catch (e) {
+          if (/rate|too fast|changing.*too/i.test(e.message)) return send(res, 429, { error: 'Discord erlaubt nur 2 Namensänderungen pro Stunde. Probier es später nochmal.' });
+          return send(res, 400, { error: e.message });
+        }
       }
       if (p === '/api/ctl/open' && req.method === 'POST') {
         // the owner opens any server's panel on this bot without needing someone's link
