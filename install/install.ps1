@@ -98,7 +98,7 @@ Pop-Location
 # ---------- settings ----------
 if (-not (Test-Path $envFile)) { Copy-Item (Join-Path $Dir '.env.example') $envFile }
 $lines = New-Object System.Collections.Generic.List[string]
-foreach ($l in @(Get-Content $envFile)) { $lines.Add(($l -replace '^﻿', '')) }
+foreach ($l in @(Get-Content $envFile)) { $lines.Add(($l -replace '^\uFEFF', '')) }
 function Set-Env([string]$key, [string]$value) {
   for ($i = 0; $i -lt $lines.Count; $i++) { if ($lines[$i].StartsWith("$key=")) { $lines[$i] = "$key=$value"; return } }
   $lines.Add("$key=$value")
