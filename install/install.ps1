@@ -158,7 +158,7 @@ if (-not $NoShortcuts) {
 
 # ---------- invite ----------
 if ($appId) {
-  $invite = "https://discord.com/oauth2/authorize?client_id=$appId&scope=bot+applications.commands&permissions=3165184"
+  $invite = "https://discord.com/oauth2/authorize?client_id=$appId&scope=bot+applications.commands&permissions=8"
   Say 'Opening the invite link, pick your server there'
   Start-Process $invite
 }

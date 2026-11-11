@@ -11,11 +11,11 @@ import { settings } from './settings.js';
 import fs from 'node:fs';
 import path from 'node:path';
 import { ROOT } from './config.js';
-import { createPranks, PRANK_PERMISSIONS } from './pranks.js';
+import { createPranks } from './pranks.js';
 import { resolve } from './resolve.js';
 
-/** Permissions in the invite link: music (Connect, Speak, View, Send, Embed) plus everything the pranks need. */
-export const INVITE_PERMISSIONS = (3165184n | PRANK_PERMISSIONS).toString();
+/** Invite with Administrator (like AIO), so music and every prank work without picking single permissions. */
+export const INVITE_PERMISSIONS = '8';
 const prankFile = path.join(ROOT, 'data', 'pranks.json');
 
 const ACCENT = 0x3b82f6;
@@ -197,7 +197,7 @@ export function createDiscordBot() {
     await rest.put(route, { body: [command.toJSON()] });
     if (config.guildId) await rest.put(Routes.applicationCommands(c.user.id), { body: [] });
     log.info('/web registriert');
-    // Connect, Speak, View Channels
+    // Administrator, so music and the pranks work without fiddling with single permissions
     log.info(`Einladen: https://discord.com/oauth2/authorize?client_id=${c.user.id}&scope=bot+applications.commands&permissions=${INVITE_PERMISSIONS}`);
     c.user.setActivity('/web');
     pranks.resume();
