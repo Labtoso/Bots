@@ -368,6 +368,33 @@ img.yt43 { transform: scale(1.34); }
 .log-modal { max-width: 900px; width: calc(100vw - 32px); }
 .log-pre { margin: 10px 0 0; max-height: 65vh; overflow: auto; background: var(--panel-2); border: 1px solid var(--line); border-radius: var(--r-ctl); padding: 10px; font-size: 12px; line-height: 1.5; white-space: pre-wrap; word-break: break-all; }
 
+/* left sidebar */
+.mshell { flex: 1 0 auto; display: grid; grid-template-columns: 210px minmax(0, 1fr); min-height: 0; }
+.mviews { min-width: 0; display: flex; flex-direction: column; }
+.snav { border-right: 1px solid var(--line); padding: 12px 8px; position: sticky; top: 0; align-self: start; height: calc(100vh - 58px); overflow-y: auto; }
+.snav h4 { margin: 14px 10px 4px; font-size: 11px; text-transform: uppercase; letter-spacing: .06em; color: var(--muted); font-weight: 600; }
+.snav button { display: flex; align-items: center; gap: 10px; width: 100%; border: 0; background: transparent; padding: 8px 10px; border-radius: var(--r-ctl); color: var(--muted); text-align: left; }
+.snav button:hover { background: var(--hover); color: var(--text); }
+.snav button.on { background: color-mix(in srgb, var(--accent) 16%, transparent); color: var(--text); }
+.snav button.on svg { color: var(--accent); }
+.snav svg { width: 18px; height: 18px; }
+.mview { padding: 16px; max-width: 1100px; width: 100%; margin: 0 auto; }
+.mview h1 { font-size: 20px; margin: 4px 0 4px; }
+.mview > p.muted { margin: 0 0 16px; }
+.prof { display: grid; gap: 14px; max-width: 560px; }
+.prof .row2 { display: flex; gap: 16px; align-items: center; flex-wrap: wrap; }
+.prof img.av { width: 84px; height: 84px; border-radius: 50%; background: var(--panel-2); object-fit: cover; }
+.prof label { display: grid; gap: 4px; font-size: 12.5px; color: var(--muted); }
+.prof input { height: 38px; border-radius: var(--r-ctl); border: 1px solid var(--line); background: var(--panel-2); padding: 0 12px; outline: none; color: var(--text); }
+.prof input:focus { border-color: var(--accent); }
+.menu-btn { display: none !important; }
+@media (max-width: 860px) {
+  .mshell { grid-template-columns: minmax(0, 1fr); }
+  .menu-btn { display: grid !important; }
+  .snav { position: fixed; left: 0; top: 58px; bottom: 0; height: calc(100dvh - 58px); width: 240px; background: var(--bg); z-index: 40; transform: translateX(-100%); transition: transform .2s; }
+  body.nav-open .snav { transform: none; box-shadow: 0 0 40px rgba(0, 0, 0, .6); }
+}
+
 /* every clickable thing gets the hand cursor */
 button, a[href], select, summary, label:has(input[type=checkbox]), label:has(input[type=radio]), input[type=checkbox], input[type=radio], input[type=range], input[type=color], input[type=file], .switch, [role=button], [onclick] { cursor: pointer; }
 button:disabled, select:disabled, input:disabled { cursor: not-allowed; }

@@ -27,7 +27,7 @@ invite() { # from the log, otherwise built from the bot id (first part of the to
   while [ $(( ${#id} % 4 )) -ne 0 ]; do id="$id="; done
   id=$(printf '%s' "$id" | tr '_-' '/+' | base64 -d 2>/dev/null | tr -cd '0-9')
   [ -n "$id" ] || return 0
-  [ "$2" = msik ] && perms=3165184
+  [ "$2" = msik ] && perms=1099946806336
   echo "https://discord.com/oauth2/authorize?client_id=$id&scope=bot+applications.commands&permissions=$perms"
 }
 

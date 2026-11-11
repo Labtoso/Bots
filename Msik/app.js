@@ -799,6 +799,7 @@ async function probe() {
 function showGate(kind) {
   es?.close();
   $('app').hidden = true;
+  $('mshell').hidden = true;
   $('server').hidden = true;
   $('userAvatar').hidden = true;
   $('gate').hidden = false;
@@ -837,7 +838,9 @@ function showSession(s) {
     $('server').hidden = false;
     if (s.user.avatar) { $('userAvatar').src = s.user.avatar; $('userAvatar').hidden = false; }
     $('userAvatar').title = s.user.name;
-    sessInfo = { name: s.user.name, exp: s.expires, guest: !!s.user.guest, ctl: !!s.user.ctl };
+    sessInfo = { name: s.user.name, exp: s.expires, guest: !!s.user.guest, ctl: !!s.user.ctl, prank: !!s.user.prank };
+    $('mshell').hidden = false;
+    renderNav();
     $('shareLink').hidden = false;
     if (s.user.guest && !store.get('guestName', '')) askName();
     renderSessionInfo();
@@ -1498,3 +1501,110 @@ loadPresetBackends().then(() => {
   } else if (!backends.length && !store.get('helpSeen', false)) openHelp(0);
 });
 setInterval(() => { if (state) renderActivity(state); }, 30000);
+
+/* ---------- left sidebar: player, playlists, settings, guide; bot profile and pranks only for the owner account ---------- */
+const NAV_ICONS = {
+  music: '<path d="M9 18V5l12-2v13"/><circle cx="6" cy="18" r="3"/><circle cx="18" cy="16" r="3"/>',
+  list: '<path d="M8 6h13M8 12h13M8 18h13M3 6h.01M3 12h.01M3 18h.01"/>',
+  bot: '<rect x="4" y="8" width="16" height="12" rx="3"/><path d="M12 4v4M9 13h.01M15 13h.01"/>',
+  key: '<circle cx="8" cy="15" r="4"/><path d="m11 12 9-9M17 6l3 3"/>',
+  prank: '<circle cx="12" cy="12" r="9"/><path d="M8 14s1.5 2 4 2 4-2 4-2M9 9h.01M15 9h.01"/>',
+};
+const navSvg = (k) => `<svg viewBox="0 0 24 24" aria-hidden="true">${NAV_ICONS[k] || I[k] || ''}</svg>`;
+const L = (de, en) => (lang === 'de' ? de : en);
+let view = 'player';
+let stopPrank = null;
+function renderNav() {
+  const items = [
+    ['player', 'music', L('Player', 'Player')],
+    ['playlists', 'list', L('Playlists', 'Playlists')],
+    ['settings', 'gear', L('Einstellungen', 'Settings')],
+    ['help', 'help', L('Anleitung', 'Guide')],
+  ];
+  const own = [];
+  if (sessInfo?.ctl) own.push(['bot', 'bot', L('Bot-Profil', 'Bot profile')], ['own', 'key', L('Sperren & Debug', 'Block & debug')]);
+  if (sessInfo?.prank) own.push(['prank', 'prank', 'Prank']);
+  const btn = ([id, ic, label]) => {
+    const b = document.createElement('button');
+    b.type = 'button';
+    b.className = view === id ? 'on' : '';
+    b.innerHTML = `${navSvg(ic)}<span></span>`;
+    b.querySelector('span').textContent = label;
+    b.onclick = () => navGo(id);
+    return b;
+  };
+  const nav = $('snav');
+  nav.replaceChildren(...items.map(btn));
+  if (own.length) {
+    const h4 = document.createElement('h4'); h4.textContent = L('Nur für dich', 'Only for you');
+    nav.append(h4, ...own.map(btn));
+  }
+}
+function showView(id) {
+  view = id;
+  $('app').hidden = id !== 'player';
+  $('viewBot').hidden = id !== 'bot';
+  $('viewPrank').hidden = id !== 'prank';
+  if (id !== 'prank' && stopPrank) { stopPrank(); stopPrank = null; $('viewPrank').replaceChildren(); }
+  renderNav();
+  window.scrollTo(0, 0);
+}
+function navGo(id) {
+  document.body.classList.remove('nav-open');
+  if (id === 'settings' || id === 'own') {
+    $('openSettings').click();
+    if (id === 'own') setTimeout(() => $('ownField').scrollIntoView({ behavior: 'smooth', block: 'start' }), 250);
+    return;
+  }
+  if (id === 'help') { openHelp(0); return; }
+  if (id === 'playlists') { showView('player'); document.querySelector('.tab[data-tab="playlists"]')?.click(); return; }
+  if (id === 'bot' && sessInfo?.ctl) { showView('bot'); renderBotView(); return; }
+  if (id === 'prank' && sessInfo?.prank) {
+    showView('prank');
+    const v = $('viewPrank');
+    v.replaceChildren();
+    const h1 = document.createElement('h1'); h1.textContent = 'Prank';
+    const p = document.createElement('p'); p.className = 'muted'; p.textContent = L('Harmlose Scherze für diesen Server. Nur du siehst diesen Bereich, alles lässt sich jederzeit stoppen.', 'Harmless jokes for this server. Only you see this, everything can be stopped at any time.');
+    const box = document.createElement('div');
+    v.append(h1, p, box);
+    stopPrank = window.PrankUI.mount(box, { api, toast });
+    return;
+  }
+  showView('player');
+}
+async function renderBotView() {
+  const v = $('viewBot');
+  v.innerHTML = `<h1>${L('Bot-Profil', 'Bot profile')}</h1><p class="muted">${L('Name und Bild gelten überall (Discord erlaubt 2 Namensänderungen pro Stunde). Der Spitzname gilt nur auf diesem Server.', 'Name and picture apply everywhere (Discord allows 2 name changes per hour). The nickname is only for this server.')}</p>`;
+  let pr;
+  try { pr = await api('/api/ctl/profile'); } catch (e) { v.append(Object.assign(document.createElement('p'), { textContent: e.message })); return; }
+  const f = document.createElement('div');
+  f.className = 'panel prof';
+  f.style.padding = '18px';
+  f.innerHTML = `<div class="row2"><img class="av" alt=""><div style="display:grid;gap:8px"><button class="btn sm" type="button" data-pick>${L('Bild wählen', 'Choose picture')}</button><input type="file" accept="image/png,image/jpeg,image/gif,image/webp" hidden></div></div>
+    <label>${L('Name des Bots', 'Bot name')}<input data-name maxlength="32"></label>
+    <label>${L('Spitzname auf diesem Server (leer = Name)', 'Nickname on this server (empty = name)')}<input data-nick maxlength="32"></label>
+    <div><button class="btn primary" type="button" data-save>${L('Speichern', 'Save')}</button></div>`;
+  v.append(f);
+  const img = f.querySelector('img'); const file = f.querySelector('input[type=file]');
+  img.src = pr.avatar || 'icon.svg';
+  f.querySelector('[data-name]').value = pr.name || '';
+  f.querySelector('[data-nick]').value = pr.nick || '';
+  let avatar = '';
+  f.querySelector('[data-pick]').onclick = () => file.click();
+  file.onchange = () => {
+    const x = file.files[0]; if (!x) return;
+    if (x.size > 8e6) { toast(L('Bild ist zu groß (max. 8 MB).', 'Picture too big (max 8 MB).'), true); return; }
+    const r = new FileReader(); r.onload = () => { avatar = r.result; img.src = r.result; }; r.readAsDataURL(x);
+  };
+  f.querySelector('[data-save]').onclick = async (e) => {
+    e.target.disabled = true;
+    try {
+      const out = await api('/api/ctl/profile', { method: 'POST', body: { name: f.querySelector('[data-name]').value.trim(), nick: f.querySelector('[data-nick]').value, avatar: avatar || undefined } });
+      img.src = out.avatar || img.src; avatar = '';
+      toast(L('Bot-Profil gespeichert', 'Bot profile saved'));
+    } catch (er) { toast(er.message, true); }
+    e.target.disabled = false;
+  };
+}
+$('menuBtn').onclick = (e) => { e.stopPropagation(); document.body.classList.toggle('nav-open'); };
+document.addEventListener('click', (e) => { if (document.body.classList.contains('nav-open') && !e.target.closest('#snav') && !e.target.closest('#menuBtn')) document.body.classList.remove('nav-open'); });

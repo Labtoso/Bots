@@ -46,6 +46,8 @@
     for (const k of kids.flat(Infinity)) if (k !== null && k !== undefined && k !== false) e.append(k instanceof Node ? k : document.createTextNode(String(k)));
     return e;
   }
+  const PERM = { MoveMembers: 'Mitglieder verschieben', MuteMembers: 'Mitglieder stummschalten', DeafenMembers: 'Mitglieder taub schalten', ManageNicknames: 'Spitznamen verwalten',
+    ManageRoles: 'Rollen verwalten', AddReactions: 'Reaktionen hinzufügen', SendMessages: 'Nachrichten senden', ModerateMembers: 'Timeout vergeben', Connect: 'Verbinden', Speak: 'Sprechen' };
   const left = (t) => {
     if (!t) return 'bis du stoppst';
     const m = Math.max(0, Math.round((t - Date.now()) / 60000));
@@ -128,7 +130,7 @@
         const values = {};
         const dur = el('select', null, data.durations.map(([v, l]) => el('option', { value: String(v) }, l)));
         dur.value = '30';
-        const blocked = p.off || (p.missing.length ? `Dem Bot fehlt das Recht: ${p.missing.join(', ')}` : null);
+        const blocked = p.off || (p.missing.length ? `Dem Bot fehlt das Recht: ${p.missing.map((m) => PERM[m] || m).join(', ')}` : null);
         const needTarget = !p.noTarget;
         const go = el('button.pk-btn.go', { type: 'button', disabled: !!blocked || (needTarget && !target), onclick: async () => {
           const params = Object.fromEntries(Object.entries(values).map(([k, f]) => [k, f()]));

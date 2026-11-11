@@ -14,6 +14,7 @@
 </head>
 <body data-accent="blue">
 <header class="top">
+  <button class="icon-btn menu-btn" id="menuBtn" title="Menü" aria-label="Menü"><svg viewBox="0 0 24 24" aria-hidden="true"><path d="M4 6h16M4 12h16M4 18h16"/></svg></button>
   <button class="icon-btn" id="openSettings" data-i18n-title="settings"></button>
   <div class="brand"><svg class="logo" viewBox="0 0 64 64" width="30" height="30" aria-hidden="true"><rect width="64" height="64" rx="16"/><path d="M26 44a6 6 0 1 1-4-5.66V20l22-5v22a6 6 0 1 1-4-5.66V22.2l-14 3.2Z"/></svg><span>Msik</span></div>
   <div class="top-right">
@@ -28,6 +29,9 @@
   </div>
 </header>
 
+<div class="mshell" id="mshell" hidden>
+<nav class="snav" id="snav" aria-label="Menü"></nav>
+<div class="mviews">
 <main id="app" hidden>
   <section class="panel player">
     <div class="cover-wrap">
@@ -137,6 +141,10 @@
     </div>
   </section>
 </main>
+<section class="mview" id="viewBot" hidden></section>
+<section class="mview" id="viewPrank" hidden></section>
+</div>
+</div>
 
 <section class="gate" id="gate" hidden>
   <svg class="logo" viewBox="0 0 64 64" width="80" height="80" aria-hidden="true"><rect width="64" height="64" rx="16"/><path d="M26 44a6 6 0 1 1-4-5.66V20l22-5v22a6 6 0 1 1-4-5.66V22.2l-14 3.2Z"/></svg>
@@ -258,6 +266,7 @@
 </section>
 
 <div class="toast" id="toast" hidden></div>
+<script src="../prank-ui.js"></script>
 <script src="app.js" type="module"></script>
 </body>
 </html>
