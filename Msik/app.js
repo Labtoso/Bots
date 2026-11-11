@@ -648,7 +648,10 @@ function showResults(r, q) {
     li.append(tx, el('span', 'd', tr.duration ? fmt(tr.duration) : ''), acts);
     li.addEventListener('dblclick', () => addTracks([tr]));
     // pointer on a song (or finger down on a phone): the bot starts looking up its stream already
-    li.addEventListener('pointerenter', () => hintTrack(tr));
+    // only when the pointer rests on it a moment, not while just moving across the list
+    let hintTimer = null;
+    li.addEventListener('pointerenter', () => { hintTimer = setTimeout(() => hintTrack(tr), 350); });
+    li.addEventListener('pointerleave', () => clearTimeout(hintTimer));
     li.addEventListener('pointerdown', () => hintTrack(tr));
     list.append(li);
   }
