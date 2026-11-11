@@ -1,0 +1,21 @@
+[Unit]
+Description=AIO Discord bot
+After=network-online.target
+Wants=network-online.target
+
+[Service]
+Type=simple
+User=aio
+WorkingDirectory=/opt/aio
+ExecStart=/usr/bin/node src/index.js
+Restart=always
+RestartSec=5
+Environment=NODE_ENV=production
+NoNewPrivileges=true
+ProtectSystem=full
+ProtectHome=true
+PrivateTmp=true
+ReadWritePaths=/opt/aio
+
+[Install]
+WantedBy=multi-user.target

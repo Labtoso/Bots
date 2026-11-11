@@ -1,0 +1,19 @@
+{
+  "name": "aio",
+  "version": "1.0.0",
+  "description": "All-in-one Discord bot controlled through a web panel",
+  "type": "module",
+  "main": "src/index.js",
+  "license": "MIT",
+  "author": "LabtosoStudios",
+  "engines": {
+    "node": ">=20"
+  },
+  "scripts": {
+    "start": "node src/index.js",
+    "test": "node --test test/*.test.js"
+  },
+  "dependencies": {
+    "discord.js": "^14.28.1"
+  }
+}
