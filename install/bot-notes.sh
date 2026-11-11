@@ -19,7 +19,7 @@ address() { # address CTID BOT
   in_ct "$1" 'u=$(grep -m1 "^PUBLIC_URL=" /opt/'"$2"'/.env 2>/dev/null | cut -d= -f2-); [ -n "$u" ] && echo "$u" || journalctl -u '"$2"' -b --no-pager -o cat 2>/dev/null | grep -a "API-Adresse" | grep -o "https://[^ ]*" | tail -1'
 }
 invite() { # from the log, otherwise built from the bot id (first part of the token, base64)
-  local l id perms=8
+  local l id perms=8 # both bots are invited as Administrator
   l=$(in_ct "$1" 'journalctl -u '"$2"' --no-pager -o cat 2>/dev/null | grep -o "https://discord.com/oauth2/[^ ]*" | tail -1')
   [ -n "$l" ] && { echo "$l"; return; }
   id=$(in_ct "$1" 'sed -n "s/^DISCORD_TOKEN=//p" /opt/'"$2"'/.env | tail -1 | cut -d. -f1')
@@ -27,7 +27,6 @@ invite() { # from the log, otherwise built from the bot id (first part of the to
   while [ $(( ${#id} % 4 )) -ne 0 ]; do id="$id="; done
   id=$(printf '%s' "$id" | tr '_-' '/+' | base64 -d 2>/dev/null | tr -cd '0-9')
   [ -n "$id" ] || return 0
-  [ "$2" = msik ] && perms=1099946806336
   echo "https://discord.com/oauth2/authorize?client_id=$id&scope=bot+applications.commands&permissions=$perms"
 }
 
