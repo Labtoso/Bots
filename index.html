@@ -31,13 +31,35 @@
   .btn.primary { background: var(--accent); border-color: transparent; color: #fff; text-decoration: none; display: inline-block; }
   .muted { color: var(--muted); font-size: 13px; }
   footer { margin-top: 32px; color: var(--muted); font-size: 12.5px; }
+  body[data-accent="green"] { --accent: #22c55e; }
+  body[data-accent="purple"] { --accent: #8b5cf6; }
+  .gear { position: fixed; top: 14px; left: 14px; width: 38px; height: 38px; display: grid; place-items: center; border-radius: 10px; padding: 0;
+    border: 1px solid var(--line); background: var(--panel); color: var(--muted); cursor: pointer; z-index: 5; }
+  .gear:hover, .gear[aria-expanded="true"] { color: #e7e9ee; background: #1c2029; }
+  .gear svg { width: 20px; height: 20px; fill: none; stroke: currentColor; stroke-width: 1.8; stroke-linecap: round; stroke-linejoin: round; }
+  .settings { position: fixed; top: 60px; left: 14px; width: 220px; padding: 14px 16px; border-radius: 12px; background: var(--panel);
+    border: 1px solid var(--line); box-shadow: 0 12px 32px rgba(0,0,0,.45); z-index: 5; }
+  .settings .label { display: block; color: var(--muted); font-size: 12.5px; margin-bottom: 10px; }
+  .swatches { display: flex; gap: 12px; }
+  .sw { width: 30px; height: 30px; border-radius: 50%; border: 0; background: var(--c); padding: 0; cursor: pointer; outline-offset: 3px; }
+  .sw.active { outline: 2px solid #e7e9ee; }
+  @media (max-width: 700px) { body { padding-top: 72px; } }
 </style>
 </head>
-<body>
+<body data-accent="blue">
+<button class="gear" id="gear" title="Einstellungen" aria-label="Einstellungen" aria-expanded="false" aria-controls="settings"><svg viewBox="0 0 24 24" aria-hidden="true"><circle cx="12" cy="12" r="3"/><path d="M19.4 15a1.65 1.65 0 0 0 .33 1.82l.06.06a2 2 0 1 1-2.83 2.83l-.06-.06a1.65 1.65 0 0 0-1.82-.33 1.65 1.65 0 0 0-1 1.51V21a2 2 0 1 1-4 0v-.09A1.65 1.65 0 0 0 9 19.4a1.65 1.65 0 0 0-1.82.33l-.06.06a2 2 0 1 1-2.83-2.83l.06-.06A1.65 1.65 0 0 0 4.68 15a1.65 1.65 0 0 0-1.51-1H3a2 2 0 1 1 0-4h.09A1.65 1.65 0 0 0 4.6 9a1.65 1.65 0 0 0-.33-1.82l-.06-.06a2 2 0 1 1 2.83-2.83l.06.06A1.65 1.65 0 0 0 9 4.68a1.65 1.65 0 0 0 1-1.51V3a2 2 0 1 1 4 0v.09a1.65 1.65 0 0 0 1 1.51 1.65 1.65 0 0 0 1.82-.33l.06-.06a2 2 0 1 1 2.83 2.83l-.06.06A1.65 1.65 0 0 0 19.4 9a1.65 1.65 0 0 0 1.51 1H21a2 2 0 1 1 0 4h-.09a1.65 1.65 0 0 0-1.51 1Z"/></svg></button>
+<div class="settings" id="settings" hidden>
+  <span class="label">Akzentfarbe</span>
+  <div class="swatches">
+    <button class="sw" data-accent="blue" style="--c:#3b82f6" title="Blau" aria-label="Blau"></button>
+    <button class="sw" data-accent="green" style="--c:#22c55e" title="Grün" aria-label="Grün"></button>
+    <button class="sw" data-accent="purple" style="--c:#8b5cf6" title="Lila" aria-label="Lila"></button>
+  </div>
+</div>
 <main>
   <h1>Bots</h1>
   <a class="bot" href="Msik/">
-    <svg viewBox="0 0 64 64" aria-hidden="true"><rect width="64" height="64" rx="16" fill="#3b82f6"/><path d="M26 44a6 6 0 1 1-4-5.66V20l22-5v22a6 6 0 1 1-4-5.66V22.2l-14 3.2Z" fill="#fff"/></svg>
+    <svg viewBox="0 0 64 64" aria-hidden="true"><rect width="64" height="64" rx="16" style="fill:var(--accent)"/><path d="M26 44a6 6 0 1 1-4-5.66V20l22-5v22a6 6 0 1 1-4-5.66V22.2l-14 3.2Z" fill="#fff"/></svg>
     <div><b>Msik</b><span>Musik-Dashboard</span></div>
   </a>
   <a class="bot" href="AIO/">
@@ -102,6 +124,23 @@
     try { await navigator.clipboard.writeText(b.previousElementSibling.textContent); b.textContent = 'Kopiert'; } catch {}
     setTimeout(() => { b.textContent = 'Kopieren'; }, 1500);
   }));
+  // accent colour, shared with the Msik dashboard (same storage key)
+  const ACC = ['blue', 'green', 'purple'];
+  const gear = document.getElementById('gear'), box = document.getElementById('settings');
+  const applyAccent = (a) => {
+    if (!ACC.includes(a)) a = 'blue';
+    document.body.dataset.accent = a;
+    document.querySelectorAll('.sw').forEach((b) => b.classList.toggle('active', b.dataset.accent === a));
+  };
+  try { applyAccent(JSON.parse(localStorage.getItem('msik.accent'))); } catch { applyAccent('blue'); }
+  document.querySelectorAll('.sw').forEach((b) => b.addEventListener('click', () => {
+    applyAccent(b.dataset.accent);
+    try { localStorage.setItem('msik.accent', JSON.stringify(b.dataset.accent)); } catch {}
+  }));
+  const toggle = (open) => { box.hidden = !open; gear.setAttribute('aria-expanded', String(open)); };
+  gear.addEventListener('click', (e) => { e.stopPropagation(); toggle(box.hidden); });
+  document.addEventListener('click', (e) => { if (!box.hidden && !box.contains(e.target)) toggle(false); });
+  document.addEventListener('keydown', (e) => { if (e.key === 'Escape') toggle(false); });
 </script>
 </body>
 </html>
