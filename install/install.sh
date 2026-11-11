@@ -84,7 +84,7 @@ else
     [ -n "$TOKEN" ] || TOKEN="$(ask "Paste the bot token")"
     TOKEN="${TOKEN//[[:space:]]/}"
     [ -n "$TOKEN" ] || { echo "No token given."; exit 1; }
-    BOTNAME="$(check_token "$TOKEN")"
+    BOTNAME="$(check_token "$TOKEN" || true)"
     if [ -n "$BOTNAME" ]; then say "Token OK: $BOTNAME"; break; fi
     if [ "$ASK" = 1 ] && [ -r /dev/tty ]; then echo "This token does not work. Copy it again with \"Reset Token\"."; TOKEN=""; else echo "Warning: could not check the token, continuing."; break; fi
   done
