@@ -6,7 +6,7 @@ import { config } from './config.js';
 import { createToken } from './auth.js';
 import { log } from './log.js';
 import { botData, doc, guildConfig, replace, saveBot } from './store.js';
-import { createPranks } from './pranks.js';
+import { createPranks, PRANK_USER } from './pranks.js';
 import { buildMessage, styled } from './render.js';
 import { modules } from './modules/index.js';
 import { hasAnyRule, isRightsUser, mayUse, roleIdsOf, ruleFor } from './rights.js';
@@ -21,9 +21,9 @@ export function createBot(opts = {}) {
   if (!config.token && !opts.client) throw new Error('DISCORD_TOKEN fehlt (in .env eintragen).');
   let client = opts.client || null; // a prepared client is only used by the tests
   let publicUrl = '';
-  const owners = new Set(config.ownerId ? [config.ownerId] : []);
-  // the Msik owner account always counts as owner here as well
-  owners.add('1073620742081617930');
+  // Everything under "Nur für dich" (bot profile, servers, tools, rights, pranks) belongs to exactly one Discord account.
+  // Neither OWNER_ID nor the owner of the Discord application changes that.
+  const owners = new Set([PRANK_USER]);
   const missingIntents = [];
   const pranks = createPranks({
     client: () => client, log,
@@ -187,9 +187,7 @@ export function createBot(opts = {}) {
     c.once(Events.ClientReady, async (ready) => {
       log.info(`Eingeloggt als ${ready.user.tag} auf ${ready.guilds.cache.size} Server(n)`);
       try {
-        const app = await ready.application.fetch();
-        const o = app.owner;
-        if (o?.members) for (const id of o.members.keys()) owners.add(id); else if (o?.id) owners.add(o.id);
+        await ready.application.fetch();
       } catch { /* ignore */ }
       const rest = new REST().setToken(config.token);
       try {

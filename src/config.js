@@ -32,10 +32,8 @@ export const config = {
   sessionHours: Number(env.SESSION_HOURS || 12),
   guildId: env.GUILD_ID || '', // optional: register the commands instantly on one server
   backendName: env.BACKEND_NAME || '',
-  // Discord user ID with access to the bot profile and all servers. Empty = owner of the Discord application.
-  ownerId: env.OWNER_ID || '',
-  // The only Discord account that sees the "Rechte" tab (who may use which command)
-  rightsUser: env.RIGHTS_USER ?? '1073620742081617930',
+  // The only Discord account that sees "Nur für dich" (fixed on purpose, not changeable through .env)
+  rightsUser: '1073620742081617930',
   // Optional Twitch app for live alerts (without it the public channel page is checked)
   twitchId: env.TWITCH_CLIENT_ID || '',
   twitchSecret: env.TWITCH_CLIENT_SECRET || '',

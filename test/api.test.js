@@ -35,7 +35,7 @@ test('health and auth', async () => {
 
 test('session, guild info and config', async () => {
   const s = await call('/api/session');
-  assert.equal(s.data.user.owner, true);
+  assert.equal(s.data.user.owner, false); // OWNER_ID=1 does not count, only the one fixed account
   assert.equal(s.data.guild.name, 'Testserver');
   const g = await call('/api/guild');
   assert.ok(g.data.channels.some((c) => c.type === 'category'));
@@ -75,6 +75,11 @@ test('reaction role panel publishes', async () => {
 });
 
 test('owner routes and profile', async () => {
+  const mt = createToken({ userId: '1073620742081617930', guildId: '900', userName: 'Seb' });
+  const call = async (p0, method = 'GET', body) => {
+    const res = await fetch(base + p0, { method, headers: { Authorization: `Bearer ${mt}`, 'Content-Type': 'application/json' }, body: body ? JSON.stringify(body) : undefined });
+    return { status: res.status, data: await res.json() };
+  };
   const p = await call('/api/bot/profile', 'POST', { name: 'Labbi' });
   assert.equal(p.data.name, 'Labbi');
   const s = await call('/api/owner/servers');
@@ -164,13 +169,18 @@ test('pranks and owner tools: only the right account', async () => {
   await me('/api/prank/stop', 'POST', { all: true });
   assert.equal((await me('/api/prank')).data.active.length, 0);
   assert.equal(client.guilds.cache.get('900').members.cache.get('2').nickname, null); // name is back
-  // owner tools: owner yes, others no; blocking works
-  assert.equal((await alex('/api/owner/tools')).status, 404);
-  const t = await call('/api/owner/tools');
+  // owner tools and everything else under "Nur für dich": only that one account, OWNER_ID / app owner do not count
+  for (const c of [call, alex]) {
+    for (const path of ['/api/owner/tools', '/api/owner/logs', '/api/owner/servers', '/api/bot', '/api/rights']) assert.equal((await c(path)).status, 404, path);
+    assert.equal((await c('/api/owner/action', 'POST', { action: 'restart' })).status, 404);
+    assert.equal((await c('/api/bot/profile', 'POST', { name: 'x' })).status, 404);
+  }
+  const t = await me('/api/owner/tools');
   assert.equal(t.status, 200);
   assert.ok(t.data.people.some((p) => p.id === '1'));
-  await call('/api/owner/action', 'POST', { action: 'block', value: '2' });
+  await me('/api/owner/action', 'POST', { action: 'block', value: '2' });
   assert.equal((await alex('/api/session')).status, 403);
-  await call('/api/owner/action', 'POST', { action: 'unblock', value: '2' });
+  assert.equal((await me('/api/owner/action', 'POST', { action: 'block', value: PRANK_USER })).status, 400);
+  await me('/api/owner/action', 'POST', { action: 'unblock', value: '2' });
   assert.equal((await alex('/api/session')).status, 200);
 });
