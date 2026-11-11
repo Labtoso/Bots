@@ -258,3 +258,7 @@ table.tbl tr:last-child td { border-bottom: 0; }
   .mc .fav { width: 44px; height: 44px; }
   .mc .nums { grid-column: span 2; text-align: left; }
 }
+
+/* every clickable thing gets the hand cursor */
+button, a[href], select, summary, label:has(input[type=checkbox]), label:has(input[type=radio]), input[type=checkbox], input[type=radio], input[type=range], input[type=color], input[type=file], .switch, [role=button], [onclick] { cursor: pointer; }
+button:disabled, select:disabled, input:disabled { cursor: not-allowed; }

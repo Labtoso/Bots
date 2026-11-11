@@ -44,6 +44,9 @@
   .sw { width: 30px; height: 30px; border-radius: 50%; border: 0; background: var(--c); padding: 0; cursor: pointer; outline-offset: 3px; }
   .sw.active { outline: 2px solid #e7e9ee; }
   @media (max-width: 700px) { body { padding-top: 72px; } }
+  /* every clickable thing gets the hand cursor */
+  button, a[href], select, summary, label:has(input[type=checkbox]), label:has(input[type=radio]), input[type=checkbox], input[type=radio], input[type=range], input[type=color], input[type=file], .switch, [role=button], [onclick] { cursor: pointer; }
+  button:disabled, select:disabled, input:disabled { cursor: not-allowed; }
 </style>
 </head>
 <body data-accent="blue">
