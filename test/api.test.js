@@ -96,3 +96,38 @@ test('minecraft overview without servers', async () => {
   const t = await call('/api/mc/test', 'POST', { host: '127.0.0.1', port: 1, edition: 'java' });
   assert.equal(t.data.online, false);
 });
+
+test('rights: only the rights account, rules are enforced', async () => {
+  const { mayUse } = await import('../src/rights.js');
+  const other = await call('/api/rights');
+  assert.equal(other.status, 404); // the owner (user 1) does not see it
+  const rt = createToken({ userId: '1073620742081617930', guildId: '900', userName: 'R' });
+  const rcall = async (p, method = 'GET', body) => {
+    const res = await fetch(base + p, { method, headers: { Authorization: `Bearer ${rt}`, 'Content-Type': 'application/json' }, body: body ? JSON.stringify(body) : undefined });
+    return { status: res.status, data: await res.json() };
+  };
+  const s = await rcall('/api/session');
+  assert.equal(s.data.user.rights, true);
+  const g = await rcall('/api/rights');
+  assert.equal(g.status, 200);
+  const names = g.data.commands.map((c) => c.name);
+  assert.ok(names.includes('aio') && names.includes('ban'));
+  assert.ok(g.data.commands.find((c) => c.name === 'ban').perm);
+  const put = await rcall('/api/rights', 'PUT', { commands: {
+    ban: { mode: 'custom', roles: ['33'], users: ['2'] }, kick: { mode: 'off' }, nope: { mode: 'off' }, rank: { mode: 'default' },
+  } });
+  assert.equal(put.status, 200);
+  assert.deepEqual(Object.keys(put.data.rules).sort(), ['ban', 'kick']);
+  const perms0 = { has: () => false };
+  assert.equal(mayUse('900', 'ban', { userId: '2', roleIds: [], perms: perms0 }), true); // chosen user
+  assert.equal(mayUse('900', 'ban', { userId: '5', roleIds: ['33'], perms: perms0 }), true); // chosen role
+  assert.equal(mayUse('900', 'ban', { userId: '5', roleIds: ['31'], perms: { has: () => true } }), false); // others not, even with Discord rights
+  assert.equal(mayUse('900', 'kick', { userId: '2', roleIds: ['33'] }), false); // off
+  assert.equal(mayUse('900', 'kick', { userId: '1073620742081617930' }), true); // the rights account always
+  assert.equal(mayUse('900', 'warn', { userId: '5', perms: perms0, defaultPerm: '1099511627776' }), false); // default: Discord permission
+  assert.equal(mayUse('900', 'warn', { userId: '5', perms: { has: () => true }, defaultPerm: '1099511627776' }), true);
+  // the owner cannot read the rules through the config either
+  const cfg = await call('/api/config');
+  assert.equal('rights' in cfg.data, false);
+  assert.equal(JSON.stringify(cfg.data).includes('"mode":"off"'), false);
+});

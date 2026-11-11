@@ -16,6 +16,7 @@ import { checkGuild, feedStatus, fetchFeed } from './modules/social.js';
 import { endGiveaway, gwData, startGiveaway } from './modules/giveaways.js';
 import { bdays } from './modules/birthdays.js';
 import { refreshCounters } from './modules/extras.js';
+import { isRightsUser, rightsData, saveRights } from './rights.js';
 
 const TYPES = {
   [ChannelType.GuildText]: 'text', [ChannelType.GuildAnnouncement]: 'announcement', [ChannelType.GuildVoice]: 'voice',
@@ -57,7 +58,7 @@ export function createApi(bot) {
   const guildOf = (id) => client()?.guilds.cache.get(id) || fail(404, 'Der Bot ist nicht mehr auf diesem Server.');
 
   async function allowed(session) {
-    if (ctx.isOwner(session.u)) return true;
+    if (ctx.isOwner(session.u) || isRightsUser(session.u)) return true;
     const key = `${session.g}:${session.u}`;
     const c = memberCache.get(key);
     if (c && Date.now() - c.at < 60_000) return c.ok;
@@ -101,14 +102,14 @@ export function createApi(bot) {
 
   /* ---------- routes ---------- */
   const routes = [];
-  const route = (method, pattern, fn, { owner = false } = {}) => {
+  const route = (method, pattern, fn, { owner = false, rights = false } = {}) => {
     const keys = [];
     const re = new RegExp(`^${pattern.replace(/:(\w+)/g, (_, k) => { keys.push(k); return '([^/]+)'; })}$`);
-    routes.push({ method, re, keys, fn, owner });
+    routes.push({ method, re, keys, fn, owner, rights });
   };
 
   route('GET', '/api/session', async ({ session, g }) => ({
-    user: { id: session.u, name: session.n, avatar: session.a, owner: ctx.isOwner(session.u) },
+    user: { id: session.u, name: session.n, avatar: session.a, owner: ctx.isOwner(session.u), rights: isRightsUser(session.u) },
     guild: { id: g.id, name: g.name, icon: g.iconURL({ size: 128, extension: 'png' }), members: g.memberCount },
     bot: { id: client().user.id, name: client().user.username, nickname: g.members.me?.nickname || '', avatar: client().user.displayAvatarURL({ size: 128, extension: 'png' }) },
     missingIntents: ctx.missingIntents, expires: session.exp, modules: Object.keys(DEFAULTS),
@@ -255,6 +256,24 @@ export function createApi(bot) {
 
   route('GET', '/api/birthdays', ({ g }) => Object.entries(bdays(g.id).users).map(([id, b]) => ({ id, ...b, name: g.members.cache.get(id)?.displayName || id })));
 
+  /* who may use which command (one account only) */
+  route('GET', '/api/rights', async ({ g }) => {
+    const rules = rightsData(g.id).commands;
+    const users = {};
+    for (const id of new Set(Object.values(rules).flatMap((r) => r.users))) {
+      const m = g.members.cache.get(id) || await g.members.fetch(id).catch(() => null);
+      const u = m?.user || await client().users.fetch(id).catch(() => null);
+      users[id] = { name: m?.displayName || u?.globalName || u?.username || id, tag: u?.tag || '', avatar: (m || u)?.displayAvatarURL?.({ size: 64, extension: 'png' }) || null };
+    }
+    return { commands: ctx.commandList(g.id), rules, users };
+  }, { rights: true });
+  route('PUT', '/api/rights', async ({ g, body }) => {
+    const known = new Set(ctx.commandList(g.id).map((c) => c.name));
+    const d = saveRights(g.id, body.commands, known);
+    await ctx.refreshCommands(g.id);
+    return { rules: d.commands };
+  }, { rights: true });
+
   /* bot profile and servers (owner only) */
   route('GET', '/api/bot', () => {
     const u = client().user;
@@ -309,6 +328,7 @@ export function createApi(bot) {
       if (!session) fail(401, 'Sitzung abgelaufen. Hol dir mit /aio einen neuen Link.');
       if (!client()?.isReady?.()) fail(503, 'Der Bot startet gerade, gleich nochmal versuchen.');
       if (r.owner && !ctx.isOwner(session.u)) fail(404, 'Nicht gefunden');
+      if (r.rights && !isRightsUser(session.u)) fail(404, 'Nicht gefunden');
       const g = guildOf(session.g);
       if (!await allowed(session)) fail(403, 'Du hast auf diesem Server keinen Zugriff mehr aufs Panel.');
       const m = p.match(r.re);

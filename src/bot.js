@@ -8,6 +8,7 @@ import { log } from './log.js';
 import { botData, guildConfig, saveBot } from './store.js';
 import { buildMessage, styled } from './render.js';
 import { modules } from './modules/index.js';
+import { hasAnyRule, isRightsUser, mayUse, roleIdsOf, ruleFor } from './rights.js';
 
 const BASE = [GatewayIntentBits.Guilds, GatewayIntentBits.GuildMessages, GatewayIntentBits.GuildMessageReactions,
   GatewayIntentBits.GuildVoiceStates, GatewayIntentBits.GuildModeration, GatewayIntentBits.GuildInvites];
@@ -51,7 +52,9 @@ export function createBot(opts = {}) {
     /** Whether a member may open the panel of their server. */
     canManage(member) {
       if (!member) return false;
-      if (owners.has(member.id)) return true;
+      if (owners.has(member.id) || isRightsUser(member.id)) return true;
+      // an own rule for /aio decides alone who gets into the panel
+      if (ruleFor(member.guild.id, 'aio')) return mayUse(member.guild.id, 'aio', { userId: member.id, roleIds: roleIdsOf(member) });
       if (member.permissions?.has(PermissionFlagsBits.ManageGuild)) return true;
       const roles = guildConfig(member.guild.id).general.managerRoles;
       return roles.some((r) => member.roles?.cache?.has(r));
@@ -64,6 +67,20 @@ export function createBot(opts = {}) {
       return `${config.dashboardUrl}#api=${encodeURIComponent(publicUrl)}&t=${encodeURIComponent(token)}`;
     },
     registerGuildCommands: (guildId) => registerGuild(guildId),
+    /** All commands a server has (for the rights tab): name, description, Discord default permission. */
+    commandList(guildId) {
+      const list = [...builtinJson(), ...modules.flatMap((m) => m.guildCommands?.(guildId, ctx) || [])];
+      const seen = new Set();
+      return list.filter((c) => !seen.has(c.name) && seen.add(c.name)).map((c) => ({
+        name: c.name, description: c.description_localizations?.de || c.description || '', perm: c.default_member_permissions ?? null,
+        custom: !builtinNames().has(c.name), type: c.type || 1,
+      }));
+    },
+    /** Re-registers the commands after the rules changed (an own rule removes Discord's default permission). */
+    async refreshCommands(guildId) {
+      await registerGlobal();
+      if (guildId) await registerGuild(guildId);
+    },
     applyPresence: () => applyPresence(),
   };
 
@@ -73,13 +90,24 @@ export function createBot(opts = {}) {
   const handlers = new Map(); // command name -> module
   for (const m of modules) for (const c of m.commands || []) handlers.set(c.name, m);
 
+  const builtinJson = () => [aio.toJSON(), ...modules.flatMap((m) => (m.commands || []).map((c) => c.toJSON()))];
+  const builtinNames = () => new Set(builtinJson().map((c) => c.name));
+  const defaultPerms = new Map(builtinJson().map((c) => [c.name, c.default_member_permissions ?? null]));
+  const guildIds = () => [...(client?.guilds?.cache?.keys?.() || [])];
+  /** A command with an own rule on any server is registered without Discord's default permission, the bot checks it itself. */
+  const open = (list, gids) => list.map((c) => (c.default_member_permissions && hasAnyRule(gids, c.name) ? { ...c, default_member_permissions: null } : c));
   function globalCommands() {
-    return [aio.toJSON(), ...modules.flatMap((m) => (m.commands || []).map((c) => c.toJSON()))];
+    return open(builtinJson(), guildIds());
+  }
+  async function registerGlobal() {
+    if (!client?.user || !config.token) return;
+    await new REST().setToken(config.token).put(Routes.applicationCommands(client.user.id), { body: config.guildId ? [] : globalCommands() })
+      .catch((e) => log.warn('Befehle registrieren:', e.message));
   }
 
   async function registerGuild(guildId) {
     if (!client?.application) return;
-    const list = modules.flatMap((m) => m.guildCommands?.(guildId, ctx) || []);
+    const list = open(modules.flatMap((m) => m.guildCommands?.(guildId, ctx) || []), [guildId]);
     const base = config.guildId === guildId ? globalCommands() : [];
     await new REST().setToken(config.token).put(Routes.applicationGuildCommands(client.application.id, guildId), { body: [...base, ...list] })
       .catch((e) => log.warn(`Befehle für Server ${guildId}:`, e.message));
@@ -168,6 +196,10 @@ export function createBot(opts = {}) {
       try {
         if (i.isChatInputCommand() || i.isContextMenuCommand()) {
           if (!i.guildId) return;
+          if (!mayUse(i.guildId, i.commandName, { userId: i.user.id, roleIds: roleIdsOf(i.member), perms: i.memberPermissions, defaultPerm: defaultPerms.get(i.commandName) })) {
+            const de = i.locale?.startsWith('de');
+            return await i.reply({ content: de ? 'Diesen Befehl darfst du auf diesem Server nicht benutzen.' : 'You are not allowed to use this command on this server.', flags: MessageFlags.Ephemeral });
+          }
           if (i.commandName === 'aio') return await onAio(i);
           const m = handlers.get(i.commandName);
           if (m) return await m.command(i, ctx);
