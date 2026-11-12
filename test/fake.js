@@ -2,14 +2,17 @@
 import { ChannelType, Collection } from 'discord.js';
 
 const yes = { has: () => true };
+// like discord.js: only these image sizes are allowed, anything else throws
+const SIZES = [16, 32, 64, 128, 256, 512, 1024, 2048, 4096];
+const img = (o = {}) => { if (o.size !== undefined && !SIZES.includes(o.size)) throw new RangeError(`Invalid size provided: ${o.size}`); return null; };
 
 export function fakeClient() {
   const sent = [];
   let msgId = 1000;
   const guild = {
     id: '900', name: 'Testserver', memberCount: 42, ownerId: '1', premiumSubscriptionCount: 2, createdTimestamp: Date.now() - 864e5 * 400,
-    iconURL: () => null, joinedTimestamp: Date.now() - 864e5,
-    channels: { cache: new Collection() }, roles: { cache: new Collection() }, emojis: { cache: new Collection() },
+    iconURL: img, joinedTimestamp: Date.now() - 864e5,
+    channels: { cache: new Collection() }, roles: { cache: new Collection() }, emojis: { cache: new Collection([['77', { id: '77', name: 'party', animated: false, toString: () => '<:party:77>', imageURL: img }]]) },
     leave: async () => {},
     voiceStates: { cache: new Collection() },
   };
@@ -46,10 +49,10 @@ export function fakeClient() {
   mkRole('34', 'AIO', 5, '#7c5cff', true);
   mkRole('35', 'Owner', 9, '#ef4444');
   const member = (id, name) => ({
-    id, displayName: name, user: { id, username: name.toLowerCase(), tag: name.toLowerCase(), bot: false, displayAvatarURL: () => null },
+    id, displayName: name, user: { id, username: name.toLowerCase(), tag: name.toLowerCase(), bot: false, displayAvatarURL: img },
     permissions: yes, roles: { cache: new Collection(), highest: { position: 9, comparePositionTo: () => 1 } }, guild,
     nickname: null, voice: { channelId: null }, setNickname: async function (n) { this.nickname = n; },
-    displayAvatarURL: () => null,
+    displayAvatarURL: img,
   });
   const members = new Collection([['1', member('1', 'Sebastian')], ['2', member('2', 'Alex')]]);
   guild.members = {
@@ -60,7 +63,7 @@ export function fakeClient() {
     guilds: { cache: new Collection([[guild.id, guild]]) },
     channels: { cache: guild.channels.cache, fetch: async (id) => guild.channels.cache.get(id) || null },
     users: { fetch: async (id) => members.get(id)?.user || null },
-    user: { id: '1234', username: 'AIO', displayAvatarURL: () => null, setUsername: async function (n) { this.username = n; }, setAvatar: async () => {}, setPresence: () => {} },
+    user: { id: '1234', username: 'AIO', displayAvatarURL: img, setUsername: async function (n) { this.username = n; }, setAvatar: async () => {}, setPresence: () => {} },
     application: { id: '1234' },
     isReady: () => true,
   };

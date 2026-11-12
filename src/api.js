@@ -92,7 +92,7 @@ export function createApi(bot) {
     const top = me?.roles.highest.position ?? 0;
     const roles = [...g.roles.cache.values()].filter((r) => r.id !== g.id).sort((a, b) => b.position - a.position)
       .map((r) => ({ id: r.id, name: r.name, color: r.hexColor === '#000000' ? null : r.hexColor, managed: r.managed, assignable: !r.managed && r.position < top }));
-    const emojis = [...g.emojis.cache.values()].map((e) => ({ id: e.id, name: e.name, animated: e.animated, text: e.toString(), url: e.imageURL({ size: 48 }) }));
+    const emojis = [...g.emojis.cache.values()].map((e) => ({ id: e.id, name: e.name, animated: e.animated, text: e.toString(), url: e.imageURL({ size: 64 }) }));
     return { channels, roles, emojis };
   }
 
