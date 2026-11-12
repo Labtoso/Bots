@@ -99,7 +99,7 @@ function upsertBackend(api, data = {}) {
 function readLink() {
   const p = new URLSearchParams(location.hash.slice(1));
   if (!p.get('api') || !p.get('t')) return false;
-  upsertBackend(p.get('api'), { token: p.get('t') });
+  upsertBackend(p.get('api'), { token: p.get('t').replace(/\s+/g, '') });
   activeApi = norm(p.get('api'));
   saveBackends();
   history.replaceState(null, '', location.pathname + location.search);
@@ -168,8 +168,15 @@ async function api(path, { method = 'GET', body } = {}) {
     body: body !== undefined ? JSON.stringify(body) : undefined,
   });
   const data = await res.json().catch(() => ({}));
-  if (res.status === 401) { showGate('expired'); throw new Error(data.error || 'Sitzung abgelaufen'); }
-  if (!res.ok) throw new Error(data.error || `Fehler ${res.status}`);
+  if (res.status === 401) {
+    const kind = { expired: 'expired', revoked: 'revoked', missing: 'none' }[data.reason] || 'invalid';
+    showGate(kind);
+    if (data.error && kind !== 'none') $('gateText').textContent = data.error;
+    const err = new Error(data.error || 'Link ungültig');
+    err.gate = true;
+    throw err;
+  }
+  if (!res.ok) { const err = new Error(data.error || `Fehler ${res.status}`); err.status = res.status; throw err; }
   return data;
 }
 const tryApi = async (...a) => { try { return await api(...a); } catch (e) { toast(e.message, true); throw e; } };
@@ -187,6 +194,10 @@ function showGate(kind) {
   const texts = {
     none: ['Kein Panel-Link', 'Schreib /aio auf deinem Discord-Server. Der Link öffnet das Panel und verbindet das Backend automatisch.'],
     expired: ['Link abgelaufen', 'Hol dir mit /aio auf deinem Server einen neuen Link.'],
+    revoked: ['Link zurückgezogen', 'Hol dir mit /aio auf deinem Server einen neuen Link.'],
+    invalid: ['Link passt nicht', 'Der Link gehört zu einem anderen Backend oder der Bot wurde neu eingerichtet. Hol dir mit /aio einen neuen Link.'],
+    starting: ['Bot startet', 'Der Bot verbindet sich gerade mit Discord. Das Panel lädt gleich von selbst.'],
+    error: ['Panel konnte nicht laden', ''],
     offline: ['Backend nicht erreichbar', 'Läuft der Bot? Nach einem Neustart ändert sich bei einem Cloudflare-Tunnel die Adresse, dann einfach /aio nochmal eingeben.'],
     switch: ['Backend wählen', 'Klick auf ein Backend, um es zu benutzen, oder füge eins hinzu.'],
   }[kind] || ['', ''];
@@ -197,6 +208,7 @@ function showGate(kind) {
 }
 $('gateGuide').onclick = (e) => { e.preventDefault(); openGuideStandalone(); };
 
+let bootTry = 0;
 async function boot() {
   const b = backends.find((x) => x.api === activeApi);
   session = b?.token ? { api: b.api, token: b.token } : null;
@@ -211,12 +223,14 @@ async function boot() {
     S.cfg = cfg; S.info = info;
     S.saved = Object.fromEntries(Object.entries(cfg).map(([k, v]) => [k, JSON.stringify(v)]));
   } catch (e) {
-    if (!$('gate').hidden && /abgelaufen/.test(e.message)) return;
-    if (/Failed to fetch|NetworkError|Load failed/i.test(e.message)) return showGate('offline');
-    showGate('expired');
+    if (e.gate) return;
+    if (/Failed to fetch|NetworkError|Load failed|fetch/i.test(e.message) && !e.status) return showGate('offline');
+    if (e.status === 503 && bootTry++ < 40) { showGate('starting'); setTimeout(boot, 3000); return; }
+    showGate('error');
     $('gateText').textContent = e.message;
     return;
   }
+  bootTry = 0;
   document.body.classList.remove('gate-mode');
   $('gate').hidden = true;
   $('shell').hidden = false;
