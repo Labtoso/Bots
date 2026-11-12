@@ -9,6 +9,9 @@ const CHANNELS = [
   { id: 'voice-2', name: 'Chillen', category: 'Sprachkanäle', users: 0, canSpeak: true },
 ];
 
+// every test server id gets its own name, so several servers can be tried side by side
+const guildName = (id) => (id === 'test-guild' ? 'Testserver' : `Testserver ${id}`);
+
 /** Runs the API without Discord, for local testing of the dashboard and the audio pipeline. */
 export function createMockBot() {
   const players = new Map();
@@ -29,10 +32,16 @@ export function createMockBot() {
     inviteUrl: () => null,
     activeCount: () => [...players.values()].filter((p) => p.current && !p.paused).length,
     getName: () => 'Msik Test',
-    getGuildInfo: async (id) => ({ id, name: 'Testserver', icon: null }),
+    getGuildInfo: async (id) => ({ id, name: guildName(id), icon: null }),
     getVoiceChannels: async () => CHANNELS,
     getTextChannels: async () => [{ id: 'text-1', name: 'musik-log', category: 'Text', canPost: true }, { id: 'text-2', name: 'allgemein', category: 'Text', canPost: false }],
-    getStats: () => ({ user: 'Msik Test#0000', guilds: [...players.entries()].map(([id, p]) => ({ id, name: 'Testserver', members: 3, playing: p.current?.title || null, channel: p.channel?.name || null, queue: p.queue.length })) }),
+    getStats: () => ({
+      user: 'Msik Test#0000',
+      guilds: [...players.entries()].map(([id, p]) => ({
+        id, name: guildName(id), icon: null, members: 3, playing: p.current?.title || null, channel: p.channel?.name || null,
+        queue: p.queue.length, paused: !!p.paused, volume: p.volume, filter: p.filter !== 'none' ? p.filter : null,
+      })),
+    }),
     stopAll: () => { for (const p of players.values()) p.leave(); },
     getMember: async (gid, uid) => ({ id: uid, voiceChannelId: 'voice-1' }),
     setPublicUrl: (u) => { publicUrl = u; },

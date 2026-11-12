@@ -180,9 +180,9 @@ export function createApi(bot) {
         const g = settings.global();
         const counts = {};
         for (const v of people) counts[v.guildId] = (counts[v.guildId] || 0) + 1;
-        const guilds = (bot.getStats().guilds || []).map((gu) => ({
-          id: gu.id, name: gu.name, members: gu.members, playing: gu.playing, channel: gu.channel, queue: gu.queue, viewers: counts[gu.id] || 0,
-        }));
+        // every server is its own session; the busy ones first
+        const guilds = (bot.getStats().guilds || []).map((gu) => ({ ...gu, viewers: counts[gu.id] || 0, here: gu.id === guildId }))
+          .sort((a, b) => (!!b.playing - !!a.playing) || (b.viewers - a.viewers) || String(a.name).localeCompare(String(b.name)));
         return send(res, 200, { people, guilds, blocked: g.blocked, hidden: !!g.hidden });
       }
       if (p === '/api/ctl/profile' && req.method === 'GET') return send(res, 200, await bot.getProfile(guildId));

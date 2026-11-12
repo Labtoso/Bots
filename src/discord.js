@@ -162,7 +162,11 @@ export function createDiscordBot() {
       user: client.user?.tag || null,
       guilds: [...client.guilds.cache.values()].map((g) => {
         const p = players.get(g.id);
-        return { id: g.id, name: g.name, members: g.memberCount, playing: p?.current?.title || null, channel: p?.channel?.name || null, queue: p?.queue.length || 0 };
+        return {
+          id: g.id, name: g.name, icon: g.iconURL({ size: 64, extension: 'png' }), members: g.memberCount,
+          playing: p?.current?.title || null, channel: p?.channel?.name || null, queue: p?.queue.length || 0,
+          paused: !!p?.paused, volume: p ? p.volume : null, filter: p?.filter && p.filter !== 'none' ? p.filter : null,
+        };
       }),
     };
   }
@@ -189,14 +193,27 @@ export function createDiscordBot() {
     .setDescriptionLocalizations({ de: 'Öffnet das Musik-Dashboard' })
     .setDMPermission(false);
 
+  const rest = new REST().setToken(config.token);
+  async function registerWeb(guild) {
+    try {
+      await rest.put(Routes.applicationGuildCommands(client.user.id, guild.id), { body: [command.toJSON()] });
+    } catch (e) { log.warn(`/web auf ${guild.name} registrieren:`, e.message); }
+  }
+  // added to another server while running: /web works there right away, with its own separate session
+  client.on(Events.GuildCreate, (g) => { log.info(`Neuer Server: ${g.name}`); registerWeb(g); });
+  client.on(Events.GuildDelete, (g) => {
+    const p = players.get(g.id);
+    if (p) { p.channel = null; p.stop(); }
+    log.info(`Server verlassen: ${g.name || g.id}`);
+  });
+
   client.once(Events.ClientReady, async (c) => {
     log.info(`Eingeloggt als ${c.user.tag} auf ${c.guilds.cache.size} Server(n)`);
-    const rest = new REST().setToken(config.token);
-    const route = config.guildId ? Routes.applicationGuildCommands(c.user.id, config.guildId) : Routes.applicationCommands(c.user.id);
-    // Only /web exists. Registering the full list also removes old commands.
-    await rest.put(route, { body: [command.toJSON()] });
-    if (config.guildId) await rest.put(Routes.applicationCommands(c.user.id), { body: [] });
-    log.info('/web registriert');
+    // /web on every server, set per server so it shows up at once (also on servers added later).
+    // Registering the full list also removes old commands; the global list stays empty so nothing shows twice.
+    await rest.put(Routes.applicationCommands(c.user.id), { body: [] }).catch((e) => log.warn('Globale Befehle leeren:', e.message));
+    for (const g of c.guilds.cache.values()) await registerWeb(g);
+    log.info(`/web registriert auf ${c.guilds.cache.size} Server(n)`);
     // Administrator, so music and the pranks work without fiddling with single permissions
     log.info(`Einladen: https://discord.com/oauth2/authorize?client_id=${c.user.id}&scope=bot+applications.commands&permissions=${INVITE_PERMISSIONS}`);
     c.user.setActivity('/web');
