@@ -1,5 +1,5 @@
 import { EventEmitter } from 'node:events';
-import { spawn } from 'node:child_process';
+import { spawn, spawnSync } from 'node:child_process';
 import { PassThrough } from 'node:stream';
 import {
   AudioPlayerStatus, NoSubscriberBehavior, StreamType, createAudioPlayer, createAudioResource,
@@ -19,10 +19,29 @@ export const FILTERS = {
   // heavily overdriven on purpose; the limiter keeps it from clipping into silence
   earrape: 'bass=g=30:f=80,treble=g=12,volume=45dB,acrusher=bits=2:mode=log:aa=0:mix=1,volume=12dB,alimiter=limit=0.99:level=disabled',
   earrapeold: 'bass=g=15:f=90,volume=20dB,acrusher=bits=6:mode=log:aa=1:mix=0.6,alimiter=limit=0.9:level=disabled',
-  reverb: 'aecho=0.8:0.9:40|60|90:0.5|0.3|0.2',
+  // real hall: the song is convolved with a smooth, decaying noise tail (about 2 s), so there are no
+  // separate repeats that sound like a second copy; the dry sound stays untouched and on time
+  reverb: 'asplit[dry][src];'
+    + "aevalsrc='(random(0)*2-1)*exp(-t*3.2)*0.02|(random(1)*2-1)*exp(-t*3.2)*0.02':s=48000:d=1.6,"
+    + 'highpass=f=180,lowpass=f=5500[ir];'
+    + '[src][ir]afir=@NOGAIN@:minp=256:maxp=8192[wet];'
+    + "[dry][wet]amix=inputs=2:weights='1 0.5':normalize=0,volume=-2dB,alimiter=limit=0.95:level=disabled",
   // extreme highs: strong treble shelf plus presence, the limiter keeps it from clipping
   treble: 'treble=g=20:f=3500:t=s:w=0.6,equalizer=f=9000:t=q:w=1.2:g=10,volume=-10dB,alimiter=limit=0.95:level=disabled',
 };
+/* afir switches off its own gain with gtype=none up to ffmpeg 6 and with irnorm=-1 from ffmpeg 7 on.
+   Asked once, so the reverb works with whichever ffmpeg is installed. */
+let noGain = null;
+function filterGraph(name) {
+  const af = FILTERS[name];
+  if (!af || !af.includes('@NOGAIN@')) return af;
+  if (noGain === null) {
+    let help = '';
+    try { help = spawnSync(bins.ffmpeg, ['-hide_banner', '-h', 'filter=afir'], { encoding: 'utf8', windowsHide: true, timeout: 5000 }).stdout || ''; } catch { /* ignore */ }
+    noGain = /\bgtype\b/.test(help) ? 'gtype=none' : 'irnorm=-1';
+  }
+  return af.replace('@NOGAIN@', noGain);
+}
 const SPEED = { nightcore: 1.25, vaporwave: 0.8 };
 const LOOPS = ['off', 'track', 'queue'];
 
@@ -284,7 +303,7 @@ export class GuildPlayer extends EventEmitter {
     }
     if (c.fx) { const old = c.fx; c.fx = null; old.stdout.removeAllListeners('data'); try { old.kill('SIGKILL'); } catch { /* ignore */ } }
     c.inflight = 0;
-    const af = FILTERS[this.filter];
+    const af = filterGraph(this.filter);
     if (af) {
       const fx = spawn(bins.ffmpeg, [
         '-hide_banner', '-loglevel', 'error', '-threads', '1', '-fflags', '+nobuffer', '-probesize', '32', '-analyzeduration', '0',
