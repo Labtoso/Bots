@@ -64,7 +64,7 @@ const T = {
     on: 'an', off: 'aus', guest: 'Gast',
     serverSettings: 'Server', npPost: 'Laufenden Song posten', npChannel: 'Textkanal', webChannel: '/web erlaubt in',
     everywhere: 'Überall', npNoPerm: 'Der Bot darf in diesem Kanal nicht schreiben (Nachrichten senden, Links einbetten).', saved: 'Gespeichert',
-    own: 'Nur für dich', ownHidden: 'Unsichtbar (nicht in der Aktivität)', ownServers: 'Server & Panels', ownOpen: 'Öffnen', ownViewers: '{n} im Panel', ownPeople: 'Gerade im Panel', ownBlocked: 'Gesperrt', ownBlock: 'Sperren', ownUnblock: 'Entsperren', ownBlockPh: 'Discord-Name oder ID', ownNobody: 'Niemand', ownYou: 'du', ownGuest: 'Gast', ownBlockedOk: '{n} ist gesperrt', ownHiddenOn: 'Du bist jetzt unsichtbar', ownHiddenOff: 'Du bist wieder sichtbar', ownLogs: 'Logs', ownYtdlp: 'yt-dlp aktualisieren', ownRevoke: 'Geteilte Links zurückziehen',
+    own: 'Nur für dich', ownHidden: 'Unsichtbar (nicht in der Aktivität)', ownServers: 'Server & Panels', ownOpen: 'Öffnen', ownHere: 'hier offen', ownPaused: 'pausiert', switchServer: 'Server wechseln', ownViewers: '{n} im Panel', ownPeople: 'Gerade im Panel', ownBlocked: 'Gesperrt', ownBlock: 'Sperren', ownUnblock: 'Entsperren', ownBlockPh: 'Discord-Name oder ID', ownNobody: 'Niemand', ownYou: 'du', ownGuest: 'Gast', ownBlockedOk: '{n} ist gesperrt', ownHiddenOn: 'Du bist jetzt unsichtbar', ownHiddenOff: 'Du bist wieder sichtbar', ownLogs: 'Logs', ownYtdlp: 'yt-dlp aktualisieren', ownRevoke: 'Geteilte Links zurückziehen',
     ownStop: 'Überall stoppen', ownRestart: 'Bot neu starten', ownRestartAsk: 'Bot wirklich neu starten? Die Musik stoppt kurz, der Tunnel bekommt eine neue Adresse (dann /web).',
     ownRevoked: 'Alle geteilten Links gelten nicht mehr', ownStopped: 'Auf allen Servern gestoppt', ownRestarting: 'Bot startet neu …',
     upFor: 'läuft seit {t}', servers: 'Server', mem: 'Speicher', none: 'nichts',
@@ -113,7 +113,7 @@ const T = {
     on: 'on', off: 'off', guest: 'guest',
     serverSettings: 'Server', npPost: 'Post the current song', npChannel: 'Text channel', webChannel: '/web allowed in',
     everywhere: 'Everywhere', npNoPerm: 'The bot may not write in this channel (Send Messages, Embed Links).', saved: 'Saved',
-    own: 'Only you', ownHidden: 'Invisible (not in the activity)', ownServers: 'Servers & panels', ownOpen: 'Open', ownViewers: '{n} watching', ownPeople: 'In the panel now', ownBlocked: 'Blocked', ownBlock: 'Block', ownUnblock: 'Unblock', ownBlockPh: 'Discord name or ID', ownNobody: 'Nobody', ownYou: 'you', ownGuest: 'guest', ownBlockedOk: '{n} is blocked', ownHiddenOn: 'You are invisible now', ownHiddenOff: 'You are visible again', ownLogs: 'Logs', ownYtdlp: 'Update yt-dlp', ownRevoke: 'Revoke shared links',
+    own: 'Only you', ownHidden: 'Invisible (not in the activity)', ownServers: 'Servers & panels', ownOpen: 'Open', ownHere: 'open here', ownPaused: 'paused', switchServer: 'Switch server', ownViewers: '{n} watching', ownPeople: 'In the panel now', ownBlocked: 'Blocked', ownBlock: 'Block', ownUnblock: 'Unblock', ownBlockPh: 'Discord name or ID', ownNobody: 'Nobody', ownYou: 'you', ownGuest: 'guest', ownBlockedOk: '{n} is blocked', ownHiddenOn: 'You are invisible now', ownHiddenOff: 'You are visible again', ownLogs: 'Logs', ownYtdlp: 'Update yt-dlp', ownRevoke: 'Revoke shared links',
     ownStop: 'Stop everywhere', ownRestart: 'Restart bot', ownRestartAsk: 'Really restart the bot? Music stops briefly and the tunnel gets a new address (then /web).',
     ownRevoked: 'All shared links are revoked', ownStopped: 'Stopped on all servers', ownRestarting: 'Bot is restarting …',
     upFor: 'up for {t}', servers: 'Servers', mem: 'Memory', none: 'nothing',
@@ -156,10 +156,25 @@ function upsertBackend(api, data = {}) {
   saveBackends();
   return b;
 }
+/* Every Discord server is its own session with its own link. The dashboard keeps the link of
+   each server per backend, so someone on several servers can switch without a new /web. */
+function tokenInfo(token) {
+  try {
+    const d = JSON.parse(decodeURIComponent(escape(atob(String(token).split('.')[0].replace(/-/g, '+').replace(/_/g, '/')))));
+    return { g: d.g ? String(d.g) : null, exp: Number(d.exp) || 0 };
+  } catch { return { g: null, exp: 0 }; }
+}
+function rememberServer(b, token, extra = {}) {
+  const { g, exp } = tokenInfo(token);
+  if (!g) return;
+  b.servers = Object.fromEntries(Object.entries(b.servers || {}).filter(([, v]) => v.exp > Date.now()));
+  b.servers[g] = { ...(b.servers[g] || {}), ...extra, token, exp };
+}
 function readLink() {
   const h = new URLSearchParams(location.hash.slice(1));
   if (!h.get('api') || !h.get('t')) return false;
-  upsertBackend(h.get('api'), { token: h.get('t') });
+  const b0 = upsertBackend(h.get('api'), { token: h.get('t') });
+  rememberServer(b0, h.get('t'));
   activeApi = norm(h.get('api'));
   saveBackends();
   history.replaceState(null, '', location.pathname + location.search);
@@ -836,6 +851,12 @@ function showSession(s) {
     $('serverName').textContent = s.guild.name;
     if (s.guild.icon) { $('serverIcon').src = s.guild.icon; $('serverIcon').hidden = false; } else $('serverIcon').hidden = true;
     $('server').hidden = false;
+    const bk = backends.find((x) => x.api === session.api);
+    if (bk && bk.token === session.token) {
+      rememberServer(bk, session.token, { name: s.guild.name, icon: s.guild.icon || null });
+      saveBackends();
+    }
+    renderServerSwitch();
     if (s.user.avatar) { $('userAvatar').src = s.user.avatar; $('userAvatar').hidden = false; }
     $('userAvatar').title = s.user.name;
     sessInfo = { name: s.user.name, exp: s.expires, guest: !!s.user.guest, ctl: !!s.user.ctl, prank: !!s.user.prank };
@@ -926,6 +947,40 @@ async function createPl(name, tracks) {
   return r.playlist;
 }
 function closePop() { $('plPop').hidden = true; }
+function otherServers() {
+  const b = backends.find((x) => x.api === session?.api);
+  const cur = tokenInfo(session?.token).g;
+  return Object.entries(b?.servers || {}).filter(([g, v]) => g !== cur && v.exp > Date.now() && v.token);
+}
+function renderServerSwitch() {
+  const many = otherServers().length > 0;
+  $('server').classList.toggle('switch-on', many);
+  $('server').setAttribute('role', many ? 'button' : 'presentation');
+  $('server').title = many ? t('switchServer') : '';
+}
+function openServerPicker() {
+  const list = otherServers();
+  if (!list.length) return;
+  const pop = $('plPop');
+  pop.replaceChildren(el('div', 'pop-title', t('switchServer')));
+  for (const [, v] of list) {
+    const b = el('button', 'srv-pick'); b.type = 'button';
+    if (v.icon) { const im = el('img'); im.src = v.icon; im.alt = ''; b.append(im); } else b.append(el('span', 'ava'));
+    b.append(el('span', '', v.name || '?'));
+    b.onclick = () => {
+      closePop();
+      const bk = backends.find((x) => x.api === session.api);
+      bk.token = v.token; saveBackends(); restart();
+    };
+    pop.append(b);
+  }
+  pop.hidden = false;
+  const r = $('server').getBoundingClientRect();
+  const w = pop.offsetWidth;
+  pop.style.left = `${Math.max(8, Math.min(r.right - w, innerWidth - w - 8))}px`;
+  pop.style.top = `${r.bottom + 4}px`;
+}
+$('server').onclick = (e) => { e.stopPropagation(); if ($('plPop').hidden) openServerPicker(); else closePop(); };
 async function openPlPicker(btn, tracks) {
   if (!pls.length) { try { pls = (await api('/api/playlists')).playlists; } catch { /* empty list */ } }
   const pop = $('plPop');
@@ -1018,9 +1073,17 @@ async function loadPeople() {
   for (const g of (r.guilds || [])) {
     const li = el('li');
     const nm = el('span', 'nm', g.name || g.id);
-    const bits = [g.playing ? `▶ ${g.playing}` : t('none'), t('ownViewers', { n: g.viewers })].filter(Boolean).join(' · ');
+    const bits = [
+      g.here ? t('ownHere') : '',
+      g.playing ? `${g.paused ? '⏸' : '▶'} ${g.playing}${g.channel ? ` · ${g.channel}` : ''}` : t('none'),
+      g.playing && g.queue ? `+${g.queue}` : '',
+      g.playing && g.volume != null ? `${g.volume}%` : '',
+      g.filter || '',
+      t('ownViewers', { n: g.viewers }),
+    ].filter(Boolean).join(' · ');
     nm.append(el('small', '', bits));
-    li.append(el('span', 'ava'), nm);
+    if (g.icon) { const im = el('img'); im.src = g.icon; im.alt = ''; li.append(im); } else li.append(el('span', 'ava'));
+    li.append(nm);
     const b = el('button', 'btn ghost sm', t('ownOpen')); b.onclick = () => openPanel(g.id);
     li.append(b); sv.append(li);
   }

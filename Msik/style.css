@@ -344,6 +344,12 @@ img.yt43 { transform: scale(1.34); }
 .pop button { display: block; width: 100%; text-align: left; border: 0; background: transparent; padding: 8px 10px; border-radius: var(--r-ctl); white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
 .pop button:hover { background: var(--hover); }
 .pop .pop-new { color: var(--accent); }
+.pop .srv-pick { display: flex; align-items: center; gap: 8px; }
+.pop .srv-pick img, .pop .srv-pick .ava { width: 22px; height: 22px; border-radius: 6px; background: var(--panel-2); flex: none; }
+.pop .srv-pick span:last-child { overflow: hidden; text-overflow: ellipsis; }
+.server.switch-on { cursor: pointer; border-radius: var(--r-ctl); padding: 3px 6px; margin: -3px -6px; }
+.server.switch-on:hover { background: var(--hover); }
+.server.switch-on::after { content: '▾'; color: var(--muted); font-size: 11px; }
 @media (max-width: 560px) {
   .queue .item .acts, #plTracks .item .acts { width: auto; }
   .pl-head { flex-wrap: wrap; }
@@ -362,6 +368,8 @@ img.yt43 { transform: scale(1.34); }
 .own-people li .nm { flex: 1; min-width: 0; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
 .own-people li .nm small { color: var(--muted); margin-left: 6px; }
 .own-people li.empty-row { color: var(--muted); }
+#ownServers li { min-height: 40px; }
+#ownServers li .nm small { display: block; margin-left: 0; overflow: hidden; text-overflow: ellipsis; }
 .own-block { width: 100%; margin: 0; }
 .own-btns { display: flex; flex-wrap: wrap; gap: 6px; }
 .btn.danger { color: #f87171; }
