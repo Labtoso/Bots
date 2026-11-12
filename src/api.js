@@ -1,7 +1,7 @@
 import http from 'node:http';
 import { ChannelType } from 'discord.js';
 import { config } from './config.js';
-import { createToken, verifyToken } from './auth.js';
+import { createToken, checkToken } from './auth.js';
 import { log } from './log.js';
 import { DEFAULTS, EMBED } from './defaults.js';
 import { botData, guildConfig, guildData, saveBot, saveData, saveModule } from './store.js';
@@ -29,8 +29,8 @@ const TYPES = {
   [ChannelType.GuildStageVoice]: 'stage', [ChannelType.GuildCategory]: 'category', [ChannelType.GuildForum]: 'forum',
 };
 
-class HttpError extends Error { constructor(code, msg) { super(msg); this.code = code; } }
-const fail = (code, msg) => { throw new HttpError(code, msg); };
+class HttpError extends Error { constructor(code, msg, reason) { super(msg); this.code = code; this.reason = reason; } }
+const fail = (code, msg, reason) => { throw new HttpError(code, msg, reason); };
 
 /** REST API for the panel on bot.labtoso.de. */
 export function createApi(bot) {
@@ -386,18 +386,23 @@ export function createApi(bot) {
     const url = new URL(req.url, 'http://x');
     const p = url.pathname;
     if (p === '/' || p === '/health') {
-      return send(res, 200, { ok: true, name: 'aio', backend: config.backendName || bot.getName?.() || 'AIO', bot: bot.getName?.() || null, servers: client()?.guilds.cache.size || 0 });
+      return send(res, 200, { ok: true, name: 'aio', backend: config.backendName || bot.getName?.() || 'AIO', bot: bot.getName?.() || null, botId: client()?.user?.id || null, ready: !!client()?.isReady?.(), servers: client()?.guilds.cache.size || 0, time: Date.now() });
     }
     const r = routes.find((x) => x.method === req.method && x.re.test(p));
     if (!r) return send(res, 404, { error: 'Nicht gefunden' });
     try {
-      const session = verifyToken((req.headers.authorization || '').replace(/^Bearer\s+/i, '') || url.searchParams.get('token'));
-      if (!session) fail(401, 'Sitzung abgelaufen. Hol dir mit /aio einen neuen Link.');
+      const check = checkToken((req.headers.authorization || '').replace(/^Bearer\s+/i, '') || url.searchParams.get('token'));
+      const session = check.data;
+      if (!session) {
+        if (check.reason === 'expired') fail(401, `Link abgelaufen (galt bis ${new Date(check.exp).toLocaleString('de-AT', { dateStyle: 'short', timeStyle: 'short' })}). Hol dir mit /aio einen neuen.`, 'expired');
+        if (check.reason === 'missing') fail(401, 'Kein Panel-Link. Schreib /aio auf deinem Server.', 'missing');
+        fail(401, 'Dieser Link gehört nicht zu diesem Backend (anderer Bot oder neu installiert). Hol dir mit /aio einen neuen Link.', 'invalid');
+      }
       if (!client()?.isReady?.()) fail(503, 'Der Bot startet gerade, gleich nochmal versuchen.');
       if (r.owner && !ctx.isOwner(session.u)) fail(404, 'Nicht gefunden');
       if (r.rights && !isRightsUser(session.u)) fail(404, 'Nicht gefunden');
       if (r.prank && !isPrankUser(session.u)) fail(404, 'Nicht gefunden');
-      if ((botData().revokedAt || 0) > session.exp - config.sessionHours * 3600_000 && !ctx.isOwner(session.u)) fail(401, 'Dieser Link wurde zurückgezogen. Hol dir mit /aio einen neuen.');
+      if ((botData().revokedAt || 0) > session.exp - config.sessionHours * 3600_000 && !ctx.isOwner(session.u)) fail(401, 'Dieser Link wurde zurückgezogen. Hol dir mit /aio einen neuen.', 'revoked');
       if (ctx.isBlocked(session.u, session.n)) fail(403, 'Du bist für dieses Panel gesperrt.');
       seen.set(`${session.u}|${session.g}`, { id: session.u, name: session.n, avatar: session.a, guild: session.g, at: Date.now() });
       const g = guildOf(session.g);
@@ -408,7 +413,7 @@ export function createApi(bot) {
       const out = await r.fn({ session, g, params, body, query: url.searchParams, req });
       return send(res, 200, out ?? { ok: true });
     } catch (e) {
-      if (e instanceof HttpError) return send(res, e.code, { error: e.message });
+      if (e instanceof HttpError) return send(res, e.code, { error: e.message, ...(e.reason ? { reason: e.reason } : {}) });
       log.warn(`API ${req.method} ${p}:`, e.message);
       return send(res, 500, { error: e.message || 'Fehler' });
     }
