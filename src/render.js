@@ -82,6 +82,11 @@ export function buildMessage(msg, vars = {}, cfg = null) {
     const e = buildEmbed(msg.embed, vars, cfg?.embeds?.profiles || [], cfg?.general?.profile || '');
     if (e) embeds.push(e);
   }
+  for (const x of Array.isArray(msg.embeds) ? msg.embeds : []) {
+    if (embeds.length >= 10) break;
+    const e = buildEmbed(x, vars, cfg?.embeds?.profiles || [], cfg?.general?.profile || '');
+    if (e) embeds.push(e);
+  }
   if (!content.trim() && !embeds.length) return null;
   return { content: content || undefined, embeds, allowedMentions: { parse: ['users', 'roles', 'everyone'] } };
 }

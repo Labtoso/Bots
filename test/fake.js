@@ -10,7 +10,7 @@ export function fakeClient() {
   const sent = [];
   let msgId = 1000;
   const guild = {
-    id: '900', name: 'Testserver', memberCount: 42, ownerId: '1', premiumSubscriptionCount: 2, createdTimestamp: Date.now() - 864e5 * 400,
+    id: '900', name: 'Testserver', memberCount: 42, ownerId: '1', premiumSubscriptionCount: 2, premiumTier: 1, createdTimestamp: Date.now() - 864e5 * 400,
     iconURL: img, joinedTimestamp: Date.now() - 864e5,
     channels: { cache: new Collection() }, roles: { cache: new Collection() }, emojis: { cache: new Collection([['77', { id: '77', name: 'party', animated: false, toString: () => '<:party:77>', imageURL: img }]]) },
     leave: async () => {},
@@ -52,9 +52,13 @@ export function fakeClient() {
     id, displayName: name, user: { id, username: name.toLowerCase(), tag: name.toLowerCase(), bot: false, displayAvatarURL: img },
     permissions: yes, roles: { cache: new Collection(), highest: { position: 9, comparePositionTo: () => 1 } }, guild,
     nickname: null, voice: { channelId: null }, setNickname: async function (n) { this.nickname = n; },
-    displayAvatarURL: img,
+    displayAvatarURL: img, premiumSinceTimestamp: null,
+    send: async (body) => { sent.push({ dm: id, body }); return {}; },
   });
   const members = new Collection([['1', member('1', 'Sebastian')], ['2', member('2', 'Alex')]]);
+  members.get('2').premiumSinceTimestamp = Date.now() - 864e5 * 30;
+  members.get('2').roles.add = async (r) => { for (const x of [].concat(r)) members.get('2').roles.cache.set(x, { id: x }); };
+  members.get('1').roles.add = members.get('2').roles.add;
   guild.members = {
     cache: members, me: { nickname: null, permissions: yes, roles: { highest: { position: 5 } }, setNickname: async (n) => { guild.members.me.nickname = n; } },
     fetch: async (q) => (typeof q === 'string' ? members.get(q) || null : members),
@@ -64,7 +68,8 @@ export function fakeClient() {
     channels: { cache: guild.channels.cache, fetch: async (id) => guild.channels.cache.get(id) || null },
     users: { fetch: async (id) => members.get(id)?.user || null },
     user: { id: '1234', username: 'AIO', displayAvatarURL: img, setUsername: async function (n) { this.username = n; }, setAvatar: async () => {}, setPresence: () => {} },
-    application: { id: '1234' },
+    application: { id: '1234', description: '' },
+    rest: { calls: [], patch: async (route, opts) => { client.rest.calls.push({ route, body: opts?.body }); return {}; } },
     isReady: () => true,
   };
   return { client, guild, sent };

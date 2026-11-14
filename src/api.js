@@ -16,6 +16,7 @@ import { checkGuild, feedStatus, fetchFeed } from './modules/social.js';
 import { endGiveaway, gwData, startGiveaway } from './modules/giveaways.js';
 import { bdays } from './modules/birthdays.js';
 import { refreshCounters } from './modules/extras.js';
+import { boosterList, boostData, onBoost } from './modules/boost.js';
 import { isRightsUser, rightsData, saveRights } from './rights.js';
 import { isPrankUser } from './pranks.js';
 import fs from 'node:fs';
@@ -176,7 +177,7 @@ export function createApi(bot) {
     if (!msg) fail(404, 'Nachricht nicht gefunden.');
     return {
       channel: ch.id, messageId: msg.id, own: msg.author.id === client().user.id,
-      message: { content: msg.content || '', embed: msg.embeds[0] ? embedToEditor(msg.embeds[0]) : EMBED() },
+      message: { content: msg.content || '', embed: msg.embeds[0] ? embedToEditor(msg.embeds[0]) : EMBED(), embeds: msg.embeds.slice(1, 10).map(embedToEditor) },
     };
   });
 
@@ -262,6 +263,20 @@ export function createApi(bot) {
     return { ok: true };
   });
 
+  /* server boosts */
+  route('GET', '/api/boosts', async ({ g }) => {
+    await g.members.fetch().catch(() => null); // premiumSince needs the members in the cache
+    const d = boostData(g.id);
+    return { boosts: g.premiumSubscriptionCount || 0, tier: g.premiumTier ?? 0, total: d.total || 0, boosters: await boosterList(g) };
+  });
+  route('POST', '/api/boosts/test', async ({ g, session }) => {
+    const m = await g.members.fetch(session.u).catch(() => null);
+    if (!m) fail(404, 'Du bist kein Mitglied dieses Servers.');
+    const r = await onBoost(ctx, m, { test: true });
+    if (!r.channel && !guildConfig(g.id).boost.dmEnabled) fail(400, 'Wähle zuerst einen Kanal oder schalte die DM ein (und speichere).');
+    return r;
+  });
+
   route('GET', '/api/birthdays', ({ g }) => Object.entries(bdays(g.id).users).map(([id, b]) => ({ id, ...b, name: g.members.cache.get(id)?.displayName || id })));
 
   /* pranks (one account only, everybody else gets 404) */
@@ -342,22 +357,32 @@ export function createApi(bot) {
   }, { rights: true });
 
   /* bot profile and servers (owner only) */
-  route('GET', '/api/bot', () => {
+  route('GET', '/api/bot', async () => {
     const u = client().user;
-    return { id: u.id, name: u.username, avatar: u.displayAvatarURL({ size: 256, extension: 'png' }), presence: { status: 'online', activities: [{ type: 'custom', text: '/aio' }], rotateSeconds: 60, ...botData().presence } };
+    if (u.fetch) await u.fetch(true).catch(() => null); // banner is only known after a fetch
+    const app = client().application;
+    return { id: u.id, name: u.username, avatar: u.displayAvatarURL({ size: 256, extension: 'png' }), banner: u.bannerURL?.({ size: 512, extension: 'png' }) || null, bio: app?.description || '', presence: { status: 'online', activities: [{ type: 'custom', text: '/aio' }], rotateSeconds: 60, ...botData().presence } };
   }, { owner: true });
   route('POST', '/api/bot/profile', async ({ body, session }) => {
     const u = client().user;
     try {
       if (body.name && body.name !== u.username) await u.setUsername(String(body.name).slice(0, 32));
       if (body.avatar) await u.setAvatar(String(body.avatar));
-      if (body.banner) await u.setBanner(String(body.banner)).catch(() => {});
+      if (body.banner) await u.setBanner(String(body.banner));
+      if (typeof body.bio === 'string') {
+        const bio = body.bio.slice(0, 400);
+        // the "About me" of a bot is the description of its application
+        if (bio !== (client().application?.description || '')) {
+          await client().rest.patch('/applications/@me', { body: { description: bio } });
+          if (client().application) client().application.description = bio;
+        }
+      }
     } catch (e) {
       if (/rate|too fast|changing.*too/i.test(e.message)) fail(429, 'Discord erlaubt nur 2 Namensänderungen pro Stunde. Probier es später nochmal.');
       fail(400, e.message);
     }
     log.info(`Bot-Profil geändert von ${session.n}`);
-    return { name: u.username, avatar: u.displayAvatarURL({ size: 256, extension: 'png' }) };
+    return { name: u.username, avatar: u.displayAvatarURL({ size: 256, extension: 'png' }), banner: u.bannerURL?.({ size: 512, extension: 'png' }) || null, bio: client().application?.description || '' };
   }, { owner: true });
   route('PUT', '/api/bot/presence', ({ body }) => {
     const b = botData();

@@ -13,14 +13,17 @@ All-in-one Discord bot with a web panel at <https://bot.labtoso.de/AIO/>. The on
 | Level & XP | XP for messages and voice, level-up message, level roles, XP bonus roles, `/rank`, `/leaderboard`, `/xp` |
 | Reaction roles | reactions, buttons or select menu; toggle, unique, add only, remove only |
 | Custom commands | slash commands, prefix commands and auto replies with text or embed, roles, cooldowns, random answers |
-| Embed editor | build, send and edit embeds with live preview, style profiles (colour, author, footer, images), templates |
+| Embed editor | build, send and edit embeds with live preview, JSON editor (Discord/Discohook format, up to 10 embeds), style profiles (colour, author, footer, images), templates |
 | Minecraft | Java + Bedrock status, live players, 24 h / 7 day online timeline, self-updating status message, online/offline alerts, channel name counters, `/mc` |
 | Social alerts | YouTube, Twitch, Kick, Reddit, Bluesky, any RSS feed, no API keys |
 | Scheduled messages | every X minutes, daily, weekdays or once |
 | Birthdays | `/geburtstag`, greeting and birthday role |
 | Tickets | button panel, private ticket channels, claim, transcript |
 | Giveaways | button entry, role requirement, reroll |
-| More | starboard, statistic channels, join-to-create voice channels, `/umfrage` polls, bot name, avatar and rotating status from the panel |
+| Server boosters | thank-you message and DM on a boost, extra booster roles (removed when the boost ends), boost-ended message, log, list of current boosters |
+| More | starboard, statistic channels, join-to-create voice channels, `/umfrage` polls, bot name, avatar, banner, bio (About me) and rotating status from the panel |
+
+The panel is in English by default; switch to German in the gear menu. Languages live in `AIO/lang/` on the website.
 
 ## Install
 

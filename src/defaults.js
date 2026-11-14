@@ -9,7 +9,8 @@ export const EMBED = () => ({
 });
 
 /** A message as the dashboard edits it: plain text plus an optional embed. */
-export const MSG = (content = '', embed = null) => ({ content, embed: { ...EMBED(), ...(embed || {}) } });
+export const MSG = (content = '', embed = null) => ({ content, embed: { ...EMBED(), ...(embed || {}) }, embeds: [] });
+// embeds: further embeds after the first one (editor format, from the JSON editor), at most 9
 
 export const DEFAULTS = {
   general: {
@@ -188,6 +189,20 @@ export const DEFAULTS = {
     category: '',
     name: '{user.name}s Kanal',
     limit: 0,
+  },
+
+  boost: {
+    enabled: false,
+    channel: '',
+    message: MSG('', { enabled: true, color: '#f47fff', title: 'Danke für den Boost! 💎', description: '{user} hat **{server}** geboostet!\nWir haben jetzt **{boosts} Boosts** (Level {tier}).', thumbnail: '{user.avatar}' }),
+    dmEnabled: false,
+    dm: MSG('Danke, dass du **{server}** boostest, {user.name}! 💎'),
+    roles: [], // extra roles for boosters
+    removeRoles: true, // take them away when the boost ends
+    endEnabled: false,
+    endChannel: '',
+    end: MSG('**{user.name}** boostet den Server nicht mehr. Jetzt {boosts} Boosts.'),
+    logChannel: '',
   },
 
   giveaways: {

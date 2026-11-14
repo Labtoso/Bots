@@ -184,3 +184,51 @@ test('pranks and owner tools: only the right account', async () => {
   await me('/api/owner/action', 'POST', { action: 'unblock', value: '2' });
   assert.equal((await alex('/api/session')).status, 200);
 });
+
+test('bot bio is the application description', async () => {
+  const mt = createToken({ userId: '1073620742081617930', guildId: '900', userName: 'Seb' });
+  const as = async (p0, method = 'GET', body) => {
+    const res = await fetch(base + p0, { method, headers: { Authorization: `Bearer ${mt}`, 'Content-Type': 'application/json' }, body: body ? JSON.stringify(body) : undefined });
+    return { status: res.status, data: await res.json() };
+  };
+  const r = await as('/api/bot/profile', 'POST', { name: client.user.username, bio: 'Ich helfe auf **deinem** Server.' });
+  assert.equal(r.status, 200, JSON.stringify(r.data));
+  assert.equal(r.data.bio, 'Ich helfe auf **deinem** Server.');
+  assert.deepEqual(client.rest.calls.at(-1), { route: '/applications/@me', body: { description: 'Ich helfe auf **deinem** Server.' } });
+  assert.equal((await as('/api/bot')).data.bio, 'Ich helfe auf **deinem** Server.');
+  const n = client.rest.calls.length;
+  await as('/api/bot/profile', 'POST', { name: client.user.username, bio: 'Ich helfe auf **deinem** Server.' });
+  assert.equal(client.rest.calls.length, n); // unchanged bio: no request
+  assert.equal((await call('/api/bot/profile', 'POST', { bio: 'x' })).status, 404); // nobody else
+});
+
+test('messages with several embeds (JSON editor)', async () => {
+  const msg = { content: 'Hi', embed: { enabled: true, title: 'Eins' }, embeds: [{ title: 'Zwei', color: '#ff0000' }, { description: 'Drei {server}' }] };
+  const r = await call('/api/message', 'POST', { channel: '12', message: msg });
+  assert.equal(r.status, 200);
+  const body = sent.at(-1).body;
+  assert.deepEqual(body.embeds.map((e) => e.title || e.description), ['Eins', 'Zwei', 'Drei Testserver']);
+  assert.equal(body.embeds[1].color, 0xff0000);
+  const c = await call('/api/config/welcome', 'PUT', { message: { content: 'x', embed: { enabled: false }, embeds: [{ title: 'A' }] } });
+  assert.equal(c.data.message.embeds[0].title, 'A');
+});
+
+test('server booster module', async () => {
+  const off = await call('/api/boosts/test', 'POST', {});
+  assert.equal(off.status, 400); // no channel, no DM
+  await call('/api/config/boost', 'PUT', { enabled: true, channel: '21', roles: ['32'], message: { content: 'Danke {user} · {boosts} Boosts · Level {tier}', embed: { enabled: false } } });
+  const t = await call('/api/boosts/test', 'POST', {});
+  assert.equal(t.status, 200, JSON.stringify(t.data));
+  assert.equal(sent.at(-1).body.content, 'Danke <@1> · 2 Boosts · Level 1');
+  const l = await call('/api/boosts');
+  assert.equal(l.data.boosts, 2);
+  assert.deepEqual(l.data.boosters.map((b) => b.name), ['Alex']);
+  // a real boost: member update without -> with premiumSince
+  const { onBoost } = await import('../src/modules/boost.js');
+  const alex = client.guilds.cache.get('900').members.cache.get('2');
+  await onBoost(bot.ctx, alex);
+  assert.ok(alex.roles.cache.has('32'));
+  assert.equal(sent.at(-1).channel, '21');
+  assert.equal(await onBoost(bot.ctx, alex), false); // the system message right after does not thank twice
+  assert.equal((await call('/api/boosts')).data.total, 1);
+});
