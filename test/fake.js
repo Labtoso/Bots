@@ -41,6 +41,25 @@ export function fakeClient() {
   mkChannel('22', 'mod-log', ChannelType.GuildText, '20', 5);
   mkChannel('23', 'Lounge', ChannelType.GuildVoice, '20', 6);
   mkChannel('24', 'Minecraft-Status', ChannelType.GuildVoice, '20', 7);
+  // forum with one post
+  const forum = mkChannel('40', 'bugs', ChannelType.GuildForum, '20', 8);
+  forum.availableTags = [{ id: 't1', name: 'new', emoji: { name: '📣' } }, { id: 't4', name: 'admin', emoji: { name: '⚡' } }];
+  forum.setAvailableTags = async (list) => { forum.availableTags = list.map((t, n) => ({ id: t.id || `tn${n}`, name: t.name, emoji: t.emoji, moderated: t.moderated })); return forum; };
+  const threads = new Collection();
+  const mkThread = (id, name, owner, tags) => {
+    const t = {
+      id, name, parentId: '40', guildId: guild.id, guild, ownerId: owner, appliedTags: tags, createdTimestamp: Date.now() - Number(id), archived: false, messageCount: 1,
+      fetchStarterMessage: async () => ({ id: `${id}s`, content: `Text von ${name}`, attachments: new Collection(), reactions: { cache: new Collection() } }),
+      setAppliedTags: async (x) => { t.appliedTags = x; return t; }, setArchived: async (a) => { t.archived = a; return t; },
+      send: async (body) => { sent.push({ channel: id, body }); return {}; },
+      messages: { fetch: async () => new Collection() },
+    };
+    threads.set(id, t);
+    return t;
+  };
+  mkThread('501', 'Musik stoppt', '2', []);
+  mkThread('502', 'How to Report a Bug', '1', ['t4']);
+  forum.threads = { cache: threads, fetchActive: async () => ({ threads }), fetchArchived: async () => ({ threads: new Collection() }) };
   const mkRole = (id, name, position, color = '#000000', managed = false) => guild.roles.cache.set(id, { id, name, position, hexColor: color, managed });
   mkRole('900', '@everyone', 0);
   mkRole('31', 'Mitglied', 1, '#22c55e');
@@ -57,15 +76,17 @@ export function fakeClient() {
   });
   const members = new Collection([['1', member('1', 'Sebastian')], ['2', member('2', 'Alex')]]);
   members.get('2').premiumSinceTimestamp = Date.now() - 864e5 * 30;
-  members.get('2').roles.add = async (r) => { for (const x of [].concat(r)) members.get('2').roles.cache.set(x, { id: x }); };
-  members.get('1').roles.add = members.get('2').roles.add;
+  for (const mm of members.values()) {
+    mm.roles.add = async (r) => { for (const x of [].concat(r)) mm.roles.cache.set(x, { id: x }); };
+    mm.roles.remove = async (r) => { for (const x of [].concat(r)) mm.roles.cache.delete(x); };
+  }
   guild.members = {
     cache: members, me: { nickname: null, permissions: yes, roles: { highest: { position: 5 } }, setNickname: async (n) => { guild.members.me.nickname = n; } },
     fetch: async (q) => (typeof q === 'string' ? members.get(q) || null : members),
   };
   const client = {
     guilds: { cache: new Collection([[guild.id, guild]]) },
-    channels: { cache: guild.channels.cache, fetch: async (id) => guild.channels.cache.get(id) || null },
+    channels: { cache: guild.channels.cache, fetch: async (id) => guild.channels.cache.get(id) || threads.get(id) || null },
     users: { fetch: async (id) => members.get(id)?.user || null },
     user: { id: '1234', username: 'AIO', displayAvatarURL: img, setUsername: async function (n) { this.username = n; }, setAvatar: async () => {}, setPresence: () => {} },
     application: { id: '1234', description: '' },

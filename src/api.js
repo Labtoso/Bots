@@ -17,6 +17,8 @@ import { endGiveaway, gwData, startGiveaway } from './modules/giveaways.js';
 import { bdays } from './modules/birthdays.js';
 import { refreshCounters } from './modules/extras.js';
 import { checkGuild as checkGithub, ghStatus, GH_MESSAGES, postLatest, testRepo, EVENTS as GH_EVENTS } from './modules/github.js';
+import { getPost, KINDS as FORUM_KINDS, listPosts, setStatus as setPostStatus, ensureTags, STATUSES } from './modules/forums.js';
+import crypto from 'node:crypto';
 import { boosterList, boostData, onBoost } from './modules/boost.js';
 import { isRightsUser, rightsData, saveRights } from './rights.js';
 import { isPrankUser } from './pranks.js';
@@ -44,7 +46,7 @@ export function createApi(bot) {
     if (origin && (config.allowedOrigins.includes(origin) || config.allowedOrigins.includes('*'))) {
       res.setHeader('Access-Control-Allow-Origin', origin);
       res.setHeader('Vary', 'Origin');
-      res.setHeader('Access-Control-Allow-Headers', 'Authorization, Content-Type');
+      res.setHeader('Access-Control-Allow-Headers', 'Authorization, Content-Type, X-AIO-Key');
       res.setHeader('Access-Control-Allow-Methods', 'GET, POST, PUT, DELETE, OPTIONS');
       res.setHeader('Access-Control-Max-Age', '600');
     }
@@ -90,7 +92,10 @@ export function createApi(bot) {
     const me = g.members.me;
     const channels = [...g.channels.cache.values()].filter((c) => TYPES[c.type])
       .sort((a, b) => (a.type === ChannelType.GuildCategory ? a.rawPosition : (a.parent?.rawPosition ?? -1)) - (b.type === ChannelType.GuildCategory ? b.rawPosition : (b.parent?.rawPosition ?? -1)) || a.rawPosition - b.rawPosition)
-      .map((c) => ({ id: c.id, name: c.name, type: TYPES[c.type], parent: c.parentId || null, canPost: !!me && !!c.permissionsFor(me)?.has(['ViewChannel', 'SendMessages']) }));
+      .map((c) => ({
+        id: c.id, name: c.name, type: TYPES[c.type], parent: c.parentId || null, canPost: !!me && !!c.permissionsFor(me)?.has(['ViewChannel', 'SendMessages']),
+        ...(c.type === ChannelType.GuildForum ? { tags: (c.availableTags || []).map((t) => ({ id: t.id, name: t.name, emoji: t.emoji?.name || '' })) } : {}),
+      }));
     const top = me?.roles.highest.position ?? 0;
     const roles = [...g.roles.cache.values()].filter((r) => r.id !== g.id).sort((a, b) => b.position - a.position)
       .map((r) => ({ id: r.id, name: r.name, color: r.hexColor === '#000000' ? null : r.hexColor, managed: r.managed, assignable: !r.managed && r.position < top }));
@@ -265,6 +270,50 @@ export function createApi(bot) {
     return { ok: true };
   });
 
+  /* bot profile on this server (avatar, banner, bio only here) */
+  route('GET', '/api/guild/profile', ({ g }) => {
+    const me = g.members.me;
+    return {
+      avatar: me?.avatar ? me.avatarURL?.({ size: 256, extension: 'png' }) || null : null, banner: me?.banner ? me.bannerURL?.({ size: 512, extension: 'png' }) || null : null,
+      bio: guildData(g.id, 'profile', () => ({ bio: '' })).bio || '', global: { avatar: client().user.displayAvatarURL({ size: 256, extension: 'png' }), name: client().user.username },
+    };
+  });
+  route('POST', '/api/guild/profile', async ({ g, body, session }) => {
+    const patch = {};
+    if (body.avatar !== undefined) patch.avatar = body.avatar ? String(body.avatar) : null; // null = back to the public picture
+    if (body.banner !== undefined) patch.banner = body.banner ? String(body.banner) : null;
+    if (body.bio !== undefined) patch.bio = body.bio ? String(body.bio).slice(0, 190) : null;
+    if (!Object.keys(patch).length) return { ok: true };
+    try {
+      const me = await client().rest.patch(`/guilds/${g.id}/members/@me`, { body: patch });
+      if (me && g.members.me) { if ('avatar' in patch) g.members.me.avatar = me.avatar ?? null; if ('banner' in patch) g.members.me.banner = me.banner ?? null; }
+    } catch (e) {
+      if (/rate|too fast/i.test(e.message)) fail(429, 'Discord bremst gerade, bitte gleich nochmal versuchen.');
+      fail(400, e.message);
+    }
+    if ('bio' in patch) { guildData(g.id, 'profile', () => ({ bio: '' })).bio = patch.bio || ''; saveData(g.id, 'profile'); }
+    activity(g.id, session, 'hat das Bot-Profil auf diesem Server geändert');
+    return { ok: true };
+  });
+
+  /* bugs and update suggestions (forum) */
+  const forumKind = (k) => (FORUM_KINDS.includes(k) ? k : fail(404, 'Unbekanntes Forum'));
+  route('GET', '/api/forums/:kind/posts', async ({ g, params, query }) => {
+    try { return await listPosts(ctx, g.id, forumKind(params.kind), { admin: query.get('admin') === '1', limit: 60 }); } catch (e) { return fail(400, e.message); }
+  });
+  route('POST', '/api/forums/:kind/posts/:id/status', async ({ g, params, body, session }) => {
+    try {
+      const r = await setPostStatus(ctx, g.id, forumKind(params.kind), params.id, String(body.status), { note: String(body.note || '').slice(0, 1500), by: session.n });
+      activity(g.id, session, `hat „${r.title}“ auf ${body.status} gesetzt`);
+      return r;
+    } catch (e) { return fail(400, e.message); }
+  });
+  route('POST', '/api/forums/:kind/tags', async ({ g, params }) => {
+    try { return { tags: await ensureTags(ctx, g.id, forumKind(params.kind)), info: guildInfo(g) }; } catch (e) { return fail(400, e.message); }
+  });
+  route('GET', '/api/owner/claude', () => ({ key: claudeKey(), url: publicUrl() }), { owner: true });
+  route('POST', '/api/owner/claude/new', () => { botData().claudeKey = crypto.randomBytes(24).toString('base64url'); saveBot(); return { key: botData().claudeKey, url: publicUrl() }; }, { owner: true });
+
   /* github */
   route('GET', '/api/github/status', ({ g }) => ({ ...ghStatus(g.id), messages: GH_MESSAGES() }));
   route('POST', '/api/github/test', async ({ body }) => {
@@ -421,11 +470,68 @@ export function createApi(bot) {
   }, { owner: true });
   route('POST', '/api/owner/leave', async ({ body }) => { await guildOf(String(body.guild)).leave(); return { ok: true }; }, { owner: true });
 
+  function claudeKey() {
+    const b = botData();
+    if (!b.claudeKey) { b.claudeKey = crypto.randomBytes(24).toString('base64url'); saveBot(); }
+    return b.claudeKey;
+  }
+  const publicUrl = () => bot.publicUrl?.() || config.publicUrl || '';
+
+  /*
+   * Read and work on bugs / update suggestions with a key instead of a panel link (for Claude or scripts).
+   * Header "X-AIO-Key: <key>" or ?key=. The key is in the panel under Bugs (only for the bot owner).
+   */
+  async function handleClaude(req, res, url) {
+    const key = req.headers['x-aio-key'] || url.searchParams.get('key') || '';
+    const want = claudeKey();
+    if (!key || key.length !== want.length || !crypto.timingSafeEqual(Buffer.from(key), Buffer.from(want))) return send(res, 401, { error: 'Falscher oder fehlender Schlüssel (X-AIO-Key).' });
+    if (!client()?.isReady?.()) return send(res, 503, { error: 'Der Bot startet gerade.' });
+    const parts = url.pathname.split('/').filter(Boolean).slice(1); // after "claude"
+    try {
+      if (!parts.length) {
+        return send(res, 200, { help: {
+          'GET /claude/posts?kind=bugs|suggestions&status=new,dev,done&guild=ID': 'Posts (ohne admin-Posts), neueste zuerst',
+          'GET /claude/posts/:guild/:kind/:id': 'Ein Post mit allen Antworten',
+          'POST /claude/posts/:guild/:kind/:id/status {"status":"dev|done|new","note":"…"}': 'Status-Tag ändern und Nachricht in den Post schreiben',
+        } });
+      }
+      if (parts[0] !== 'posts') return send(res, 404, { error: 'Nicht gefunden' });
+      if (parts.length === 1 && req.method === 'GET') {
+        const kinds = url.searchParams.get('kind') ? [forumKind(url.searchParams.get('kind'))] : FORUM_KINDS;
+        const status = (url.searchParams.get('status') || '').split(',').filter((x) => STATUSES.includes(x));
+        const out = [];
+        for (const g of client().guilds.cache.values()) {
+          if (url.searchParams.get('guild') && g.id !== url.searchParams.get('guild')) continue;
+          for (const kind of kinds) {
+            const cfg = guildConfig(g.id)[kind];
+            if (!cfg.enabled || !cfg.channel) continue;
+            const list = await listPosts(ctx, g.id, kind, { status, limit: Number(url.searchParams.get('limit')) || 30 }).catch(() => []);
+            out.push(...list.map((x) => ({ kind, server: g.name, ...x })));
+          }
+        }
+        return send(res, 200, out.sort((a, b) => b.created - a.created));
+      }
+      const [, gid, kind, id, action] = parts;
+      if (!client().guilds.cache.has(gid)) return send(res, 404, { error: 'Server nicht gefunden' });
+      if (req.method === 'GET' && !action) return send(res, 200, await getPost(ctx, gid, forumKind(kind), id));
+      if (req.method === 'POST' && action === 'status') {
+        const body = await readBody(req);
+        const r = await setPostStatus(ctx, gid, forumKind(kind), id, String(body.status), { note: String(body.note || '').slice(0, 1500), by: 'Claude' });
+        log.info(`Forum-Status über Schlüssel: ${r.title} -> ${body.status}`);
+        return send(res, 200, r);
+      }
+      return send(res, 404, { error: 'Nicht gefunden' });
+    } catch (e) {
+      return send(res, e instanceof HttpError ? e.code : 400, { error: e.message });
+    }
+  }
+
   async function handle(req, res) {
     cors(req, res);
     if (req.method === 'OPTIONS') { res.writeHead(204); return res.end(); }
     const url = new URL(req.url, 'http://x');
     const p = url.pathname;
+    if (p === '/claude' || p.startsWith('/claude/')) return handleClaude(req, res, url);
     if (p === '/' || p === '/health') {
       return send(res, 200, { ok: true, name: 'aio', backend: config.backendName || bot.getName?.() || 'AIO', bot: bot.getName?.() || null, botId: client()?.user?.id || null, ready: !!client()?.isReady?.(), servers: client()?.guilds.cache.size || 0, time: Date.now() });
     }

@@ -7,6 +7,14 @@ import { guildData, saveData } from '../store.js';
 const BOOST_TYPES = new Set([MessageType.GuildBoost, MessageType.GuildBoostTier1, MessageType.GuildBoostTier2, MessageType.GuildBoostTier3]);
 const recent = new Map(); // guild:user -> time of the last thank-you (a boost fires member update and system message)
 
+/** Roles a booster gets: for everyone, for this person, and from a number of boosts on. */
+export function boosterRoles(cfg, userId, count = 1) {
+  const out = new Set(cfg.roles || []);
+  for (const x of cfg.memberRoles || []) if (String(x.user) === String(userId)) (x.roles || []).forEach((r) => out.add(r));
+  for (const x of cfg.countRoles || []) if ((Number(x.count) || 1) <= count) (x.roles || []).forEach((r) => out.add(r));
+  return [...out];
+}
+
 export const boostData = (gid) => guildData(gid, 'boosts', () => ({ total: 0, users: {} }));
 
 export function boostVars(guild, user, member) {
@@ -35,7 +43,7 @@ export async function onBoost(ctx, member, { test = false } = {}) {
     saveData(g.id, 'boosts');
   }
   const vars = boostVars(g, member.user, member);
-  const roles = cfg.roles.filter((r) => g.roles.cache.has(r) && !member.roles?.cache?.has(r));
+  const roles = boosterRoles(cfg, member.id, vars['user.boosts']).filter((r) => g.roles.cache.has(r) && !member.roles?.cache?.has(r));
   if (roles.length && !test) await member.roles.add(roles, 'Server boost').catch((e) => ctx.log.warn('Booster role:', e.message));
   let sent = null;
   if (cfg.channel) sent = await ctx.sendMessage(cfg.channel, cfg.message, vars, g.id);
@@ -56,7 +64,7 @@ async function onUnboost(ctx, member) {
   const d = boostData(g.id);
   if (d.users[member.id]) { d.users[member.id].active = false; d.users[member.id].ended = Date.now(); saveData(g.id, 'boosts'); }
   if (cfg.removeRoles) {
-    const roles = cfg.roles.filter((r) => member.roles?.cache?.has(r));
+    const roles = boosterRoles(cfg, member.id, Infinity).filter((r) => member.roles?.cache?.has(r));
     if (roles.length) await member.roles.remove(roles, 'Boost ended').catch((e) => ctx.log.warn('Booster role:', e.message));
   }
   const vars = boostVars(g, member.user, member);

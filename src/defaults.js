@@ -197,13 +197,40 @@ export const DEFAULTS = {
     limit: 0,
   },
 
+  joinroles: {
+    enabled: false,
+    rules: [], // { id, name, roles, who: all|humans|bots, delay (s), minAccountDays, afterScreening, removeAfterMinutes, on }
+    restore: false, // give back the roles someone had when they left
+    restoreExclude: [],
+  },
+
+  // Bugs and update suggestions in forum channels, the status is a tag of the post
+  bugs: {
+    enabled: false, channel: '', tags: { new: '', dev: '', done: '', admin: '' },
+    tagNew: true, replyNew: true,
+    newMessage: MSG('Danke für deinen Bug-Report, {user}! Wir schauen ihn uns an.'),
+    devMessage: MSG('🔧 Wir arbeiten gerade daran.'),
+    doneMessage: MSG('✅ Behoben! {note}'),
+    replyStatus: true, closeDone: false,
+  },
+  suggestions: {
+    enabled: false, channel: '', tags: { new: '', dev: '', done: '', admin: '' },
+    tagNew: true, replyNew: true,
+    newMessage: MSG('Danke für deinen Vorschlag, {user}! Stimmt mit 👍 ab, wenn ihr ihn auch wollt.'),
+    devMessage: MSG('💻 Dein Vorschlag wird gerade umgesetzt.'),
+    doneMessage: MSG('✅ Umgesetzt! {note}'),
+    replyStatus: true, closeDone: false,
+  },
+
   boost: {
     enabled: false,
     channel: '',
     message: MSG('', { enabled: true, color: '#f47fff', title: 'Danke für den Boost! 💎', description: '{user} hat **{server}** geboostet!\nWir haben jetzt **{boosts} Boosts** (Level {tier}).', thumbnail: '{user.avatar}' }),
     dmEnabled: false,
     dm: MSG('Danke, dass du **{server}** boostest, {user.name}! 💎'),
-    roles: [], // extra roles for boosters
+    roles: [], // extra roles for every booster
+    memberRoles: [], // { user, name, roles }: this person gets these roles when boosting
+    countRoles: [], // { count, roles }: from this many boosts of one person on
     removeRoles: true, // take them away when the boost ends
     endEnabled: false,
     endChannel: '',

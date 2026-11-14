@@ -10,6 +10,7 @@ All-in-one Discord bot with a web panel at <https://bot.labtoso.de/AIO/>. The on
 | Auto-Mod | bad words (with tricks like 4→a), invites, links with allow list, caps, mentions, emojis, spam, repeats, line spam, zalgo, repeat offenders |
 | Logs | deleted/edited messages, joins, leaves, bans, roles, nicknames, timeouts, channels, roles, voice, invites; one channel per category |
 | Welcome | welcome and goodbye messages, DM, auto roles for members and bots |
+| Join roles | role rules for humans/bots with delay, minimum account age, after rule screening, temporary roles; give old roles back on rejoin |
 | Level & XP | XP for messages and voice, level-up message, level roles, XP bonus roles, `/rank`, `/leaderboard`, `/xp` |
 | Reaction roles | reactions, buttons or select menu; toggle, unique, add only, remove only |
 | Custom commands | slash commands, prefix commands and auto replies with text or embed, roles, cooldowns, random answers |
@@ -17,12 +18,13 @@ All-in-one Discord bot with a web panel at <https://bot.labtoso.de/AIO/>. The on
 | Minecraft | Java + Bedrock status, live players, 24 h / 7 day online timeline, self-updating status message, online/offline alerts, channel name counters, `/mc` |
 | Social alerts | YouTube, Twitch, Kick, Reddit, Bluesky, any RSS feed, no API keys |
 | GitHub | new releases, pre-releases, commits (combined per push), tags, issues and pull requests of any public repo; per repo and kind its own channel, ping and message; include/exclude words, ignore bots, skip merges; optional `GITHUB_TOKEN` in `.env` |
+| Bugs / update suggestions | forum channels with status tags (new, in development, fixed/finished, admin), auto tag and reply for new posts, status from the panel or with a key over `/claude/posts` |
 | Scheduled messages | every X minutes, daily, weekdays or once |
 | Birthdays | `/geburtstag`, greeting and birthday role |
 | Tickets | button panel, private ticket channels, claim, transcript |
 | Giveaways | button entry, role requirement, reroll |
-| Server boosters | thank-you message and DM on a boost, extra booster roles (removed when the boost ends), boost-ended message, log, list of current boosters |
-| More | starboard, statistic channels, join-to-create voice channels, `/umfrage` polls, bot name, avatar, banner, bio (About me) and rotating status from the panel |
+| Server boosters | thank-you message and DM on a boost, extra booster roles for everyone, for chosen people and from a number of boosts (removed when the boost ends), boost-ended message, log, list of current boosters |
+| More | starboard, statistic channels, join-to-create voice channels, `/umfrage` polls, bot name, avatar, banner, bio (About me) public or per server and rotating status from the panel |
 
 The panel is in English by default; switch to German in the gear menu. Languages live in `AIO/lang/` on the website.
 

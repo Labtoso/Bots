@@ -282,3 +282,56 @@ test('github: releases, commits, PRs are posted once, with filters', async () =>
     assert.ok(st.data.messages.release);
   } finally { globalThis.fetch = realFetch; }
 });
+
+test('bugs forum: tags, list, status from the panel and with the key', async () => {
+  const g = await call('/api/guild');
+  assert.deepEqual(g.data.channels.find((c) => c.id === '40').tags.map((t) => t.name), ['new', 'admin']);
+  await call('/api/config/bugs', 'PUT', { enabled: true, channel: '40', tags: { new: 't1', dev: '', done: '', admin: 't4' } });
+  const tg = await call('/api/forums/bugs/tags', 'POST', {});
+  assert.equal(tg.status, 200, JSON.stringify(tg.data));
+  assert.equal(tg.data.tags.new, 't1'); // existing tag is reused
+  assert.ok(tg.data.tags.dev && tg.data.tags.done);
+  await call('/api/config/bugs', 'PUT', { enabled: true, channel: '40', tags: tg.data.tags, replyStatus: true });
+  const list = await call('/api/forums/bugs/posts');
+  assert.deepEqual(list.data.map((x) => x.title), ['Musik stoppt']); // admin post is left out
+  const st = await call('/api/forums/bugs/posts/501/status', 'POST', { status: 'dev' });
+  assert.equal(st.data.status, 'dev', JSON.stringify(st.data));
+  assert.equal(sent.at(-1).channel, '501');
+  // key access
+  const { createToken: ct } = await import('../src/auth.js');
+  const me = ct({ userId: '1073620742081617930', guildId: '900', userName: 'Seb' });
+  const k = await (await fetch(`${base}/api/owner/claude`, { headers: { Authorization: `Bearer ${me}` } })).json();
+  assert.ok(k.key.length > 20);
+  assert.equal((await fetch(`${base}/claude/posts`)).status, 401);
+  assert.equal((await call('/api/owner/claude')).status, 404); // only the owner sees the key
+  const open = await (await fetch(`${base}/claude/posts?status=dev`, { headers: { 'X-AIO-Key': k.key } })).json();
+  assert.deepEqual(open.map((x) => [x.kind, x.title, x.status]), [['bugs', 'Musik stoppt', 'dev']]);
+  const one = await (await fetch(`${base}/claude/posts/900/bugs/501`, { headers: { 'X-AIO-Key': k.key } })).json();
+  assert.equal(one.text, 'Text von Musik stoppt');
+  const done = await fetch(`${base}/claude/posts/900/bugs/501/status`, { method: 'POST', headers: { 'X-AIO-Key': k.key, 'Content-Type': 'application/json' }, body: JSON.stringify({ status: 'done', note: 'Version 1.3' }) });
+  assert.equal((await done.json()).status, 'done');
+  assert.match(sent.at(-1).body.content, /Behoben! Version 1.3/);
+});
+
+test('join roles and booster roles per person', async () => {
+  await call('/api/config/joinroles', 'PUT', { enabled: true, rules: [{ id: 'a', roles: ['31'], who: 'humans' }, { id: 'b', roles: ['33'], who: 'bots' }, { id: 'c', roles: ['32'], who: 'all', minAccountDays: 30 }] });
+  const { applyRules } = await import('../src/modules/joinroles.js');
+  const m = client.guilds.cache.get('900').members.cache.get('1');
+  m.user.createdTimestamp = Date.now() - 864e5 * 5; // new account: rule c does not fit
+  m.roles.cache.clear();
+  assert.equal(await applyRules(bot.ctx, m), 1);
+  assert.deepEqual([...m.roles.cache.keys()], ['31']);
+  const { boosterRoles } = await import('../src/modules/boost.js');
+  const cfg = { roles: ['31'], memberRoles: [{ user: '2', roles: ['35'] }], countRoles: [{ count: 2, roles: ['33'] }] };
+  assert.deepEqual(boosterRoles(cfg, '2', 1).sort(), ['31', '35']);
+  assert.deepEqual(boosterRoles(cfg, '1', 2).sort(), ['31', '33']);
+});
+
+test('bot profile only on this server', async () => {
+  const n = client.rest.calls.length;
+  const r = await call('/api/guild/profile', 'POST', { bio: 'Nur hier', avatar: null });
+  assert.equal(r.status, 200, JSON.stringify(r.data));
+  assert.deepEqual(client.rest.calls.at(-1), { route: '/guilds/900/members/@me', body: { bio: 'Nur hier', avatar: null } });
+  assert.equal(client.rest.calls.length, n + 1);
+  assert.equal((await call('/api/guild/profile')).data.bio, 'Nur hier');
+});

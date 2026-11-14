@@ -258,6 +258,7 @@ export function createBot(opts = {}) {
     ctx,
     start,
     setPublicUrl: (u) => { publicUrl = u; },
+    publicUrl: () => publicUrl,
     get client() { return client; },
     getName: () => client?.user?.username || null,
     ChannelType,
