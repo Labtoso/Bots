@@ -262,3 +262,13 @@ table.tbl tr:last-child td { border-bottom: 0; }
 /* every clickable thing gets the hand cursor */
 button, a[href], select, summary, label:has(input[type=checkbox]), label:has(input[type=radio]), input[type=checkbox], input[type=radio], input[type=range], input[type=color], input[type=file], .switch, [role=button], [onclick] { cursor: pointer; }
 button:disabled, select:disabled, input:disabled { cursor: not-allowed; }
+
+/* JSON editor, bot banner, language switch */
+textarea.code { font-family: ui-monospace, SFMono-Regular, Menlo, Consolas, monospace; font-size: 12.5px; line-height: 1.5; tab-size: 2; white-space: pre; overflow: auto; }
+.hint.ok { color: var(--ok); } .hint.warn { color: var(--warn); } .hint.err { color: var(--bad); }
+.banner-pv { height: 110px; border-radius: 10px; background: var(--panel-2) center / cover no-repeat; border: 1px solid var(--line); }
+.settings-pop .label + .langs, .settings-pop .swatches + .label { margin-top: 14px; }
+.langs { display: flex; gap: 6px; }
+.langs button { flex: 1; border: 1px solid var(--line); background: var(--panel-2); color: var(--muted); border-radius: 7px; padding: 6px 8px; font: inherit; font-size: 13px; cursor: pointer; }
+.langs button.on { color: var(--text); border-color: var(--accent); }
+.boosters .who-cell { padding: 6px 0; border-bottom: 1px solid var(--line); }

@@ -58,6 +58,7 @@ const ICONS = {
   smile: '<circle cx="12" cy="12" r="9"/><path d="M8 14s1.5 2 4 2 4-2 4-2M9 9h.01M15 9h.01"/>',
   server: '<rect x="3" y="4" width="18" height="7" rx="2"/><rect x="3" y="13" width="18" height="7" rx="2"/>',
   edit: '<path d="M12 20h9"/><path d="M16.5 3.5a2.1 2.1 0 1 1 3 3L7 19l-4 1 1-4z"/>',
+  gem: '<path d="M6 3h12l4 6-10 12L2 9z"/><path d="M2 9h20M12 21 8 9l4-6 4 6z"/>',
   ext: '<path d="M15 3h6v6M10 14 21 3M18 13v6a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2V8a2 2 0 0 1 2-2h6"/>',
 };
 const icon = (n) => { const s = document.createElementNS('http://www.w3.org/2000/svg', 'svg'); s.setAttribute('viewBox', '0 0 24 24'); s.setAttribute('class', 'i'); s.innerHTML = ICONS[n] || ''; return s; };
@@ -72,7 +73,7 @@ const ago = (t) => {
   if (s < 86400) return `vor ${Math.round(s / 3600)} Std.`;
   return `vor ${Math.round(s / 86400)} Tagen`;
 };
-const fmtDate = (t) => (t ? new Date(t).toLocaleString('de-DE', { day: '2-digit', month: '2-digit', year: '2-digit', hour: '2-digit', minute: '2-digit' }) : '-');
+const fmtDate = (t) => (t ? new Date(t).toLocaleString(window.i18n?.locale || 'de-DE', { day: '2-digit', month: '2-digit', year: '2-digit', hour: '2-digit', minute: '2-digit' }) : '-');
 
 let toastTimer = null;
 function toast(text, err = false) {
@@ -440,8 +441,8 @@ function sampleVars(extra = {}) {
     user: `@${S.me?.name || 'Max'}`, 'user.mention': `@${S.me?.name || 'Max'}`, 'user.name': S.me?.name || 'Max', 'user.username': (S.me?.name || 'max').toLowerCase(),
     'user.tag': S.me?.name || 'max', 'user.id': S.me?.id || '123', 'user.avatar': S.me?.avatar || '', 'user.created': 'vor 3 Jahren', 'user.joined': 'gerade eben',
     server: S.guild?.name || 'Server', 'server.name': S.guild?.name || 'Server', 'server.id': S.guild?.id || '', 'server.icon': S.guild?.icon || '',
-    members: S.guild?.members || 100, 'server.members': S.guild?.members || 100, boosts: 3, date: new Date().toLocaleDateString('de-DE'), time: new Date().toTimeString().slice(0, 5),
-    level: 5, xp: 1234, rank: 3, channel: '#allgemein', args: 'Text', reason: 'Spam', action: 'Timeout', duration: '10 Min.', ticket: 42, age: ' (21)',
+    members: S.guild?.members || 100, 'server.members': S.guild?.members || 100, boosts: 3, date: new Date().toLocaleDateString(window.i18n?.locale || 'de-DE'), time: new Date().toTimeString().slice(0, 5),
+    level: 5, xp: 1234, rank: 3, channel: '#allgemein', args: 'Text', reason: 'Spam', action: 'Timeout', duration: '10 Min.', ticket: 42, age: ' (21)', 'user.boosts': 1,
     title: 'Neues Video!', link: 'https://example.com', author: 'Kanal', name: 'Kanal', platform: 'YouTube', game: 'Minecraft',
     'server.emoji': '🟢', 'server.players': 5, 'server.max': 20, 'server.version': '1.21.4', 'server.address': 'play.example.com', 'server.motd': 'Willkommen', 'server.ping': 32, 'server.list': 'Steve, Alex',
     online: 1, total: 2, interval: 60, humans: 90, bots: 10, roles: 12, channels: 30, emojis: 5, tier: 1,
@@ -454,7 +455,7 @@ function md(s) {
   t = t.replace(/&lt;@&amp;(\d+)&gt;/g, (_, id) => `<span class="mention">@${esc(roleById(id)?.name || 'Rolle')}</span>`)
     .replace(/&lt;@!?(\d+)&gt;/g, () => `<span class="mention">@Mitglied</span>`)
     .replace(/&lt;#(\d+)&gt;/g, (_, id) => `<span class="mention">#${esc(chanById(id)?.name || 'kanal')}</span>`)
-    .replace(/&lt;t:(\d+)(?::\w)?&gt;/g, (_, n) => new Date(Number(n) * 1000).toLocaleString('de-DE'))
+    .replace(/&lt;t:(\d+)(?::\w)?&gt;/g, (_, n) => new Date(Number(n) * 1000).toLocaleString(window.i18n?.locale || 'de-DE'))
     .replace(/&lt;a?:(\w+):(\d+)&gt;/g, (_, n, id) => `<img src="https://cdn.discordapp.com/emojis/${id}.webp?size=44" alt=":${n}:" style="width:20px;height:20px;vertical-align:-4px">`)
     .replace(/(^|\s)(@everyone|@here)/g, '$1<span class="mention">$2</span>')
     .replace(/(^|\s)(@[\wäöüÄÖÜß .-]{1,32}?)(?=\s|$|[,!.?])/g, (m, a, b) => (b.length > 1 ? `${a}<span class="mention">${b}</span>` : m))
@@ -498,7 +499,8 @@ function preview(msg, { vars = sampleVars(), buttons = [] } = {}) {
   const box = h('div.msg', h('div.who', S.bot?.nickname || S.bot?.name || 'AIO', h('span.tag', 'APP'), h('time', `Heute um ${new Date().toTimeString().slice(0, 5)}`)));
   if (msg?.content) box.append(h('div.txt', { html: md(fillVars(msg.content, vars)) }));
   if (msg?.embed?.enabled) box.append(embedEl(msg.embed, vars));
-  if (!msg?.content && !msg?.embed?.enabled) box.append(h('div.txt.muted', '(leere Nachricht)'));
+  for (const x of msg?.embeds || []) box.append(embedEl(x, vars));
+  if (!msg?.content && !msg?.embed?.enabled && !msg?.embeds?.length) box.append(h('div.txt.muted', '(leere Nachricht)'));
   if (buttons.length) box.append(h('div.buttons', buttons.map((b) => h('span', { class: b.style || '' }, b.label))));
   return h('div.dc', h('img.av', { src: S.bot?.avatar || 'icon.svg', alt: '' }), box);
 }
@@ -506,12 +508,125 @@ function preview(msg, { vars = sampleVars(), buttons = [] } = {}) {
 const EMPTY_EMBED = () => ({ enabled: false, profile: '', color: '', author: { name: '', icon: '', url: '' }, title: '', url: '', description: '', fields: [], thumbnail: '', image: '', footer: { text: '', icon: '' }, timestamp: false });
 const BASE_VARS = ['user', 'user.name', 'user.avatar', 'server', 'members'];
 
-/** Text + embed editor with live preview. obj[key] = { content, embed } */
+/* ---------- JSON (Discord API format, like Discohook) <-> editor format ---------- */
+const colorHex = (n) => (typeof n === 'number' && n >= 0 ? `#${n.toString(16).padStart(6, '0')}` : (/^#?[0-9a-f]{6}$/i.test(n || '') ? `#${String(n).replace('#', '')}` : ''));
+function embedToApi(e) {
+  const o = {};
+  const c = /^#[0-9a-f]{6}$/i.test(e.color || '') ? parseInt(e.color.slice(1), 16) : null;
+  if (e.title) o.title = e.title;
+  if (e.url) o.url = e.url;
+  if (e.description) o.description = e.description;
+  if (c !== null) o.color = c;
+  if (e.author?.name) o.author = { name: e.author.name, ...(e.author.icon ? { icon_url: e.author.icon } : {}), ...(e.author.url ? { url: e.author.url } : {}) };
+  if (e.fields?.length) o.fields = e.fields.map((f) => ({ name: f.name, value: f.value, ...(f.inline ? { inline: true } : {}) }));
+  if (e.thumbnail) o.thumbnail = { url: e.thumbnail };
+  if (e.image) o.image = { url: e.image };
+  if (e.footer?.text || e.footer?.icon) o.footer = { text: e.footer.text || '', ...(e.footer.icon ? { icon_url: e.footer.icon } : {}) };
+  if (e.timestamp) o.timestamp = new Date().toISOString();
+  return o;
+}
+function embedFromApi(x, keep = {}) {
+  const str = (v) => (typeof v === 'string' ? v : v === undefined || v === null ? '' : String(v));
+  return {
+    ...EMPTY_EMBED(), profile: keep.profile || '', enabled: true, color: colorHex(x.color), title: str(x.title), url: str(x.url), description: str(x.description),
+    author: { name: str(x.author?.name), icon: str(x.author?.icon_url || x.author?.iconURL), url: str(x.author?.url) },
+    fields: (Array.isArray(x.fields) ? x.fields : []).map((f) => ({ name: str(f?.name), value: str(f?.value), inline: !!f?.inline })),
+    thumbnail: str(x.thumbnail?.url ?? x.thumbnail), image: str(x.image?.url ?? x.image),
+    footer: { text: str(x.footer?.text), icon: str(x.footer?.icon_url || x.footer?.iconURL) }, timestamp: !!x.timestamp,
+  };
+}
+function messageToJson(m) {
+  const embeds = [...(m.embed?.enabled ? [m.embed] : []), ...(m.embeds || [])].map(embedToApi);
+  return JSON.stringify({ content: m.content || '', embeds }, null, 2);
+}
+/** Reads Discord / Discohook JSON into the message (in place). Returns warnings; throws on errors. */
+function messageFromJson(m, src) {
+  let d = JSON.parse(src);
+  if (Array.isArray(d?.messages)) d = d.messages[0]?.data || {}; // Discohook export
+  if (d?.data && (d.data.embeds || d.data.content !== undefined)) d = d.data;
+  if (Array.isArray(d)) d = { embeds: d };
+  if (!d || typeof d !== 'object') throw new Error('Erwartet wird ein Objekt mit "content" und/oder "embeds".');
+  if (!('embeds' in d) && !('content' in d) && !('embed' in d) && (d.title || d.description || d.fields || d.author)) d = { embeds: [d] };
+  const list = Array.isArray(d.embeds) ? d.embeds : d.embed ? [d.embed] : [];
+  const warn = [];
+  if (list.length > 10) warn.push('Discord erlaubt höchstens 10 Embeds, der Rest fällt weg.');
+  const embeds = list.slice(0, 10).map((x, n) => embedFromApi(x || {}, n === 0 ? m.embed : {}));
+  const content = typeof d.content === 'string' ? d.content : '';
+  if (content.length > 2000) warn.push('Text ist länger als 2000 Zeichen.');
+  let total = 0;
+  for (const e of embeds) {
+    if (e.title.length > 256) warn.push('Ein Titel ist länger als 256 Zeichen.');
+    if (e.description.length > 4096) warn.push('Eine Beschreibung ist länger als 4096 Zeichen.');
+    if (e.fields.length > 25) warn.push('Ein Embed hat mehr als 25 Felder.');
+    total += e.title.length + e.description.length + e.author.name.length + e.footer.text.length + e.fields.reduce((a, f) => a + f.name.length + f.value.length, 0);
+  }
+  if (total > 6000) warn.push('Alle Embeds zusammen haben mehr als 6000 Zeichen.');
+  m.content = content;
+  if (embeds.length) { m.embed = embeds[0]; m.embeds = embeds.slice(1); } else { m.embed = { ...EMPTY_EMBED(), profile: m.embed?.profile || '' }; m.embeds = []; }
+  return warn;
+}
+
+/** Text + embed editor with live preview. obj[key] = { content, embed, embeds? } */
 function messageEditor(obj, key, { vars = BASE_VARS, buttons = null, compact = false, sample = {} } = {}) {
   const m = obj[key] || (obj[key] = { content: '', embed: EMPTY_EMBED() });
   if (!m.embed) m.embed = EMPTY_EMBED();
   const pv = h('div');
   const refresh = () => pv.replaceChildren(preview(m, { vars: sampleVars(sample), buttons: typeof buttons === 'function' ? buttons() : buttons || [] }));
+  const wrap = h('div.composer');
+  const mode = store.get('msgMode', 'form');
+  const modeTabs = h('div.seg-tabs', { style: 'margin-bottom:10px' }, [['form', 'Formular'], ['json', 'JSON']].map(([k, l]) => h('button', {
+    type: 'button', class: mode === k ? 'on' : '', onclick: () => { store.set('msgMode', k); wrap.replaceWith(messageEditor(obj, key, { vars, buttons, compact, sample })); },
+  }, l)));
+
+  if (mode === 'json') {
+    const ta = h('textarea.code', { rows: compact ? 12 : 18, spellcheck: false });
+    ta.value = messageToJson(m);
+    const status = h('p.hint');
+    const apply = () => {
+      try {
+        const warn = messageFromJson(m, ta.value);
+        status.className = warn.length ? 'hint warn' : 'hint ok';
+        status.textContent = warn.length ? warn.join(' ') : 'JSON ist gültig, die Vorschau ist aktuell.';
+        changed();
+        refresh();
+      } catch (e) {
+        status.className = 'hint err';
+        status.textContent = `Fehler im JSON: ${e.message}`;
+      }
+    };
+    ta.addEventListener('input', apply);
+    ta.addEventListener('keydown', (e) => {
+      if (e.key !== 'Tab') return;
+      e.preventDefault();
+      const p0 = ta.selectionStart;
+      ta.value = `${ta.value.slice(0, p0)}  ${ta.value.slice(ta.selectionEnd)}`;
+      ta.selectionStart = ta.selectionEnd = p0 + 2;
+    });
+    const fileIn = h('input', { type: 'file', accept: '.json,application/json', hidden: true, onchange: async () => {
+      const f = fileIn.files[0];
+      if (!f) return;
+      ta.value = await f.text();
+      apply();
+      if (!status.classList.contains('err')) ta.value = messageToJson(m);
+    } });
+    const form = h('div',
+      modeTabs,
+      h('p.hint', { style: 'margin:10px 0 8px' }, 'Discord-Format wie bei Discohook: {"content": "…", "embeds": [ … ]}. Bis zu 10 Embeds, Platzhalter wie {user} gehen auch hier.'),
+      ta, status,
+      h('div.row', { style: 'margin-top:8px' },
+        h('button.btn.sm', { type: 'button', onclick: () => { apply(); if (!status.classList.contains('err')) ta.value = messageToJson(m); } }, 'Formatieren'),
+        h('button.btn.sm', { type: 'button', onclick: async () => { try { await navigator.clipboard.writeText(ta.value); toast('Kopiert'); } catch { ta.select(); } } }, icon('copy'), 'Kopieren'),
+        h('button.btn.sm', { type: 'button', onclick: () => fileIn.click() }, 'Datei laden'),
+        h('button.btn.sm', { type: 'button', onclick: () => {
+          const blob = new Blob([ta.value], { type: 'application/json' });
+          const a = h('a', { href: URL.createObjectURL(blob), download: 'nachricht.json' });
+          document.body.append(a); a.click(); a.remove();
+        } }, 'Herunterladen'), fileIn));
+    refresh();
+    wrap.append(form, h('div.preview-wrap', h('div.field', h('label', 'Vorschau'), pv)));
+    return wrap;
+  }
+
   const e = m.embed;
   const embedBox = h('div', { hidden: !e.enabled });
   const profiles = (S.cfg.embeds.profiles || []).map((p) => [p.id, p.name || p.id]);
@@ -532,14 +647,18 @@ function messageEditor(obj, key, { vars = BASE_VARS, buttons = null, compact = f
     h('div.grid', field('Fußzeile', text(e.footer, 'text', { max: 2048 })), field('Fußzeilen-Bild (URL)', text(e.footer, 'icon', { ph: 'https://…' }))),
     h('div', { style: 'margin-top:12px' }, toggle(e, 'timestamp', 'Zeitstempel anzeigen')),
   );
+  const extra = m.embeds?.length ? h('div.notice', { style: 'margin-top:12px' }, `+ ${m.embeds.length} weitere Embeds`, ' ', h('span.muted', '(im JSON bearbeiten)'), ' ',
+    h('button.btn.sm.ghost', { type: 'button', onclick: () => { m.embeds = []; changed(); wrap.replaceWith(messageEditor(obj, key, { vars, buttons, compact, sample })); } }, 'Entfernen')) : null;
   const form = h('div',
+    modeTabs,
     field('Text', area(m, 'content', { rows: compact ? 2 : 3, max: 2000, vars })),
     h('div', { style: 'margin-top:12px' }, toggle(e, 'enabled', 'Embed verwenden', null, (v) => { embedBox.hidden = !v; refresh(); })),
-    embedBox);
+    embedBox, extra);
   live(form, refresh);
   form.addEventListener('click', () => setTimeout(refresh, 0));
   refresh();
-  return h('div.composer', form, h('div.preview-wrap', h('div.field', h('label', 'Vorschau'), pv)));
+  wrap.append(form, h('div.preview-wrap', h('div.field', h('label', 'Vorschau'), pv)));
+  return wrap;
 }
 
 /* ---------- navigation ---------- */
@@ -621,6 +740,10 @@ document.querySelectorAll('.sw').forEach((b) => b.addEventListener('click', () =
 document.addEventListener('click', (e) => { if (!$('settingsPop').hidden && !e.target.closest('#settingsPop')) closeSettings(); });
 document.addEventListener('keydown', (e) => { if (e.key === 'Escape') { closeSettings(); document.body.classList.remove('nav-open'); } });
 applyAccent(store.get('accent', 'violet'));
+// language: English by default, German or any file in lang/ with one click
+if (window.i18n) {
+  $('langs').replaceChildren(...window.i18n.list().map((l) => h('button', { type: 'button', class: l.code === window.i18n.lang ? 'on' : '', onclick: () => { if (l.code !== window.i18n.lang) window.i18n.set(l.code); } }, l.name)));
+}
 
 const card = (title, hint, ...kids) => h('div.card', title ? h('h3', title) : null, hint ? h('p.hint', hint) : null, ...kids);
 const ACTIONS = [['delete', 'Nur löschen'], ['warn', 'Löschen + verwarnen'], ['timeout', 'Löschen + Timeout'], ['kick', 'Löschen + kicken'], ['ban', 'Löschen + bannen']];
@@ -666,28 +789,40 @@ page({
         field('/aio nur in diesem Kanal', chan(g, 'panelChannelId', { empty: 'Überall' })))));
     if (!S.me.owner) return;
     const b = await tryApi('/api/bot');
-    const prof = { name: b.name, avatar: '' };
+    const prof = { name: b.name, avatar: '', banner: '', bio: b.bio || '' };
     const avatarImg = h('img', { src: b.avatar, alt: '', style: 'width:72px;height:72px;border-radius:50%;background:var(--panel-2)' });
-    const file = h('input', { type: 'file', accept: 'image/png,image/jpeg,image/gif,image/webp', hidden: true, onchange: () => {
-      const f = file.files[0];
-      if (!f) return;
-      if (f.size > 8e6) return toast('Bild zu groß (max. 8 MB)', true);
-      const r = new FileReader();
-      r.onload = () => { prof.avatar = r.result; avatarImg.src = r.result; };
-      r.readAsDataURL(f);
-    } });
+    const bannerImg = h('div.banner-pv', { style: b.banner ? `background-image:url("${b.banner}")` : '' });
+    const pickImage = (key, onload) => {
+      const file = h('input', { type: 'file', accept: 'image/png,image/jpeg,image/gif,image/webp', hidden: true, onchange: () => {
+        const f = file.files[0];
+        if (!f) return;
+        if (f.size > 8e6) return toast('Bild zu groß (max. 8 MB)', true);
+        const r = new FileReader();
+        r.onload = () => { prof[key] = r.result; onload(r.result); };
+        r.readAsDataURL(f);
+      } });
+      return file;
+    };
+    const avatarFile = pickImage('avatar', (v) => { avatarImg.src = v; });
+    const bannerFile = pickImage('banner', (v) => { bannerImg.style.backgroundImage = `url("${v}")`; });
+    const bioArea = h('textarea', { rows: 5, maxLength: 400, placeholder: 'Was im Profil des Bots unter „Über mich“ steht …', oninput: (e) => { prof.bio = e.target.value; bioCount.textContent = `${prof.bio.length}/400`; } });
+    bioArea.value = prof.bio;
+    const bioCount = h('span.muted.small', `${prof.bio.length}/400`);
     root.append(card('Bot-Profil (überall)', 'Nur du siehst das. Discord erlaubt höchstens 2 Namensänderungen pro Stunde.',
-      h('div.row', { style: 'gap:16px;align-items:flex-start' }, h('div', avatarImg, h('div', { style: 'margin-top:6px' }, h('button.btn.sm', { type: 'button', onclick: () => file.click() }, 'Bild wählen')), file),
+      bannerImg,
+      h('div.row', { style: 'gap:16px;align-items:flex-start;margin-top:12px' }, h('div', avatarImg, h('div', { style: 'margin-top:6px' }, h('button.btn.sm', { type: 'button', onclick: () => avatarFile.click() }, 'Bild wählen')), avatarFile),
         h('div', { style: 'flex:1;min-width:220px' },
           field('Name des Bots', text(prof, 'name', { max: 32 })),
           field('…oder Bild-Adresse', text(prof, 'avatar', { ph: 'https://…png' })),
-          h('div.row.end', { style: 'margin-top:12px' }, h('button.btn.primary', { type: 'button', onclick: async (e) => {
-            e.target.disabled = true;
-            try {
-              const r = await api('/api/bot/profile', { method: 'POST', body: { name: prof.name, avatar: prof.avatar || undefined } });
-              S.bot.name = r.name; S.bot.avatar = r.avatar; setBotHeader(); toast('Profil gespeichert');
-            } catch (er) { toast(er.message, true); } finally { e.target.disabled = false; }
-          } }, 'Profil speichern'))))));
+          h('div.row', { style: 'margin-top:8px' }, h('button.btn.sm', { type: 'button', onclick: () => bannerFile.click() }, 'Banner wählen'), h('span.muted.small', 'Breites Bild, z. B. 960 × 540'), bannerFile))),
+      field('Bio (Über mich)', h('div', bioArea, h('div.row', { style: 'margin-top:4px' }, h('span.muted.small', 'Markdown geht, z. B. **fett** oder Links. Erscheint im Profil des Bots.'), h('span.spacer'), bioCount))),
+      h('div.row.end', { style: 'margin-top:12px' }, h('button.btn.primary', { type: 'button', onclick: async (e) => {
+        e.target.disabled = true;
+        try {
+          const r = await api('/api/bot/profile', { method: 'POST', body: { name: prof.name, avatar: prof.avatar || undefined, banner: prof.banner || undefined, bio: prof.bio } });
+          S.bot.name = r.name; S.bot.avatar = r.avatar; prof.avatar = ''; prof.banner = ''; setBotHeader(); toast('Profil gespeichert');
+        } catch (er) { toast(er.message, true); } finally { e.target.disabled = false; }
+      } }, 'Profil speichern'))));
     const pres = clone(b.presence);
     root.append(card('Status', 'Mehrere Einträge wechseln sich ab. Platzhalter: {servers}, {members}.',
       h('div.grid', field('Online-Status', sel(pres, 'status', [['online', '🟢 Online'], ['idle', '🌙 Abwesend'], ['dnd', '⛔ Bitte nicht stören'], ['invisible', '⚫ Unsichtbar']])),
@@ -1026,6 +1161,43 @@ page({
         h('td', h('div.row', x.ended ? h('button.btn.sm', { type: 'button', onclick: async () => { await tryApi(`/api/giveaways/${x.id}/reroll`, { method: 'POST', body: {} }); toast('Neu gezogen'); rerender(); } }, 'Neu ziehen')
           : h('button.btn.sm', { type: 'button', onclick: async () => { await tryApi(`/api/giveaways/${x.id}/end`, { method: 'POST', body: {} }); toast('Beendet'); rerender(); } }, 'Jetzt beenden'),
         h('button.icon-btn', { type: 'button', title: 'Aus der Liste löschen', onclick: async () => { await tryApi(`/api/giveaways/${x.id}`, { method: 'DELETE' }); rerender(); } }, icon('trash'))))))))) : h('p.muted', 'Noch keine.')));
+  },
+});
+
+page({
+  id: 'boost', title: 'Server-Booster', icon: 'gem', group: 'Community', mods: ['boost'], short: 'Danke-Nachricht und Rollen für Booster',
+  desc: 'Bedankt sich, wenn jemand den Server boostet, gibt Boostern extra Rollen und meldet auf Wunsch, wenn ein Boost endet.',
+  async render(root) {
+    const b = S.cfg.boost;
+    const vars = ['user', 'user.name', 'user.avatar', 'server', 'boosts', 'tier', 'user.boosts'];
+    const sample = { boosts: 7, tier: 2, 'user.boosts': 1 };
+    root.append(card('Danke-Nachricht', 'Kommt, sobald jemand den Server boostet. Discord meldet Boosts manchmal ein paar Sekunden später.',
+      field('Kanal', chan(b, 'channel', { empty: 'Keine Nachricht im Kanal' })),
+      h('div', { style: 'margin-top:12px' }, messageEditor(b, 'message', { vars, sample })),
+      h('div.row', { style: 'margin-top:12px' }, h('span.hint', 'Schickt die Nachricht einmal mit dir als Booster (vorher speichern).'), h('span.spacer'),
+        h('button.btn', { type: 'button', onclick: async (e) => {
+          if (dirtyMods().length && !await saveNow()) return;
+          e.target.disabled = true;
+          try { await api('/api/boosts/test', { method: 'POST', body: {} }); toast('Test gesendet'); } catch (er) { toast(er.message, true); } finally { e.target.disabled = false; }
+        } }, icon('send'), 'Test senden'))));
+    root.append(card('Private Nachricht', null, toggle(b, 'dmEnabled', 'Dem Booster eine DM schicken'), h('div', { style: 'margin-top:12px' }, messageEditor(b, 'dm', { vars, sample }))));
+    root.append(card('Booster-Rollen', 'Zusätzlich zur Discord-Rolle „Server Booster“. Die Bot-Rolle muss über diesen Rollen stehen.',
+      field('Rollen für Booster', roles(b, 'roles')),
+      h('div', { style: 'margin-top:12px' }, toggle(b, 'removeRoles', 'Rollen wieder wegnehmen, wenn der Boost endet'))));
+    root.append(card('Boost beendet', null, toggle(b, 'endEnabled', 'Nachricht, wenn jemand nicht mehr boostet'),
+      field('Kanal', chan(b, 'endChannel', { empty: 'Wie Danke-Nachricht' })),
+      h('div', { style: 'margin-top:12px' }, messageEditor(b, 'end', { vars, sample }))));
+    root.append(card('Log', null, field('Log-Kanal', chan(b, 'logChannel', { empty: 'Kein Log' }), 'Jeder Boost und jedes Boost-Ende landen hier.')));
+    const list = h('div', h('p.muted', 'Lädt …'));
+    root.append(card('Aktuelle Booster', null, list));
+    try {
+      const d = await api('/api/boosts');
+      list.replaceChildren(
+        h('div.stats', h('div.stat', h('b', d.boosts), h('span', 'Boosts')), h('div.stat', h('b', d.tier), h('span', 'Boost-Level')),
+          h('div.stat', h('b', d.boosters.length), h('span', 'Booster')), h('div.stat', h('b', d.total), h('span', 'Boosts seit der Bot da ist'))),
+        d.boosters.length ? h('div.boosters', { style: 'margin-top:12px' }, d.boosters.map((x) => h('div.who-cell', h('img', { src: x.avatar || 'icon.svg', alt: '' }),
+          h('b', x.name), h('span.spacer'), h('span.muted.small', `seit ${fmtDate(x.since)}`)))) : h('p.muted', { style: 'margin-top:12px' }, 'Gerade boostet niemand.'));
+    } catch (e) { list.replaceChildren(h('p.muted', e.message)); }
   },
 });
 
