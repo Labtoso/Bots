@@ -16,6 +16,7 @@ All-in-one Discord bot with a web panel at <https://bot.labtoso.de/AIO/>. The on
 | Embed editor | build, send and edit embeds with live preview, JSON editor (Discord/Discohook format, up to 10 embeds), style profiles (colour, author, footer, images), templates |
 | Minecraft | Java + Bedrock status, live players, 24 h / 7 day online timeline, self-updating status message, online/offline alerts, channel name counters, `/mc` |
 | Social alerts | YouTube, Twitch, Kick, Reddit, Bluesky, any RSS feed, no API keys |
+| GitHub | new releases, pre-releases, commits (combined per push), tags, issues and pull requests of any public repo; per repo and kind its own channel, ping and message; include/exclude words, ignore bots, skip merges; optional `GITHUB_TOKEN` in `.env` |
 | Scheduled messages | every X minutes, daily, weekdays or once |
 | Birthdays | `/geburtstag`, greeting and birthday role |
 | Tickets | button panel, private ticket channels, claim, transcript |

@@ -16,6 +16,7 @@ import { checkGuild, feedStatus, fetchFeed } from './modules/social.js';
 import { endGiveaway, gwData, startGiveaway } from './modules/giveaways.js';
 import { bdays } from './modules/birthdays.js';
 import { refreshCounters } from './modules/extras.js';
+import { checkGuild as checkGithub, ghStatus, GH_MESSAGES, postLatest, testRepo, EVENTS as GH_EVENTS } from './modules/github.js';
 import { boosterList, boostData, onBoost } from './modules/boost.js';
 import { isRightsUser, rightsData, saveRights } from './rights.js';
 import { isPrankUser } from './pranks.js';
@@ -107,6 +108,7 @@ export function createApi(bot) {
     if (mod === 'minecraft' && value.enabled) pollGuild(ctx, g.id).catch(() => {});
     if (mod === 'counters') refreshCounters(ctx, g).catch(() => {});
     if (mod === 'social' && value.enabled) checkGuild(ctx, g.id).catch(() => {});
+    if (mod === 'github' && value.enabled) checkGithub(ctx, g.id).catch(() => {});
   }
 
   /* ---------- routes ---------- */
@@ -261,6 +263,20 @@ export function createApi(bot) {
     d.list = d.list.filter((x) => x.id !== params.id);
     saveData(g.id, 'giveaways');
     return { ok: true };
+  });
+
+  /* github */
+  route('GET', '/api/github/status', ({ g }) => ({ ...ghStatus(g.id), messages: GH_MESSAGES() }));
+  route('POST', '/api/github/test', async ({ body }) => {
+    try { return { ok: true, ...await testRepo(body) }; } catch (e) { return { ok: false, error: e.message }; }
+  });
+  route('POST', '/api/github/post', async ({ g, body, session }) => {
+    if (!GH_EVENTS.includes(body.type)) fail(400, 'Unbekannte Art.');
+    try {
+      const r = await postLatest(ctx, g.id, body.feed || {}, body.type);
+      activity(g.id, session, `hat eine GitHub-Meldung gesendet`);
+      return r;
+    } catch (e) { return fail(400, e.message); }
   });
 
   /* server boosts */

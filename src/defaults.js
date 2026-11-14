@@ -141,6 +141,12 @@ export const DEFAULTS = {
     feeds: [], // { id, type, target, channel, role, message, live, title }
   },
 
+  github: {
+    enabled: false,
+    interval: 5, // minutes between checks
+    feeds: [], // { id, repo, branch, channel, channels: {event: id}, role, pings: {event: role}, on, events: {release, prerelease, commit, tag, issue, issueClosed, pr, prMerged}, include, exclude, ignoreBots, skipMerges, maxCommits, bodyLength, messages: {event: MSG} }
+  },
+
   timers: {
     enabled: false,
     messages: [], // { id, name, channel, message, mode, every, time, days, on }

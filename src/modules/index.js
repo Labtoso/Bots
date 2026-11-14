@@ -13,5 +13,6 @@ import tickets from './tickets.js';
 import giveaways from './giveaways.js';
 import extras from './extras.js';
 import boost from './boost.js';
+import github from './github.js';
 
-export const modules = [moderation, automod, logs, welcome, levels, reactionroles, customcmds, minecraft, social, timers, birthdays, tickets, giveaways, extras, boost];
+export const modules = [moderation, automod, logs, welcome, levels, reactionroles, customcmds, minecraft, social, timers, birthdays, tickets, giveaways, extras, boost, github];

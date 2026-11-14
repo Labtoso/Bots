@@ -37,6 +37,8 @@ export const config = {
   // Optional Twitch app for live alerts (without it the public channel page is checked)
   twitchId: env.TWITCH_CLIENT_ID || '',
   twitchSecret: env.TWITCH_CLIENT_SECRET || '',
+  // Optional GitHub token for the GitHub module (5000 instead of 60 requests per hour)
+  githubToken: env.GITHUB_TOKEN || '',
   // Windows: the bot updates itself from GitHub (Linux uses the systemd timer)
   autoUpdate: env.AUTO_UPDATE !== '0',
   branch: env.AIO_BRANCH || 'AIO',

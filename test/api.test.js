@@ -232,3 +232,53 @@ test('server booster module', async () => {
   assert.equal(await onBoost(bot.ctx, alex), false); // the system message right after does not thank twice
   assert.equal((await call('/api/boosts')).data.total, 1);
 });
+
+test('github: releases, commits, PRs are posted once, with filters', async () => {
+  const dir = path.join(path.dirname(new URL(import.meta.url).pathname), 'github');
+  const repo = JSON.parse(fs.readFileSync(path.join(dir, 'repo.json'), 'utf8'));
+  let commits = JSON.parse(fs.readFileSync(path.join(dir, 'commits.json'), 'utf8'));
+  let releases = [{ id: 1, name: 'v1.0', tag_name: 'v1.0', html_url: 'https://github.com/Labtoso/Bots/releases/tag/v1.0', body: 'Erste Version', published_at: '2026-11-01T10:00:00Z', prerelease: false, draft: false, author: { login: 'Labtoso', avatar_url: 'https://a/1.png', html_url: 'https://github.com/Labtoso' } }];
+  let pulls = [];
+  const realFetch = globalThis.fetch;
+  globalThis.fetch = async (url, opts) => {
+    if (!String(url).startsWith('https://api.github.com')) return realFetch(url, opts);
+    const u = new URL(url);
+    const data = u.pathname.endsWith('/releases') ? releases : u.pathname.endsWith('/commits') ? commits : u.pathname.endsWith('/pulls') ? pulls : u.pathname.endsWith('/tags') || u.pathname.endsWith('/issues') ? [] : repo;
+    return new Response(JSON.stringify(data), { status: 200, headers: { 'content-type': 'application/json', 'x-ratelimit-remaining': '59', 'x-ratelimit-limit': '60', 'x-ratelimit-reset': '0' } });
+  };
+  try {
+    const t = await call('/api/github/test', 'POST', { repo: 'https://github.com/Labtoso/Bots' });
+    assert.equal(t.data.ok, true, JSON.stringify(t.data));
+    assert.equal(t.data.repo, 'Labtoso/Bots');
+    assert.equal(t.data.release, 'v1.0');
+    const feed = { id: 'gh1', repo: 'Labtoso/Bots', branch: 'AIO', channel: '21', on: true, exclude: 'wip', events: { release: true, commit: true, prMerged: true }, maxCommits: 10 };
+    await call('/api/config/github', 'PUT', { enabled: true, interval: 5, feeds: [feed] });
+    const { checkGuild } = await import('../src/modules/github.js');
+    await checkGuild(bot.ctx, '900'); // first look: remembers what is there, posts nothing
+    const before = sent.length;
+    await checkGuild(bot.ctx, '900');
+    assert.equal(sent.length, before);
+    releases = [{ ...releases[0], id: 2, name: 'v1.1', tag_name: 'v1.1', body: 'Neu: GitHub', published_at: '2026-11-14T10:00:00Z' }, ...releases];
+    const mk = (sha, msg) => ({ ...commits[0], sha, html_url: `https://github.com/Labtoso/Bots/commit/${sha}`, commit: { ...commits[0].commit, message: msg, committer: { date: '2026-11-14T11:00:00Z' } } });
+    commits = [mk('b'.repeat(40), 'Zweiter Commit'), mk('c'.repeat(40), 'wip: nicht posten'), mk('a'.repeat(40), 'Erster Commit'), ...commits];
+    pulls = [{ number: 7, title: 'GitHub-Modul', html_url: 'https://github.com/Labtoso/Bots/pull/7', body: '', user: { login: 'Labtoso' }, head: { ref: 'gh' }, base: { ref: 'AIO' }, merged_at: '2026-11-14T12:00:00Z', created_at: '2026-11-14T09:00:00Z', state: 'closed' }];
+    await checkGuild(bot.ctx, '900');
+    const posts = sent.slice(before).map((s) => s.body.embeds[0]);
+    assert.equal(posts.length, 3, JSON.stringify(posts.map((p) => p.title)));
+    assert.equal(posts[0].title, '🚀 v1.1');
+    assert.equal(posts[0].description, 'Neu: GitHub');
+    const commitPost = posts.find((p) => /Commits/.test(p.title));
+    assert.equal(commitPost.title, '2 neue Commits'); // the wip one is filtered
+    assert.match(commitPost.description, /Zweiter Commit/);
+    assert.ok(posts.some((p) => p.title === '🔀 Pull Request #7 gemergt: GitHub-Modul'));
+    const n = sent.length;
+    await checkGuild(bot.ctx, '900');
+    assert.equal(sent.length, n); // nothing twice
+    const pl = await call('/api/github/post', 'POST', { feed, type: 'release' });
+    assert.equal(pl.status, 200, JSON.stringify(pl.data));
+    assert.equal(sent.at(-1).body.embeds[0].title, '🚀 v1.1');
+    const st = await call('/api/github/status');
+    assert.equal(st.data.feeds.gh1.repo, 'Labtoso/Bots');
+    assert.ok(st.data.messages.release);
+  } finally { globalThis.fetch = realFetch; }
+});
