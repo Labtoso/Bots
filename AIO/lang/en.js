@@ -5,7 +5,7 @@
  */
 (function () {
   const L = (window.AIO_LANGS = window.AIO_LANGS || {});
-  const T = (s) => (L.en.texts[s.trim()] ?? s);
+  const T = (s) => (window.i18n ? window.i18n.tr(s) : (L.en.texts[s.trim()] ?? s));
   L.en = {
     name: 'English',
     locale: 'en-GB',
@@ -207,6 +207,42 @@
       'Jeder Boost und jedes Boost-Ende landen hier.': 'Every boost and every boost end is posted here.', 'Lädt …': 'Loading …', 'Aktuelle Booster': 'Current boosters',
       'Boosts': 'Boosts', 'Boost-Level': 'Boost level', 'Booster': 'Boosters', 'Boosts seit der Bot da ist': 'Boosts since the bot joined', 'Gerade boostet niemand.': 'Nobody is boosting right now.',
 
+      /* join roles, server profile, booster roles */
+      'Name oder ID suchen …': 'Search name or ID …', 'eigenes Bild': 'own picture', 'öffentliches Bild': 'public picture', 'Leer = die öffentliche Bio gilt': 'Empty = the public bio applies',
+      'Profil auf diesem Server': 'Profile on this server', 'Profilbild, Banner und Bio nur für diesen Server. Was hier leer ist, kommt vom öffentlichen Profil.': 'Avatar, banner and bio only for this server. Whatever is empty here comes from the public profile.',
+      'Öffentliches Bild gilt wieder': 'The public picture applies again', 'Öffentliches Bild nutzen': 'Use public picture', 'Bio auf diesem Server': 'Bio on this server',
+      'Server-Profil gespeichert': 'Server profile saved', 'Server-Profil speichern': 'Save server profile', 'Bot-Profil öffentlich (überall)': 'Public bot profile (everywhere)',
+      'Gilt auf allen Servern, außer wo oben ein eigenes Profil gesetzt ist. Nur du siehst das. Discord erlaubt höchstens 2 Namensänderungen pro Stunde.': 'Applies on all servers, except where a server profile is set above. Only you see this. Discord allows at most 2 name changes per hour.',
+      'Join-Rollen': 'Join roles', 'Rollen für neue Mitglieder nach Regeln': 'Roles for new members by rules',
+      'Gibt neuen Mitgliedern automatisch Rollen: für Menschen oder Bots, mit Verzögerung, nach der Regel-Bestätigung, nur für ältere Accounts oder nur für eine Zeit. Auf Wunsch bekommt jemand, der wiederkommt, seine alten Rollen zurück.': 'Gives new members roles automatically: for humans or bots, with a delay, after rule screening, only for older accounts or only for a while. Optionally someone who comes back gets their old roles again.',
+      'Nur Menschen': 'Humans only', 'Nur Bots': 'Bots only', 'Jede passende Regel gibt ihre Rollen. Die Bot-Rolle muss über diesen Rollen stehen.': 'Every matching rule gives its roles. The bot’s role must be above these roles.',
+      'Neue Regel': 'New rule', 'nach Regel-Bestätigung': 'after rule screening', 'Regel': 'Rule', 'Noch keine Regel. Leg eine an, z. B. „Mitglied“ für alle Menschen.': 'No rule yet. Add one, e.g. “Member” for all humans.',
+      'z. B. Mitglied': 'e.g. Member', 'Für': 'For', 'Account mindestens': 'Account at least', 'Tage alt': 'days old', 'Wieder wegnehmen nach': 'Remove again after', 'Min. (0 = nie)': 'min. (0 = never)',
+      'Erst nach der Regel-Bestätigung': 'Only after rule screening', 'Wenn der Server Regeln vor dem Beitritt bestätigen lässt': 'If the server makes people accept rules before joining',
+      'Wiederkommen': 'Coming back', 'Alte Rollen zurückgeben, wenn jemand wieder beitritt': 'Give old roles back when someone joins again', 'Der Bot merkt sich die Rollen 180 Tage lang': 'The bot remembers the roles for 180 days',
+      'Diese Rollen nie zurückgeben': 'Never give these roles back', 'Unter „Willkommen“ sind auch noch Auto-Rollen eingestellt. Beide gelten, du kannst sie dort leeren.': 'There are also auto roles set under “Welcome”. Both apply, you can clear them there.',
+      'Rollen für jeden Booster': 'Roles for every booster', 'Rollen für bestimmte Personen': 'Roles for specific people', 'Person wählen': 'Choose person', 'Person': 'Person',
+      'Noch keine. Hier legst du fest, wer beim Boosten welche Rolle bekommt.': 'None yet. Here you set who gets which role when they boost.', 'Bekommt beim Boosten': 'Gets when boosting',
+      'Rollen ab einer Anzahl Boosts': 'Roles from a number of boosts', 'Keine Stufen.': 'No steps.', 'Ab Boosts (einer Person)': 'From boosts (of one person)', 'Stufe': 'Step',
+      'Discord bremst gerade, bitte gleich nochmal versuchen.': 'Discord is slowing down requests, please try again in a moment.',
+
+      /* bugs and suggestions */
+      'streyn': 'streyn', 'Bugs': 'Bugs', 'Behoben': 'Fixed', 'Update-Vorschläge': 'Update suggestions', 'Umgesetzt': 'Finished',
+      'Bug-Reports im Forum: neue Posts bekommen den Tag „new“, der Status wechselt per Klick (oder durch Claude) auf „in development“ und „fixed“.': 'Bug reports in a forum: new posts get the tag “new”, the status changes with a click (or by Claude) to “in development” and “fixed”.',
+      'Vorschläge im Forum: neue Posts bekommen den Tag „new“, der Status wechselt per Klick (oder durch Claude) auf „in development“ und „finished“.': 'Suggestions in a forum: new posts get the tag “new”, the status changes with a click (or by Claude) to “in development” and “finished”.',
+      'fertig': 'done', 'ohne Status': 'no status', 'Bug-Forum mit Status-Tags': 'Bug forum with status tags', 'Vorschläge-Forum mit Status-Tags': 'Suggestion forum with status tags', '– kein Tag –': '– no tag –',
+      'Forum und Tags': 'Forum and tags', 'Automatisch': 'Automatic', 'Wähl den Forum-Kanal und welcher Tag welchen Status bedeutet. Posts mit dem Admin-Tag (z. B. „How to report“) werden ignoriert.': 'Choose the forum channel and which tag means which status. Posts with the admin tag (e.g. “How to report”) are ignored.',
+      'Forum-Kanal': 'Forum channel', 'Kein Forum': 'No forum', 'Neu': 'New', 'In Arbeit': 'In development', 'Admin (ignorieren)': 'Admin (ignore)', 'Tags sind bereit': 'Tags are ready', 'Tags anlegen und verknüpfen': 'Create and link tags',
+      'Neue Posts bekommen den Tag „new“': 'New posts get the tag “new”', 'Auf neue Posts antworten': 'Reply to new posts', 'Bei Status-Wechsel in den Post schreiben': 'Write into the post when the status changes',
+      'Fertige Posts schließen (archivieren)': 'Close finished posts (archive)', 'Antwort auf neuen Post': 'Reply to a new post', 'Posts': 'Posts', 'Offen': 'Open', 'Fertig': 'Done', 'Für Claude kopieren': 'Copy for Claude',
+      'Kopieren ging nicht': 'Copying did not work', 'Wähl oben ein Forum und speichere.': 'Choose a forum above and save.', 'Notiz für den Post (optional, z. B. Version)': 'Note for the post (optional, e.g. version)',
+      'Status geändert': 'Status changed', 'Auf „new“': 'Back to “new”', 'Keine Posts.': 'No posts.', 'Zugriff für Claude': 'Access for Claude',
+      'Damit kann Claude die Posts lesen und den Status setzen, z. B. wenn du sagst: „Schau in den Bot und fix die neuesten Bugs.“ Nur du siehst das.': 'With this Claude can read the posts and set the status, e.g. when you say: “Look into the bot and fix the newest bugs.” Only you see this.',
+      'Abfragen:': 'Query:', 'Neuen Schlüssel erzeugen? Der alte geht dann nicht mehr.': 'Create a new key? The old one stops working.', 'Neuer Schlüssel': 'New key', 'Neuen Schlüssel erzeugen': 'Create new key',
+      'Post nicht gefunden.': 'Post not found.', 'Status muss new, dev oder done sein.': 'Status must be new, dev or done.', 'Für diesen Status ist kein Tag eingestellt.': 'No tag is set for this status.',
+      'Bitte zuerst einen Forum-Kanal wählen und speichern.': 'Please choose a forum channel and save first.', 'Der gewählte Kanal ist kein Forum.': 'The chosen channel is not a forum.',
+      'Ein Forum kann höchstens 20 Tags haben.': 'A forum can have at most 20 tags.', 'Unbekanntes Forum': 'Unknown forum',
+
       /* github */
       'GitHub': 'GitHub', 'Releases, Commits, Issues und PRs': 'Releases, commits, issues and PRs',
       'Postet fortlaufend, was in GitHub-Repositorys neu ist: Releases, Commits, Tags, Issues und Pull Requests. Pro Repository und Art einstellbar: Kanal, Ping, Filter und eigene Nachricht.': 'Keeps posting what is new in GitHub repositories: releases, commits, tags, issues and pull requests. Per repository and kind you set the channel, ping, filters and your own message.',
@@ -400,7 +436,11 @@
       [/^(?:(.+) · )?Standard: (.+)$/, (a, b) => `${a ? `${T(a)} · ` : ''}Default: ${T(b)}`], [/^(\d+) Befehle$/, '$1 commands'], [/^(\d+) Mitglieder · seit (.+)$/, '$1 members · since $2'],
       [/^Bot wirklich von „(.+)“ entfernen\?$/, 'Really remove the bot from “$1”?'],
       [/^\+ (\d+) weitere Embeds$/, '+ $1 more embeds'],
-      [/^✅ Gesendet: (.+)$/, '✅ Sent: $1'], [/^❌ (.+)$/, (a) => `❌ ${T(a)}`],
+      [/^✅ Gesendet: (.+)$/, '✅ Sent: $1'],
+      [/^nach (\d+) s$/, 'after $1 s'], [/^Account ab (\d+) Tagen$/, 'account from $1 days'], [/^für (\d+) Min\.$/, 'for $1 min.'], [/^Ab (\d+) Boosts$/, 'From $1 boosts'],
+      [/^Fertig \((.+)\)$/, 'Done ($1)'], [/^Fehlende Tags \(new, in development, (\w+), admin\) legt der Bot im Forum an\.$/, 'The bot creates missing tags (new, in development, $1, admin) in the forum.'],
+      [/^Status setzen: POST (.+) mit (.+) oder (.+)\.$/, 'Set the status: POST $1 with $2 or $3.'],
+      [/^hat „(.+)“ auf (new|dev|done) gesetzt$/, 'set “$1” to $2'], [/^hat das Bot-Profil auf diesem Server geändert$/, 'changed the bot profile on this server'], [/^❌ (.+)$/, (a) => `❌ ${T(a)}`],
       [/^✅ (.+) · ⭐ (\d+) · Branch (.+?)( · neuestes Release (.+))?$/, (r, n, b, x, v) => `✅ ${r} · ⭐ ${n} · branch ${b}${x ? ` · latest release ${v}` : ''}`],
       [/^hat eine GitHub-Meldung gesendet$/, 'sent a GitHub post'],
       [/^noch (\d+) h (\d+) min$/, '$1 h $2 min left'], [/^noch (\d+) min$/, '$1 min left'], [/^Ausgewählt: (.+)$/, 'Selected: $1'], [/^(.+) gestoppt$/, '$1 stopped'],
@@ -411,6 +451,8 @@
       [/^hat „(.+)“ gespeichert$/, 'saved “$1”'], [/^hat eine Nachricht in #(.+) (gesendet|bearbeitet)$/, (c, v) => `${v === 'gesendet' ? 'sent' : 'edited'} a message in #${c}`],
       [/^hat alle XP zurückgesetzt$/, 'reset all XP'], [/^hat das Ticket-Panel veröffentlicht$/, 'published the ticket panel'], [/^hat ein Rollen-Panel veröffentlicht$/, 'published a role panel'],
       [/^hat Fall #(\d+) entfernt$/, 'removed case #$1'], [/^hat das Gewinnspiel „(.+)“ gestartet$/, 'started the giveaway “$1”'], [/^hat die XP von (.+) auf (\d+) gesetzt$/, 'set the XP of $1 to $2'],
+      // last: "a · b" where both parts are known texts
+      [/^(.+?) · (.+)$/, (a, b) => { const x = T(a); const y = T(b); return x === a && y === b ? undefined : `${x} · ${y}`; }],
     ],
   };
 }());

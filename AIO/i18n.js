@@ -21,7 +21,11 @@
     let t = dict.texts[core];
     if (t === undefined) {
       for (const [re, rep] of dict.rules || []) {
-        if (re.test(core)) { t = typeof rep === 'function' ? core.replace(re, (...a) => rep(...a.slice(1, -2))) : core.replace(re, rep); break; }
+        if (!re.test(core)) continue;
+        if (typeof rep !== 'function') { t = core.replace(re, rep); break; }
+        let miss = false;
+        const out = core.replace(re, (...a) => { const v = rep(...a.slice(1, -2)); if (v === undefined) miss = true; return v ?? ''; });
+        if (!miss) { t = out; break; }
       }
     }
     return t === undefined ? s : m[1] + t + m[3];

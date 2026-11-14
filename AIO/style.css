@@ -272,3 +272,13 @@ textarea.code { font-family: ui-monospace, SFMono-Regular, Menlo, Consolas, mono
 .langs button { flex: 1; border: 1px solid var(--line); background: var(--panel-2); color: var(--muted); border-radius: 7px; padding: 6px 8px; font: inherit; font-size: 13px; cursor: pointer; }
 .langs button.on { color: var(--text); border-color: var(--accent); }
 .boosters .who-cell { padding: 6px 0; border-bottom: 1px solid var(--line); }
+.pop-list { position: absolute; z-index: 30; left: 0; right: 0; top: 100%; margin-top: 4px; display: grid; background: var(--panel); border: 1px solid var(--line); border-radius: 8px; overflow: hidden; }
+.pop-list:empty { display: none; }
+.pop-list > * { padding: 7px 10px; }
+.pop-list button { display: flex; align-items: center; gap: 8px; border: 0; background: transparent; color: inherit; font: inherit; text-align: left; cursor: pointer; }
+.pop-list button:hover { background: var(--hover); }
+.pop-list img { width: 22px; height: 22px; border-radius: 50%; }
+.posts .post { padding: 12px 0; border-bottom: 1px solid var(--line); }
+.posts .post:last-child { border-bottom: 0; }
+.posts .post p { margin: 6px 0 0; color: var(--muted); font-size: 13px; white-space: pre-wrap; max-height: 4.5em; overflow: hidden; }
+.badge.dev { color: #93c5fd; border-color: rgba(59, 130, 246, .35); background: rgba(59, 130, 246, .08); }

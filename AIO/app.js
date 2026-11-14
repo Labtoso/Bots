@@ -59,6 +59,8 @@ const ICONS = {
   server: '<rect x="3" y="4" width="18" height="7" rx="2"/><rect x="3" y="13" width="18" height="7" rx="2"/>',
   edit: '<path d="M12 20h9"/><path d="M16.5 3.5a2.1 2.1 0 1 1 3 3L7 19l-4 1 1-4z"/>',
   git: '<circle cx="6" cy="6" r="2.5"/><circle cx="6" cy="18" r="2.5"/><circle cx="18" cy="8" r="2.5"/><path d="M6 8.5v7M18 10.5c0 4-4 4.5-9.8 6.3"/>',
+  bug: '<rect x="8" y="6" width="8" height="14" rx="4"/><path d="M12 10v10M4 12h4M16 12h4M5 7l3 2M19 7l-3 2M5 19l3-2M19 19l-3-2M10 4l1 2M14 4l-1 2"/>',
+  idea: '<path d="M9 18h6M10 21h4"/><path d="M12 3a6 6 0 0 0-4 10.5c.8.8 1 1.6 1 2.5h6c0-.9.2-1.7 1-2.5A6 6 0 0 0 12 3z"/>',
   gem: '<path d="M6 3h12l4 6-10 12L2 9z"/><path d="M2 9h20M12 21 8 9l4-6 4 6z"/>',
   ext: '<path d="M15 3h6v6M10 14 21 3M18 13v6a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2V8a2 2 0 0 1 2-2h6"/>',
 };
@@ -403,6 +405,25 @@ function strList(obj, key, { ph = '' } = {}) {
   const ta = h('textarea', { rows: 4, placeholder: ph, oninput: (e) => { obj[key] = e.target.value.split('\n').map((s) => s.trim()).filter(Boolean); changed(); } });
   ta.value = (obj[key] || []).join('\n');
   return ta;
+}
+
+/** Picks one member by name or ID: obj[key] = id, obj[nameKey] = display name. */
+function memberPick(obj, key, nameKey = 'name', onpick) {
+  const box = h('div.pop-list');
+  const input = h('input', { type: 'text', value: obj[nameKey] || obj[key] || '', placeholder: 'Name oder ID suchen …' });
+  let timer = null;
+  input.oninput = () => {
+    clearTimeout(timer);
+    const q = input.value.trim();
+    if (q.length < 2) return box.replaceChildren();
+    timer = setTimeout(async () => {
+      const found = await api(`/api/members?q=${encodeURIComponent(q)}`).catch(() => []);
+      box.replaceChildren(...(found.length ? found.map((m) => h('button', { type: 'button', onclick: () => {
+        obj[key] = m.id; obj[nameKey] = m.name; input.value = m.name; box.replaceChildren(); changed(); onpick?.(m);
+      } }, h('img', { src: m.avatar || 'icon.svg', alt: '' }), h('b', m.name), h('span.muted.small', m.tag))) : [h('span.muted.small', 'Niemand gefunden')]));
+    }, 250);
+  };
+  return h('div', { style: 'position:relative' }, input, box);
 }
 
 /** Editor for an array of objects. */
@@ -755,6 +776,48 @@ if (window.i18n) {
 const card = (title, hint, ...kids) => h('div.card', title ? h('h3', title) : null, hint ? h('p.hint', hint) : null, ...kids);
 const ACTIONS = [['delete', 'Nur löschen'], ['warn', 'Löschen + verwarnen'], ['timeout', 'Löschen + Timeout'], ['kick', 'Löschen + kicken'], ['ban', 'Löschen + bannen']];
 
+/** Avatar, banner and bio of the bot only on this server (Discord server profile). */
+async function serverProfileCard() {
+  const p = await api('/api/guild/profile').catch(() => null);
+  if (!p) return h('span');
+  const st = { avatar: undefined, banner: undefined, bio: p.bio || '' };
+  const av = h('img', { src: p.avatar || p.global.avatar, alt: '', style: 'width:72px;height:72px;border-radius:50%;background:var(--panel-2)' });
+  const bn = h('div.banner-pv', { style: p.banner ? `background-image:url("${p.banner}")` : '' });
+  const badge = h('span.badge', { class: p.avatar ? 'on' : '' }, p.avatar ? 'eigenes Bild' : 'öffentliches Bild');
+  const pick = (key, show) => {
+    const f = h('input', { type: 'file', accept: 'image/png,image/jpeg,image/gif,image/webp', hidden: true, onchange: () => {
+      const file = f.files[0];
+      if (!file) return;
+      if (file.size > 8e6) return toast('Bild zu groß (max. 8 MB)', true);
+      const r = new FileReader();
+      r.onload = () => { st[key] = r.result; show(r.result); };
+      r.readAsDataURL(file);
+    } });
+    return f;
+  };
+  const avFile = pick('avatar', (v) => { av.src = v; badge.textContent = 'eigenes Bild'; badge.classList.add('on'); });
+  const bnFile = pick('banner', (v) => { bn.style.backgroundImage = `url("${v}")`; });
+  const bio = h('textarea', { rows: 3, maxLength: 190, placeholder: 'Leer = die öffentliche Bio gilt', oninput: (e) => { st.bio = e.target.value; cnt.textContent = `${st.bio.length}/190`; } });
+  bio.value = st.bio;
+  const cnt = h('span.muted.small', `${st.bio.length}/190`);
+  const save = async (body, msg) => { try { await api('/api/guild/profile', { method: 'POST', body }); toast(msg); rerender(); } catch (e) { toast(e.message, true); } };
+  return card('Profil auf diesem Server', 'Profilbild, Banner und Bio nur für diesen Server. Was hier leer ist, kommt vom öffentlichen Profil.',
+    bn,
+    h('div.row', { style: 'gap:16px;align-items:flex-start;margin-top:12px' },
+      h('div', av, h('div', { style: 'margin-top:6px' }, badge)),
+      h('div', { style: 'flex:1;min-width:220px' },
+        h('div.row', h('button.btn.sm', { type: 'button', onclick: () => avFile.click() }, 'Bild wählen'), h('button.btn.sm', { type: 'button', onclick: () => bnFile.click() }, 'Banner wählen'),
+          h('button.btn.sm.ghost', { type: 'button', onclick: () => save({ avatar: null, banner: null }, 'Öffentliches Bild gilt wieder') }, 'Öffentliches Bild nutzen'), avFile, bnFile),
+        field('Bio auf diesem Server', h('div', bio, h('div.row', { style: 'margin-top:4px' }, h('span.spacer'), cnt))))),
+    h('div.row.end', { style: 'margin-top:12px' }, h('button.btn.primary', { type: 'button', onclick: (e) => {
+      const body = { bio: st.bio };
+      if (st.avatar) body.avatar = st.avatar;
+      if (st.banner) body.banner = st.banner;
+      e.target.disabled = true;
+      save(body, 'Server-Profil gespeichert').finally(() => { e.target.disabled = false; });
+    } }, 'Server-Profil speichern')));
+}
+
 /* =================== pages =================== */
 
 page({
@@ -794,6 +857,7 @@ page({
       h('div.grid',
         field('Panel zusätzlich für diese Rollen', roles(g, 'managerRoles'), 'Mitglieder mit „Server verwalten“ dürfen immer.'),
         field('/aio nur in diesem Kanal', chan(g, 'panelChannelId', { empty: 'Überall' })))));
+    root.append(await serverProfileCard());
     if (!S.me.owner) return;
     const b = await tryApi('/api/bot');
     const prof = { name: b.name, avatar: '', banner: '', bio: b.bio || '' };
@@ -815,7 +879,7 @@ page({
     const bioArea = h('textarea', { rows: 5, maxLength: 400, placeholder: 'Was im Profil des Bots unter „Über mich“ steht …', oninput: (e) => { prof.bio = e.target.value; bioCount.textContent = `${prof.bio.length}/400`; } });
     bioArea.value = prof.bio;
     const bioCount = h('span.muted.small', `${prof.bio.length}/400`);
-    root.append(card('Bot-Profil (überall)', 'Nur du siehst das. Discord erlaubt höchstens 2 Namensänderungen pro Stunde.',
+    root.append(card('Bot-Profil öffentlich (überall)', 'Gilt auf allen Servern, außer wo oben ein eigenes Profil gesetzt ist. Nur du siehst das. Discord erlaubt höchstens 2 Namensänderungen pro Stunde.',
       bannerImg,
       h('div.row', { style: 'gap:16px;align-items:flex-start;margin-top:12px' }, h('div', avatarImg, h('div', { style: 'margin-top:6px' }, h('button.btn.sm', { type: 'button', onclick: () => avatarFile.click() }, 'Bild wählen')), avatarFile),
         h('div', { style: 'flex:1;min-width:220px' },
@@ -1032,6 +1096,30 @@ page({
 });
 
 page({
+  id: 'joinroles', title: 'Join-Rollen', icon: 'roles', group: 'Community', mods: ['joinroles'], short: 'Rollen für neue Mitglieder nach Regeln',
+  desc: 'Gibt neuen Mitgliedern automatisch Rollen: für Menschen oder Bots, mit Verzögerung, nach der Regel-Bestätigung, nur für ältere Accounts oder nur für eine Zeit. Auf Wunsch bekommt jemand, der wiederkommt, seine alten Rollen zurück.',
+  render(root) {
+    const j = S.cfg.joinroles;
+    const WHO = [['all', 'Alle'], ['humans', 'Nur Menschen'], ['bots', 'Nur Bots']];
+    root.append(card('Regeln', 'Jede passende Regel gibt ihre Rollen. Die Bot-Rolle muss über diesen Rollen stehen.', listEditor(j, 'rules', {
+      title: (r) => r.name || (r.roles || []).map((x) => `@${roleById(x)?.name || '?'}`).join(', ') || 'Neue Regel',
+      sum: (r) => [WHO.find((w) => w[0] === r.who)?.[1], r.delay ? `nach ${r.delay} s` : '', r.afterScreening ? 'nach Regel-Bestätigung' : '', r.minAccountDays ? `Account ab ${r.minAccountDays} Tagen` : '', r.removeAfterMinutes ? `für ${r.removeAfterMinutes} Min.` : '', r.on === false ? 'aus' : ''].filter(Boolean).join(' · '),
+      add: () => ({ id: uid(), name: '', roles: [], who: 'humans', delay: 0, minAccountDays: 0, afterScreening: false, removeAfterMinutes: 0, on: true }),
+      addLabel: 'Regel', max: 25, empty: 'Noch keine Regel. Leg eine an, z. B. „Mitglied“ für alle Menschen.',
+      render: (r, body, upd) => body.append(live(h('div',
+        h('div.grid', { style: 'margin-top:10px' }, field('Name (nur für dich)', text(r, 'name', { ph: 'z. B. Mitglied' })), field('Für', sel(r, 'who', WHO)), field('', toggle(r, 'on', 'Aktiv'))),
+        field('Rollen', roles(r, 'roles')),
+        h('div.grid', field('Verzögerung', num(r, 'delay', { min: 0, max: 86400, suffix: 'Sekunden' })), field('Account mindestens', num(r, 'minAccountDays', { min: 0, max: 3650, suffix: 'Tage alt' })),
+          field('Wieder wegnehmen nach', num(r, 'removeAfterMinutes', { min: 0, max: 525600, suffix: 'Min. (0 = nie)' }))),
+        h('div', { style: 'margin-top:10px' }, toggle(r, 'afterScreening', 'Erst nach der Regel-Bestätigung', 'Wenn der Server Regeln vor dem Beitritt bestätigen lässt'))), upd)),
+    })));
+    root.append(card('Wiederkommen', null, toggle(j, 'restore', 'Alte Rollen zurückgeben, wenn jemand wieder beitritt', 'Der Bot merkt sich die Rollen 180 Tage lang'),
+      field('Diese Rollen nie zurückgeben', roles(j, 'restoreExclude'))));
+    if (S.cfg.welcome?.autoRoles?.length || S.cfg.welcome?.botRoles?.length) root.append(h('div.notice', 'Unter „Willkommen“ sind auch noch Auto-Rollen eingestellt. Beide gelten, du kannst sie dort leeren.'));
+  },
+});
+
+page({
   id: 'levels', title: 'Level & XP', icon: 'star', group: 'Community', mods: ['levels'], short: 'XP für Aktivität, Rang-Rollen',
   desc: 'Mitglieder sammeln XP für Nachrichten (und Sprachkanäle) und steigen auf. Befehle: /rank, /leaderboard, /xp.',
   async render(root) {
@@ -1189,7 +1277,17 @@ page({
         } }, icon('send'), 'Test senden'))));
     root.append(card('Private Nachricht', null, toggle(b, 'dmEnabled', 'Dem Booster eine DM schicken'), h('div', { style: 'margin-top:12px' }, messageEditor(b, 'dm', { vars, sample }))));
     root.append(card('Booster-Rollen', 'Zusätzlich zur Discord-Rolle „Server Booster“. Die Bot-Rolle muss über diesen Rollen stehen.',
-      field('Rollen für Booster', roles(b, 'roles')),
+      field('Rollen für jeden Booster', roles(b, 'roles')),
+      field('Rollen für bestimmte Personen', listEditor(b, 'memberRoles', {
+        title: (x) => x.name || x.user || 'Person wählen', sum: (x) => (x.roles || []).map((r) => `@${roleById(r)?.name || '?'}`).join(', '),
+        add: () => ({ user: '', name: '', roles: [] }), addLabel: 'Person', max: 100, empty: 'Noch keine. Hier legst du fest, wer beim Boosten welche Rolle bekommt.',
+        render: (x, body, upd) => body.append(live(h('div.grid', { style: 'margin-top:10px' }, field('Person', memberPick(x, 'user', 'name', upd)), field('Bekommt beim Boosten', roles(x, 'roles'))), upd)),
+      })),
+      field('Rollen ab einer Anzahl Boosts', listEditor(b, 'countRoles', {
+        title: (x) => `Ab ${x.count || 1} Boosts`, sum: (x) => (x.roles || []).map((r) => `@${roleById(r)?.name || '?'}`).join(', '),
+        add: () => ({ count: 2, roles: [] }), addLabel: 'Stufe', max: 20, empty: 'Keine Stufen.',
+        render: (x, body, upd) => body.append(live(h('div.grid', { style: 'margin-top:10px' }, field('Ab Boosts (einer Person)', num(x, 'count', { min: 1, max: 100 })), field('Rollen', roles(x, 'roles'))), upd)),
+      })),
       h('div', { style: 'margin-top:12px' }, toggle(b, 'removeRoles', 'Rollen wieder wegnehmen, wenn der Boost endet'))));
     root.append(card('Boost beendet', null, toggle(b, 'endEnabled', 'Nachricht, wenn jemand nicht mehr boostet'),
       field('Kanal', chan(b, 'endChannel', { empty: 'Wie Danke-Nachricht' })),
@@ -1517,6 +1615,86 @@ page({
       field('Name', text(t, 'name'), '{user.name} = Name des Mitglieds'), field('Max. Personen', num(t, 'limit', { min: 0, max: 99, suffix: '0 = unbegrenzt' })))));
   },
 });
+
+const FORUM_TEXT = {
+  bugs: { title: 'Bugs', icon: 'bug', done: 'fixed', doneLabel: 'Behoben', desc: 'Bug-Reports im Forum: neue Posts bekommen den Tag „new“, der Status wechselt per Klick (oder durch Claude) auf „in development“ und „fixed“.' },
+  suggestions: { title: 'Update-Vorschläge', icon: 'idea', done: 'finished', doneLabel: 'Umgesetzt', desc: 'Vorschläge im Forum: neue Posts bekommen den Tag „new“, der Status wechselt per Klick (oder durch Claude) auf „in development“ und „finished“.' },
+};
+const STATUS_LABEL = { new: 'new', dev: 'in development', done: 'fertig', none: 'ohne Status' };
+for (const kind of ['bugs', 'suggestions']) {
+  const T = FORUM_TEXT[kind];
+  page({
+    id: kind, title: T.title, icon: T.icon, group: 'streyn', mods: [kind], short: kind === 'bugs' ? 'Bug-Forum mit Status-Tags' : 'Vorschläge-Forum mit Status-Tags', desc: T.desc,
+    async render(root) {
+      const c = S.cfg[kind];
+      const forum = chanById(c.channel);
+      const tagOpts = [['', '– kein Tag –'], ...(forum?.tags || []).map((t) => [t.id, `${t.emoji ? `${t.emoji} ` : ''}${t.name}`])];
+      root.append(card('Forum und Tags', 'Wähl den Forum-Kanal und welcher Tag welchen Status bedeutet. Posts mit dem Admin-Tag (z. B. „How to report“) werden ignoriert.',
+        field('Forum-Kanal', chan(c, 'channel', { kinds: ['forum'], empty: 'Kein Forum', onchange: () => rerender() })),
+        forum ? h('div.grid', { style: 'margin-top:4px' },
+          field('Neu', sel(c.tags, 'new', tagOpts)), field('In Arbeit', sel(c.tags, 'dev', tagOpts)),
+          field(`Fertig (${T.done})`, sel(c.tags, 'done', tagOpts)), field('Admin (ignorieren)', sel(c.tags, 'admin', tagOpts))) : null,
+        forum ? h('div.row', { style: 'margin-top:10px' }, h('span.hint', 'Fehlende Tags (new, in development, ' + T.done + ', admin) legt der Bot im Forum an.'), h('span.spacer'),
+          h('button.btn.sm', { type: 'button', onclick: async (e) => {
+            if (dirtyMods().length && !await saveNow()) return;
+            e.target.disabled = true;
+            try {
+              const r = await api(`/api/forums/${kind}/tags`, { method: 'POST', body: {} });
+              S.info = r.info; Object.assign(S.cfg[kind].tags, r.tags); changed(); await saveNow(); rerender(); toast('Tags sind bereit');
+            } catch (er) { toast(er.message, true); } finally { e.target.disabled = false; }
+          } }, 'Tags anlegen und verknüpfen')) : null));
+      root.append(card('Automatisch', null,
+        h('div.grid', toggle(c, 'tagNew', 'Neue Posts bekommen den Tag „new“'), toggle(c, 'replyNew', 'Auf neue Posts antworten'), toggle(c, 'replyStatus', 'Bei Status-Wechsel in den Post schreiben'), toggle(c, 'closeDone', 'Fertige Posts schließen (archivieren)')),
+        h('div.tabs', { style: 'margin-top:14px' }, [['newMessage', 'Antwort auf neuen Post'], ['devMessage', 'In Arbeit'], ['doneMessage', T.doneLabel]].map(([k, l]) => h('button', { type: 'button', class: (S.forumMsg || 'newMessage') === k ? 'on' : '', onclick: () => { S.forumMsg = k; rerender(); } }, l))),
+        messageEditor(c, S.forumMsg || 'newMessage', { vars: ['user', 'user.name', 'title', 'note', 'by', 'server'], compact: true, sample: { title: 'Musik stoppt nach 5 Minuten', note: 'Ab Version 1.3.', by: 'Claude' } })));
+      const listBox = h('div.posts', h('p.muted', 'Lädt …'));
+      const filter = S.forumFilter || (S.forumFilter = 'open');
+      root.append(card('Posts', null,
+        h('div.row', h('div.seg-tabs', [['open', 'Offen'], ['all', 'Alle'], ['done', 'Fertig']].map(([k, l]) => h('button', { type: 'button', class: filter === k ? 'on' : '', onclick: () => { S.forumFilter = k; rerender(); } }, l))), h('span.spacer'),
+          h('button.btn.sm', { type: 'button', onclick: copyForClaude }, icon('copy'), 'Für Claude kopieren')),
+        listBox));
+      let posts = [];
+      async function copyForClaude() {
+        const open = posts.filter((p) => p.status !== 'done');
+        const txt = [`# ${T.title} auf ${S.guild.name} (${open.length} offen)`, '',
+          ...open.map((p) => `## ${p.title}\nStatus: ${STATUS_LABEL[p.status]} · von ${p.author} · ${fmtDate(p.created)}\nLink: ${p.url}\nID: ${p.id}\n\n${p.text || '(kein Text)'}${p.images.length ? `\n\nBilder: ${p.images.join(' ')}` : ''}\n`)].join('\n');
+        try { await navigator.clipboard.writeText(txt); toast('Kopiert'); } catch { toast('Kopieren ging nicht', true); }
+      }
+      if (!c.channel) { listBox.replaceChildren(h('p.muted', 'Wähl oben ein Forum und speichere.')); return; }
+      try {
+        posts = await api(`/api/forums/${kind}/posts`);
+        const shown = posts.filter((p) => (filter === 'all' ? true : filter === 'done' ? p.status === 'done' : p.status !== 'done'));
+        const setSt = async (p, status, btn) => {
+          let note = '';
+          if (status === 'done' && c.replyStatus) { note = prompt('Notiz für den Post (optional, z. B. Version)', '') ?? null; if (note === null) return; }
+          btn.disabled = true;
+          try { await api(`/api/forums/${kind}/posts/${p.id}/status`, { method: 'POST', body: { status, note } }); toast('Status geändert'); rerender(); } catch (e) { toast(e.message, true); btn.disabled = false; }
+        };
+        listBox.replaceChildren(...(shown.length ? shown.map((p) => h('div.post',
+          h('div.row', h('span.badge', { class: p.status === 'done' ? 'on' : p.status === 'dev' ? 'dev' : '' }, STATUS_LABEL[p.status]), h('a', { href: p.url, target: '_blank', rel: 'noopener' }, h('b', p.title)), h('span.spacer'),
+            h('span.muted.small', `${p.author} · ${ago(p.created)}`)),
+          p.text ? h('p', p.text) : null,
+          h('div.row', { style: 'margin-top:8px' }, ...['new', 'dev', 'done'].filter((x) => x !== p.status).map((x) => h('button.btn.sm', { type: 'button', onclick: (e) => setSt(p, x, e.target) },
+            x === 'new' ? 'Auf „new“' : x === 'dev' ? 'In Arbeit' : T.doneLabel))))) : [h('p.muted', 'Keine Posts.')]));
+      } catch (e) { listBox.replaceChildren(h('p.muted', e.message)); }
+      if (S.me.owner) {
+        const k = await api('/api/owner/claude').catch(() => null);
+        if (k) {
+          const keyEl = h('code', { style: 'word-break:break-all' }, k.key);
+          const ex = `curl -s -H "X-AIO-Key: ${k.key}" "${k.url || '<backend>'}/claude/posts?status=new,dev"`;
+          root.append(card('Zugriff für Claude', 'Damit kann Claude die Posts lesen und den Status setzen, z. B. wenn du sagst: „Schau in den Bot und fix die neuesten Bugs.“ Nur du siehst das.',
+            h('div.cmd', { style: 'margin-top:6px' }, keyEl, h('button.btn.sm', { type: 'button', onclick: async () => { try { await navigator.clipboard.writeText(k.key); toast('Kopiert'); } catch { /* ignore */ } } }, 'Kopieren')),
+            h('p.hint', { style: 'margin-top:10px' }, 'Abfragen:'), h('div.cmd', h('code', ex)),
+            h('p.hint', `Status setzen: POST ${k.url || '<backend>'}/claude/posts/<server>/${kind}/<id>/status mit {"status":"dev"} oder {"status":"done","note":"…"}.`),
+            h('div.row', { style: 'margin-top:10px' }, h('button.btn.sm.danger', { type: 'button', onclick: async () => {
+              if (!confirm('Neuen Schlüssel erzeugen? Der alte geht dann nicht mehr.')) return;
+              await tryApi('/api/owner/claude/new', { method: 'POST', body: {} }); toast('Neuer Schlüssel'); rerender();
+            } }, 'Neuen Schlüssel erzeugen'))));
+        }
+      }
+    },
+  });
+}
 
 page({
   id: 'prank', title: 'Prank', icon: 'prank', group: 'Nur für dich', prank: true,
