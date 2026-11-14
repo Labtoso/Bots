@@ -58,6 +58,7 @@ const ICONS = {
   smile: '<circle cx="12" cy="12" r="9"/><path d="M8 14s1.5 2 4 2 4-2 4-2M9 9h.01M15 9h.01"/>',
   server: '<rect x="3" y="4" width="18" height="7" rx="2"/><rect x="3" y="13" width="18" height="7" rx="2"/>',
   edit: '<path d="M12 20h9"/><path d="M16.5 3.5a2.1 2.1 0 1 1 3 3L7 19l-4 1 1-4z"/>',
+  git: '<circle cx="6" cy="6" r="2.5"/><circle cx="6" cy="18" r="2.5"/><circle cx="18" cy="8" r="2.5"/><path d="M6 8.5v7M18 10.5c0 4-4 4.5-9.8 6.3"/>',
   gem: '<path d="M6 3h12l4 6-10 12L2 9z"/><path d="M2 9h20M12 21 8 9l4-6 4 6z"/>',
   ext: '<path d="M15 3h6v6M10 14 21 3M18 13v6a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2V8a2 2 0 0 1 2-2h6"/>',
 };
@@ -1356,6 +1357,85 @@ page({
             const r = await tryApi('/api/social/test', { method: 'POST', body: f });
             result.textContent = r.ok ? (r.live !== null ? (r.live ? `✅ Gefunden, gerade live: ${r.items[0]?.title || ''}` : '✅ Gefunden, gerade nicht live') : `✅ Gefunden. Neuester Eintrag: ${r.items[0]?.title || '(leer)'}`) : `❌ ${r.error}`;
           } }, 'Testen'), result)), upd));
+      },
+    })));
+  },
+});
+
+const GH_EVENTS = [['release', 'Releases'], ['prerelease', 'Pre-Releases'], ['commit', 'Commits'], ['tag', 'Tags'], ['issue', 'Neue Issues'], ['issueClosed', 'Geschlossene Issues'], ['pr', 'Neue Pull Requests'], ['prMerged', 'Gemergte Pull Requests']];
+const GH_MSG = [['release', 'Release'], ['commit', 'Commits'], ['tag', 'Tag'], ['issue', 'Neues Issue'], ['issueClosed', 'Issue geschlossen'], ['pr', 'Neuer PR'], ['prMerged', 'PR gemergt']];
+const GH_BASE_VARS = ['repo', 'repo.url', 'author', 'author.avatar', 'url', 'title'];
+const GH_VARS = {
+  release: ['release.name', 'release.tag', 'release.body', 'release.url', 'prerelease'],
+  commit: ['commits', 'commits.list', 'branch', 'commit.message', 'commit.sha', 'compare.url'],
+  tag: ['tag'], issue: ['number', 'body', 'labels'], issueClosed: ['number', 'labels'], pr: ['number', 'body', 'head', 'base'], prMerged: ['number', 'head', 'base'],
+};
+const GH_SAMPLE = {
+  repo: 'Labtoso/Bots', 'repo.name': 'Bots', 'repo.url': 'https://github.com/Labtoso/Bots', 'repo.avatar': 'https://github.com/Labtoso.png', author: 'Labtoso', 'author.avatar': 'https://github.com/Labtoso.png',
+  'author.url': 'https://github.com/Labtoso', url: 'https://github.com/Labtoso/Bots', title: 'Neues Feature', 'release.name': 'Version 1.2', 'release.tag': 'v1.2', 'release.url': 'https://github.com/Labtoso/Bots/releases',
+  'release.body': '## Neu\n- GitHub-Meldungen\n- Server-Booster\n\n## Behoben\n- Kleinigkeiten', prerelease: '', commits: 2, branch: 'main', 'commit.message': 'GitHub-Modul', 'commit.sha': 'a1b2c3d',
+  'commits.list': '[`a1b2c3d`](https://github.com) GitHub-Modul – Labtoso\n[`e4f5a6b`](https://github.com) README ergänzt – Labtoso', 'compare.url': 'https://github.com/Labtoso/Bots',
+  tag: 'v1.2', number: 42, body: 'Beschreibung des Issues …', labels: ' · bug', head: 'feature', base: 'main',
+};
+
+page({
+  id: 'github', title: 'GitHub', icon: 'git', group: 'Benachrichtigungen', mods: ['github'], short: 'Releases, Commits, Issues und PRs',
+  desc: 'Postet fortlaufend, was in GitHub-Repositorys neu ist: Releases, Commits, Tags, Issues und Pull Requests. Pro Repository und Art einstellbar: Kanal, Ping, Filter und eigene Nachricht.',
+  async render(root) {
+    const g = S.cfg.github;
+    const st = await api('/api/github/status').catch(() => ({ feeds: {}, messages: {}, rate: {} }));
+    const defaults = st.messages || {};
+    const tabs = S.ghTab || (S.ghTab = {});
+    root.append(card(null, st.token ? null : 'Ohne Token erlaubt GitHub 60 Abfragen pro Stunde, unveränderte Antworten zählen nicht. Für viele Repositorys GITHUB_TOKEN in die .env des Bots eintragen.',
+      h('div.grid', field('Prüfen alle', num(g, 'interval', { min: 2, max: 120, suffix: 'Minuten' })),
+        st.rate?.remaining !== null && st.rate?.remaining !== undefined ? field('GitHub-Limit', h('div', { style: 'padding-top:8px' }, `${st.rate.remaining} / ${st.rate.limit}`)) : null)));
+    root.append(card('Repositorys', 'Beim ersten Prüfen merkt sich der Bot, was schon da ist, und postet danach nur Neues.', listEditor(g, 'feeds', {
+      title: (f) => f.repo || 'Neues Repository',
+      sum: (f) => {
+        const x = st.feeds?.[f.id];
+        const kinds = GH_EVENTS.filter(([k]) => f.events?.[k]).map(([, l]) => l).join(', ');
+        return `${kinds || '–'}${chanById(f.channel) ? ` → #${chanById(f.channel).name}` : ''}${x?.error ? ` · ⚠️ ${x.error}` : x?.checkedAt ? ` · geprüft ${ago(x.checkedAt)}` : ''}${f.on === false ? ' · aus' : ''}`;
+      },
+      add: () => ({ id: uid(), repo: '', branch: '', channel: '', role: '', on: true, channels: {}, pings: {}, events: { release: true, prerelease: false, commit: false, tag: false, issue: false, issueClosed: false, pr: false, prMerged: false },
+        include: '', exclude: '', ignoreBots: true, skipMerges: true, maxCommits: 10, bodyLength: 1500, messages: clone(defaults) }),
+      addLabel: 'Repository', max: 50,
+      render: (f, b, upd) => {
+        f.events = f.events || {}; f.channels = f.channels || {}; f.pings = f.pings || {}; f.messages = f.messages || {};
+        const result = h('div.hint');
+        const msgBox = h('div');
+        const drawMsg = () => {
+          const on = GH_MSG.filter(([k]) => f.events[k] || (k === 'release' && f.events.prerelease));
+          if (!on.length) return msgBox.replaceChildren(h('p.muted', 'Schalte oben mindestens eine Art ein.'));
+          let cur = tabs[f.id];
+          if (!on.some(([k]) => k === cur)) cur = tabs[f.id] = on[0][0];
+          if (!f.messages[cur]) f.messages[cur] = clone(defaults[cur] || { content: '', embed: EMPTY_EMBED() });
+          const out = h('div.hint');
+          msgBox.replaceChildren(
+            h('div.tabs', { style: 'margin-top:4px' }, on.map(([k, l]) => h('button', { type: 'button', class: k === cur ? 'on' : '', onclick: () => { tabs[f.id] = k; drawMsg(); } }, l))),
+            h('div.grid', field('Eigener Kanal für diese Art', chan(f.channels, cur, { empty: 'Wie oben' })), field('Eigener Ping für diese Art', role(f.pings, cur, { empty: 'Wie oben', extra: [['everyone', '@everyone']] }))),
+            h('div', { style: 'margin-top:12px' }, messageEditor(f.messages, cur, { vars: [...GH_BASE_VARS, ...GH_VARS[cur]], compact: true, sample: GH_SAMPLE })),
+            h('div.row', { style: 'margin-top:10px' },
+              h('button.btn.sm', { type: 'button', onclick: () => { f.messages[cur] = clone(defaults[cur]); changed(); drawMsg(); } }, 'Standard-Nachricht'),
+              h('button.btn.sm', { type: 'button', onclick: async (e) => {
+                if (!f.channel && !f.channels[cur]) return toast('Bitte einen Kanal wählen', true);
+                e.target.disabled = true; out.textContent = 'Prüfe …';
+                try { const r = await api('/api/github/post', { method: 'POST', body: { feed: f, type: cur } }); out.textContent = `✅ Gesendet: ${r.title}`; } catch (er) { out.textContent = `❌ ${er.message}`; } finally { e.target.disabled = false; }
+              } }, icon('send'), 'Neuestes jetzt posten'), out));
+        };
+        b.append(live(h('div',
+          h('div.grid', { style: 'margin-top:10px' }, field('Repository', text(f, 'repo', { ph: 'besitzer/name oder https://github.com/…' })), field('Branch für Commits', text(f, 'branch', { ph: 'leer = Standard-Branch' })), field('', toggle(f, 'on', 'Aktiv'))),
+          h('div.grid', field('Posten in', chan(f, 'channel')), field('Erwähnen', role(f, 'role', { empty: 'Niemanden', extra: [['everyone', '@everyone']] }))),
+          field('Was gepostet wird', h('div.grid.three', GH_EVENTS.map(([k, l]) => toggle(f.events, k, l, null, drawMsg)))),
+          h('div.grid', field('Nur wenn enthalten (Komma)', text(f, 'include', { ph: 'z. B. fix, feature' })), field('Nie wenn enthalten (Komma)', text(f, 'exclude', { ph: 'z. B. wip, typo' }))),
+          h('div.grid', field('Max. Commits pro Nachricht', num(f, 'maxCommits', { min: 1, max: 25 })), field('Länge der Release-Notizen', num(f, 'bodyLength', { min: 100, max: 4000, suffix: 'Zeichen' }))),
+          h('div.grid', { style: 'margin-top:8px' }, toggle(f, 'ignoreBots', 'Bots ignorieren', 'z. B. dependabot'), toggle(f, 'skipMerges', 'Merge-Commits auslassen')),
+          h('div.row', { style: 'margin-top:10px' }, h('button.btn.sm', { type: 'button', onclick: async () => {
+            result.textContent = 'Prüfe …';
+            const r = await tryApi('/api/github/test', { method: 'POST', body: f });
+            result.textContent = r.ok ? `✅ ${r.repo} · ⭐ ${r.stars} · Branch ${r.branch}${r.release ? ` · neuestes Release ${r.release}` : ''}` : `❌ ${r.error}`;
+          } }, 'Repository prüfen'), result),
+          h('h4', { style: 'margin:18px 0 6px' }, 'Nachrichten'), msgBox), upd));
+        drawMsg();
       },
     })));
   },
