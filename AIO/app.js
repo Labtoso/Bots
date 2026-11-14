@@ -707,6 +707,12 @@ function rerender() {
   if (mod && typeof S.cfg[mod]?.enabled === 'boolean' && p.toggle !== false) end.append(toggle(S.cfg[mod], 'enabled', 'Aktiv', null, () => renderNav()));
   head.append(end);
   root.append(head);
+  const missing = (p.mods || []).filter((m) => !S.cfg[m]);
+  if (missing.length) {
+    // the panel is newer than the bot: the module only exists after the bot's next update
+    root.append(h('div.notice', 'Dieses Modul kennt dein Bot noch nicht. Er aktualisiert sich alle 15 Minuten von selbst, danach Seite neu laden. Schneller geht es mit einem Neustart des Bots.'));
+    return;
+  }
   Promise.resolve(p.render(root, end)).catch((e) => root.append(h('div.notice', e.message)));
 }
 $('menuBtn').onclick = () => { closeSettings(); document.body.classList.toggle('nav-open'); };
