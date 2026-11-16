@@ -335,3 +335,29 @@ test('bot profile only on this server', async () => {
   assert.equal(client.rest.calls.length, n + 1);
   assert.equal((await call('/api/guild/profile')).data.bio, 'Nur hier');
 });
+
+test('/role gives a role to one member, to everyone and stops on bad roles', async () => {
+  const { default: rolecmd, roleProblem } = await import('../src/modules/rolecmd.js');
+  const g = client.guilds.cache.get('900');
+  const role = (id) => g.roles.cache.get(id);
+  const replies = [];
+  const interaction = (sub, target, roleId) => ({
+    guild: g, user: { id: '1', username: 'sebastian' }, member: g.members.cache.get('1'), channel: null,
+    options: { getSubcommand: () => sub, getRole: () => role(roleId), getMentionable: () => target, getBoolean: () => null },
+    reply: async (x) => { replies.push(x.content); }, deferReply: async () => {}, editReply: async (x) => { replies.push(x.content); },
+  });
+  const ctx = { log: { info() {}, warn() {} } };
+  assert.match(roleProblem(g, role('34'), null), /Integration/);
+  assert.match(roleProblem(g, role('35'), null), /höchsten Rolle des Bots/);
+  for (const m of g.members.cache.values()) m.roles.cache.delete('32');
+  await rolecmd.command(interaction('give', g.members.cache.get('2'), '32'), ctx);
+  assert.ok(g.members.cache.get('2').roles.cache.has('32'));
+  assert.ok(!g.members.cache.get('1').roles.cache.has('32'));
+  await rolecmd.command(interaction('give', role('900'), '32'), ctx);
+  assert.ok([...g.members.cache.values()].every((m) => m.roles.cache.has('32')));
+  assert.match(replies.at(-1), /Fertig.*\n.*1\/1/);
+  await rolecmd.command(interaction('remove', role('900'), '32'), ctx);
+  assert.ok([...g.members.cache.values()].every((m) => !m.roles.cache.has('32')));
+  await rolecmd.command(interaction('give', role('900'), '35'), ctx);
+  assert.match(replies.at(-1), /höchsten Rolle des Bots/);
+});

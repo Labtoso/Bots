@@ -16,5 +16,6 @@ import boost from './boost.js';
 import github from './github.js';
 import joinroles from './joinroles.js';
 import forums from './forums.js';
+import rolecmd from './rolecmd.js';
 
-export const modules = [moderation, automod, logs, welcome, levels, reactionroles, customcmds, minecraft, social, timers, birthdays, tickets, giveaways, extras, boost, github, joinroles, forums];
+export const modules = [moderation, automod, logs, welcome, levels, reactionroles, customcmds, minecraft, social, timers, birthdays, tickets, giveaways, extras, boost, github, joinroles, forums, rolecmd];
