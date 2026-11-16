@@ -11,7 +11,7 @@ All-in-one Discord bot with a web panel at <https://bot.labtoso.de/AIO/>. The on
 | Logs | deleted/edited messages, joins, leaves, bans, roles, nicknames, timeouts, channels, roles, voice, invites; one channel per category |
 | Welcome | welcome and goodbye messages, DM, auto roles for members and bots |
 | Join roles | role rules for humans/bots with delay, minimum account age, after rule screening, temporary roles; give old roles back on rejoin |
-| Role command | `/role give|remove target role`: one member, all members of a role or `@everyone`, with live progress and `/role stop`; needs "Manage Roles" |
+| Role command | `/role give` / `/role remove`: one member, all members of a role or `@everyone`, with live progress and `/role stop`; needs "Manage Roles" |
 | Level & XP | XP for messages and voice, level-up message, level roles, XP bonus roles, `/rank`, `/leaderboard`, `/xp` |
 | Reaction roles | reactions, buttons or select menu; toggle, unique, add only, remove only |
 | Custom commands | slash commands, prefix commands and auto replies with text or embed, roles, cooldowns, random answers |
