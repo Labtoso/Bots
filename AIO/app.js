@@ -1521,7 +1521,7 @@ page({
               } }, icon('send'), 'Neuestes jetzt posten'), out));
         };
         b.append(live(h('div',
-          h('div.grid', { style: 'margin-top:10px' }, field('Repository', text(f, 'repo', { ph: 'besitzer/name oder https://github.com/…' })), field('Branch für Commits', text(f, 'branch', { ph: 'leer = Standard-Branch' })), field('', toggle(f, 'on', 'Aktiv'))),
+          h('div.grid', { style: 'margin-top:10px' }, field('Repository', text(f, 'repo', { ph: 'besitzer/name oder https://github.com/…' })), field('Branch für Commits', text(f, 'branch', { ph: 'leer = Standard-Branch oder Branch aus dem Link' })), field('', toggle(f, 'on', 'Aktiv'))),
           h('div.grid', field('Posten in', chan(f, 'channel')), field('Erwähnen', role(f, 'role', { empty: 'Niemanden', extra: [['everyone', '@everyone']] }))),
           field('Was gepostet wird', h('div.grid.three', GH_EVENTS.map(([k, l]) => toggle(f.events, k, l, null, drawMsg)))),
           h('div.grid', field('Nur wenn enthalten (Komma)', text(f, 'include', { ph: 'z. B. fix, feature' })), field('Nie wenn enthalten (Komma)', text(f, 'exclude', { ph: 'z. B. wip, typo' }))),

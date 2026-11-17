@@ -260,6 +260,9 @@
       'Repository nicht gefunden (privat oder falsch geschrieben?)': 'Repository not found (private or misspelled?)',
       'GitHub-Limit erreicht, später geht es weiter (mit GITHUB_TOKEN in der .env viel mehr)': 'GitHub limit reached, it continues later (much more with GITHUB_TOKEN in the .env)',
       'Bitte das Repository als besitzer/name oder als GitHub-Link eintragen.': 'Please enter the repository as owner/name or as a GitHub link.',
+      'GITHUB_TOKEN in der .env ist ungültig oder abgelaufen': 'GITHUB_TOKEN in the .env is invalid or expired',
+      'GitHub verweigert den Zugriff (privates Repository? Dann GITHUB_TOKEN mit Leserecht in die .env)': 'GitHub denies access (private repository? Then put a GITHUB_TOKEN with read access in the .env)',
+      'leer = Standard-Branch oder Branch aus dem Link': 'empty = default branch or the branch from the link',
       'Kanal fehlt oder der Bot darf dort nicht schreiben.': 'Channel missing or the bot may not write there.',
 
       /* starboard, minecraft */
@@ -441,6 +444,9 @@
       [/^Fertig \((.+)\)$/, 'Done ($1)'], [/^Fehlende Tags \(new, in development, (\w+), admin\) legt der Bot im Forum an\.$/, 'The bot creates missing tags (new, in development, $1, admin) in the forum.'],
       [/^Status setzen: POST (.+) mit (.+) oder (.+)\.$/, 'Set the status: POST $1 with $2 or $3.'],
       [/^hat „(.+)“ auf (new|dev|done) gesetzt$/, 'set “$1” to $2'], [/^hat das Bot-Profil auf diesem Server geändert$/, 'changed the bot profile on this server'], [/^❌ (.+)$/, (a) => `❌ ${T(a)}`],
+      [/^GitHub-Limit erreicht, ab (.+) geht es weiter \(mit GITHUB_TOKEN in der \.env viel mehr\)$/, 'GitHub limit reached, it continues at $1 (much more with GITHUB_TOKEN in the .env)'],
+      [/^GitHub nicht erreichbar \((.+)\)$/, 'GitHub not reachable ($1)'],
+      [/^Branch "(.+)" gibt es in (.+) nicht$/, 'Branch "$1" does not exist in $2'],
       [/^✅ (.+) · ⭐ (\d+) · Branch (.+?)( · neuestes Release (.+))?$/, (r, n, b, x, v) => `✅ ${r} · ⭐ ${n} · branch ${b}${x ? ` · latest release ${v}` : ''}`],
       [/^hat eine GitHub-Meldung gesendet$/, 'sent a GitHub post'],
       [/^noch (\d+) h (\d+) min$/, '$1 h $2 min left'], [/^noch (\d+) min$/, '$1 min left'], [/^Ausgewählt: (.+)$/, 'Selected: $1'], [/^(.+) gestoppt$/, '$1 stopped'],
