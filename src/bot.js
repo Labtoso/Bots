@@ -29,7 +29,7 @@ export function createBot(opts = {}) {
     client: () => client, log,
     load: () => doc('pranks', () => ({ list: [] })),
     save: (d) => replace('pranks', d),
-    hasContent: () => !missingIntents.length,
+    hasContent: () => !missingIntents.includes('Message Content Intent'),
   });
 
   const ctx = {
@@ -197,7 +197,6 @@ export function createBot(opts = {}) {
       for (const g of ready.guilds.cache.values()) await registerGuild(g.id);
       // Administrator, so every module works without fiddling with single permissions
       log.info(`Einladen: https://discord.com/oauth2/authorize?client_id=${ready.user.id}&scope=bot+applications.commands&permissions=8`);
-      if (missingIntents.length) log.warn(`Es fehlen Intents: ${missingIntents.join(', ')}. Developer Portal → Bot → Privileged Gateway Intents einschalten.`);
       applyPresence();
       for (const m of modules) m.ready?.(ctx);
       pranks.resume();
@@ -239,19 +238,46 @@ export function createBot(opts = {}) {
     return c;
   }
 
+  const INTENT_NAME = { [GatewayIntentBits.GuildMembers]: 'Server Members Intent', [GatewayIntentBits.MessageContent]: 'Message Content Intent' };
+  // application flags: the intent is on (full or "limited" for bots in fewer than 100 servers)
+  const INTENT_FLAG = { [GatewayIntentBits.GuildMembers]: (1 << 14) | (1 << 15), [GatewayIntentBits.MessageContent]: (1 << 18) | (1 << 19) };
+
+  /** Logs in with every privileged intent that is switched on; tries the others one by one if Discord refuses. */
   async function start() {
-    client = makeClient([...BASE, ...PRIVILEGED]);
-    try {
-      await client.login(config.token);
-    } catch (err) {
-      if (err.code === 'TokenInvalid') throw new Error('Token ungültig. Im Developer Portal unter Bot einen neuen Token holen (Reset Token) und neu installieren.');
-      if (!/disallowed intents/i.test(err.message)) throw err;
-      missingIntents.push('Server Members Intent', 'Message Content Intent');
-      log.warn('Privileged Intents sind aus. Willkommen, Logs, Auto-Mod und Textbefehle gehen erst, wenn du sie im Developer Portal einschaltest.');
-      client.destroy();
-      client = makeClient(BASE);
-      await client.login(config.token);
+    const tries = [PRIVILEGED, [GatewayIntentBits.GuildMembers], [GatewayIntentBits.MessageContent], []];
+    for (const extra of tries) {
+      client = makeClient([...BASE, ...extra]);
+      try {
+        await client.login(config.token);
+        missingIntents.splice(0, missingIntents.length, ...PRIVILEGED.filter((x) => !extra.includes(x)).map((x) => INTENT_NAME[x]));
+        if (missingIntents.length) {
+          log.warn(`Es fehlen Intents: ${missingIntents.join(', ')}. Manche Funktionen (Willkommen, Logs, Auto-Mod, /role für alle, Textbefehle) gehen erst, wenn du sie im Developer Portal einschaltest. Der Bot merkt das selbst und startet dann neu.`);
+          watchIntents(extra);
+        }
+        return;
+      } catch (err) {
+        if (err.code === 'TokenInvalid') throw new Error('Token ungültig. Im Developer Portal unter Bot einen neuen Token holen (Reset Token) und neu installieren.');
+        if (!/disallowed intents/i.test(err.message)) throw err;
+        client.destroy();
+      }
     }
+  }
+
+  /** While intents are missing: checks every 2 minutes whether they were switched on and then restarts the bot to get them. */
+  function watchIntents(have) {
+    const timer = setInterval(async () => {
+      try {
+        const app = await client.rest.get('/applications/@me');
+        const flags = Number(app?.flags) || 0;
+        const now = PRIVILEGED.filter((x) => flags & INTENT_FLAG[x]);
+        if (now.some((x) => !have.includes(x))) {
+          clearInterval(timer);
+          log.info(`Intents im Developer Portal eingeschaltet (${now.map((x) => INTENT_NAME[x]).join(', ')}), Bot startet neu ...`);
+          setTimeout(() => process.exit(0), 500); // systemd / start.bat start it again
+        }
+      } catch { /* try again next time */ }
+    }, 120_000);
+    timer.unref?.();
   }
 
   return {

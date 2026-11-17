@@ -82,6 +82,7 @@ async function command(i, ctx) {
   }
 
   // everyone or the members of a role
+  if (ctx.missingIntents?.includes('Server Members Intent')) return i.reply({ content: 'Für viele Mitglieder auf einmal braucht der Bot den „Server Members Intent“: Developer Portal → dein Bot → Bot → Privileged Gateway Intents → Server Members Intent an und speichern. Der Bot merkt das in 2 Minuten selbst und startet neu.', flags: MessageFlags.Ephemeral });
   if (jobs.has(g.id)) return i.reply({ content: 'Es läuft schon ein Rollen-Auftrag. Mit /role stop beenden.', flags: MessageFlags.Ephemeral });
   const job = { stop: false, done: 0, total: 0, by: i.user.id };
   jobs.set(g.id, job);

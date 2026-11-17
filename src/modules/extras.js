@@ -124,7 +124,7 @@ function ready(ctx) {
   // members once, so humans/bots can be counted
   (async () => {
     for (const g of ctx.client.guilds.cache.values()) {
-      if (ctx.cfg(g.id).counters.enabled && !ctx.missingIntents.length) await g.members.fetch().catch(() => {});
+      if (ctx.cfg(g.id).counters.enabled && !ctx.missingIntents.includes('Server Members Intent')) await g.members.fetch().catch(() => {});
     }
   })();
   const run = async () => { for (const g of ctx.client.guilds.cache.values()) await updateCounters(ctx, g).catch(() => {}); };

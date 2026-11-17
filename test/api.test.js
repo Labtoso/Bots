@@ -360,6 +360,8 @@ test('/role gives a role to one member, to everyone and stops on bad roles', asy
   assert.ok([...g.members.cache.values()].every((m) => !m.roles.cache.has('32')));
   await rolecmd.command(interaction('give', role('900'), '35'), ctx);
   assert.match(replies.at(-1), /höchsten Rolle des Bots/);
+  await rolecmd.command(interaction('give', role('900'), '32'), { ...ctx, missingIntents: ['Server Members Intent'] });
+  assert.match(replies.at(-1), /Server Members Intent/);
 });
 
 test('github: repository links in every usual form', async () => {
