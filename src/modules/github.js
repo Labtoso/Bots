@@ -28,9 +28,16 @@ const lastRun = new Map();
 const cache = new Map(); // url -> { etag, data }
 export const rate = { remaining: null, limit: null, reset: null };
 
+/** "owner/name" from "owner/name", a GitHub link (also without https, with www, /tree/<branch>, .git) or git@github.com:owner/name. */
 export function parseRepo(s) {
-  const m = String(s || '').trim().replace(/\.git$/, '').match(/^(?:https?:\/\/github\.com\/)?([\w.-]+)\/([\w.-]+)/i);
-  return m ? `${m[1]}/${m[2]}` : null;
+  return parseRepoLink(s)?.repo || null;
+}
+
+export function parseRepoLink(s) {
+  const t = String(s || '').trim().replace(/^git@github\.com:/i, '').replace(/^(?:https?:\/\/)?(?:www\.)?github\.com\//i, '');
+  const m = t.match(/^([\w.-]+)\/([\w.-]+?)(?:\.git)?(?:\/tree\/([^?#]+))?(?:[/?#].*)?$/i);
+  if (!m || /^(?:https?:|www\.|github\.com)/i.test(m[1])) return null;
+  return { repo: `${m[1]}/${m[2]}`, branch: m[3] ? decodeURIComponent(m[3].replace(/\/+$/, '')) : '' };
 }
 
 async function gh(path) {
@@ -39,7 +46,10 @@ async function gh(path) {
   const headers = { Accept: 'application/vnd.github+json', 'User-Agent': 'aio-discord-bot', 'X-GitHub-Api-Version': '2022-11-28' };
   if (config.githubToken) headers.Authorization = `Bearer ${config.githubToken}`;
   if (c?.etag) headers['If-None-Match'] = c.etag;
-  const res = await fetch(url, { headers, signal: AbortSignal.timeout(15_000) });
+  let res;
+  try { res = await fetch(url, { headers, signal: AbortSignal.timeout(15_000) }); } catch (e) {
+    throw new Error(`GitHub nicht erreichbar (${e.cause?.code || e.name || e.message})`);
+  }
   if (res.headers.get('x-ratelimit-remaining') !== null) {
     rate.remaining = Number(res.headers.get('x-ratelimit-remaining'));
     rate.limit = Number(res.headers.get('x-ratelimit-limit'));
@@ -47,7 +57,12 @@ async function gh(path) {
   }
   if (res.status === 304 && c) return c.data;
   if (res.status === 404) throw new Error('Repository nicht gefunden (privat oder falsch geschrieben?)');
-  if (res.status === 403 || res.status === 429) throw new Error('GitHub-Limit erreicht, später geht es weiter (mit GITHUB_TOKEN in der .env viel mehr)');
+  if (res.status === 401) throw new Error('GITHUB_TOKEN in der .env ist ungültig oder abgelaufen');
+  if (res.status === 429 || (res.status === 403 && rate.remaining === 0)) {
+    const at = rate.reset ? new Date(rate.reset).toLocaleTimeString('de-DE', { hour: '2-digit', minute: '2-digit' }) : '';
+    throw new Error(`GitHub-Limit erreicht, ab ${at || 'später'} geht es weiter (mit GITHUB_TOKEN in der .env viel mehr)`);
+  }
+  if (res.status === 403) throw new Error('GitHub verweigert den Zugriff (privates Repository? Dann GITHUB_TOKEN mit Leserecht in die .env)');
   if (!res.ok) throw new Error(`GitHub: HTTP ${res.status}`);
   const data = await res.json();
   cache.set(url, { etag: res.headers.get('etag'), data });
@@ -61,8 +76,9 @@ const isBot = (u, name = '') => u?.type === 'Bot' || /\[bot\]$/i.test(u?.login |
 
 /** Everything new in one repository, as { type, key, vars, text } (oldest first). */
 export async function fetchRepo(f) {
-  const repo = parseRepo(f.repo);
-  if (!repo) throw new Error('Bitte das Repository als besitzer/name oder als GitHub-Link eintragen.');
+  const link = parseRepoLink(f.repo);
+  if (!link) throw new Error('Bitte das Repository als besitzer/name oder als GitHub-Link eintragen.');
+  const { repo } = link;
   const info = await gh(`/repos/${repo}`);
   const base = {
     repo: info.full_name, 'repo.name': info.name, 'repo.owner': info.owner?.login || '', 'repo.url': info.html_url,
@@ -70,7 +86,7 @@ export async function fetchRepo(f) {
   };
   const ev = f.events || {};
   const items = [];
-  const branch = f.branch || info.default_branch;
+  const branch = String(f.branch || '').trim() || link.branch || info.default_branch;
   if (ev.release || ev.prerelease) {
     for (const r of await gh(`/repos/${repo}/releases?per_page=10`)) {
       if (r.draft || (r.prerelease ? !ev.prerelease : !ev.release)) continue;
@@ -81,7 +97,9 @@ export async function fetchRepo(f) {
     }
   }
   if (ev.commit) {
-    const list = await gh(`/repos/${repo}/commits?sha=${encodeURIComponent(branch)}&per_page=20`);
+    const list = await gh(`/repos/${repo}/commits?sha=${encodeURIComponent(branch)}&per_page=20`).catch((e) => {
+      throw /nicht gefunden/.test(e.message) ? new Error(`Branch "${branch}" gibt es in ${info.full_name} nicht`) : e;
+    });
     for (const c of list) {
       const msg = c.commit?.message || '';
       items.push({ type: 'commit', key: `c${c.sha}`, at: c.commit?.committer?.date, bot: isBot(c.author, c.commit?.author?.name), text: msg, vars: {
@@ -164,7 +182,7 @@ export async function checkGuild(ctx, guildId) {
   for (const f of cfg.feeds) {
     if (!f.repo || f.on === false || (!f.channel && !Object.values(f.channels || {}).some(Boolean))) continue;
     const st = s.feeds[f.id] || (s.feeds[f.id] = { seen: [], init: false });
-    const sig = `${parseRepo(f.repo)}|${f.branch || ''}|${EVENTS.filter((e) => f.events?.[e]).join(',')}|${f.events?.prerelease ? 'pre' : ''}`;
+    const sig = `${parseRepo(f.repo)}|${f.branch || parseRepoLink(f.repo)?.branch || ''}|${EVENTS.filter((e) => f.events?.[e]).join(',')}|${f.events?.prerelease ? 'pre' : ''}`;
     if (st.sig !== sig) Object.assign(st, { seen: [], init: false, sig });
     try {
       const r = await fetchRepo(f);

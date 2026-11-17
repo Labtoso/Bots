@@ -361,3 +361,12 @@ test('/role gives a role to one member, to everyone and stops on bad roles', asy
   await rolecmd.command(interaction('give', role('900'), '35'), ctx);
   assert.match(replies.at(-1), /höchsten Rolle des Bots/);
 });
+
+test('github: repository links in every usual form', async () => {
+  const { parseRepoLink } = await import('../src/modules/github.js');
+  for (const s of ['Labtoso/Bots', 'https://github.com/Labtoso/Bots', 'github.com/Labtoso/Bots', 'www.github.com/Labtoso/Bots.git', 'git@github.com:Labtoso/Bots.git', 'https://github.com/Labtoso/Bots/releases']) {
+    assert.deepEqual(parseRepoLink(s), { repo: 'Labtoso/Bots', branch: '' }, s);
+  }
+  assert.deepEqual(parseRepoLink('https://github.com/Labtoso/Bots/tree/AIO'), { repo: 'Labtoso/Bots', branch: 'AIO' });
+  assert.equal(parseRepoLink('Labtoso'), null);
+});
