@@ -1602,6 +1602,16 @@ function renderNav() {
     const h4 = document.createElement('h4'); h4.textContent = L('Nur für dich', 'Only for you');
     nav.append(h4, ...own.map(btn));
   }
+  nav.append(legalLink('nav-legal'));
+}
+function legalLink(cls) {
+  const a = document.createElement('a');
+  a.className = `legal-link ${cls}`;
+  a.href = 'https://labtoso.de/impressum';
+  a.target = '_blank';
+  a.rel = 'noopener noreferrer';
+  a.textContent = 'Impressum';
+  return a;
 }
 function showView(id) {
   view = id;

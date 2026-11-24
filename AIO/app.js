@@ -699,6 +699,10 @@ function renderNav() {
     const on = mod && S.cfg?.[mod] && typeof S.cfg[mod].enabled === 'boolean' ? S.cfg[mod].enabled : null;
     nav.append(h('button', { class: S.page === p.id ? 'on' : '', onclick: () => go(p.id) }, icon(p.icon), h('span', p.title), on !== null ? h('span.state', { class: on ? 'on' : '', title: on ? 'An' : 'Aus' }) : null));
   }
+  nav.append(legalLink());
+}
+function legalLink() {
+  return h('a.legal-link.nav-legal', { href: 'https://labtoso.de/impressum', target: '_blank', rel: 'noopener noreferrer' }, 'Impressum');
 }
 async function go(id) {
   let p = PAGES.find((x) => x.id === id) || PAGES[0];
@@ -746,6 +750,7 @@ function renderGateNav() {
     h('button', { onclick: () => { close(); $('backendInput').focus(); $('gate').scrollIntoView({ behavior: 'smooth' }); } }, icon('server'), h('span', 'Backends')),
     h('button', { onclick: () => { close(); openGuideStandalone(); } }, icon('help'), h('span', 'Anleitung & Installation')),
     h('button', { onclick: () => { location.href = '../'; } }, icon('home'), h('span', 'Alle Bots')),
+    legalLink(),
   );
 }
 

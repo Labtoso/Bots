@@ -406,3 +406,9 @@ img.yt43 { transform: scale(1.34); }
 /* every clickable thing gets the hand cursor */
 button, a[href], select, summary, label:has(input[type=checkbox]), label:has(input[type=radio]), input[type=checkbox], input[type=radio], input[type=range], input[type=color], input[type=file], .switch, [role=button], [onclick] { cursor: pointer; }
 button:disabled, select:disabled, input:disabled { cursor: not-allowed; }
+
+/* legal link (Impressum): settings footer, side menu, gate */
+.legal-link { color: var(--muted); text-decoration: none; cursor: pointer; }
+.legal-link:hover { color: var(--text); text-decoration: underline; }
+.snav .nav-legal { display: block; margin: 14px 10px 4px; font-size: 12px; }
+.gate-legal { margin-top: 18px; }

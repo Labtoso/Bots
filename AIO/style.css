@@ -282,3 +282,9 @@ textarea.code { font-family: ui-monospace, SFMono-Regular, Menlo, Consolas, mono
 .posts .post:last-child { border-bottom: 0; }
 .posts .post p { margin: 6px 0 0; color: var(--muted); font-size: 13px; white-space: pre-wrap; max-height: 4.5em; overflow: hidden; }
 .badge.dev { color: #93c5fd; border-color: rgba(59, 130, 246, .35); background: rgba(59, 130, 246, .08); }
+
+/* legal link (Impressum): gear menu, side menu, gate */
+.legal-link { color: var(--muted); text-decoration: none; cursor: pointer; font-size: 12.5px; }
+.legal-link:hover { color: var(--text); text-decoration: underline; }
+.pop-legal { margin-top: 14px; padding-top: 10px; border-top: 1px solid var(--line); }
+nav.side .nav-legal { display: block; margin: 14px 10px 4px; }
